@@ -1,0 +1,21 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.next/
+out/
+dist/
+build/
+.turbo/
+.mastra/
+coverage/
+*.log
+.DS_Store
+data/*.duckdb
+playwright-report/
+test-results/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
