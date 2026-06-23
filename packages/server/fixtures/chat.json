@@ -18,14 +18,15 @@
     },
 
     {
-      "match": { "userMessage": "How do I use Mastra memory?", "sequenceIndex": 0 },
+      "_comment": "Reasoning + single-tool search, then a grounded answer. turnIndex (stateless, request-based) rather than sequenceIndex: the shared per-process counter is unreliable for the tool→answer hop under the streaming route + long-lived server. turn 0 = the tool call, turn 1 = the answer.",
+      "match": { "userMessage": "How do I use Mastra memory?", "turnIndex": 0 },
       "response": {
         "reasoning": "This is a how-to question, so I'll search the knowledge base first.",
         "toolCalls": [{ "name": "searchKnowledge", "arguments": { "query": "Mastra memory" } }]
       }
     },
     {
-      "match": { "userMessage": "How do I use Mastra memory?", "sequenceIndex": 1 },
+      "match": { "userMessage": "How do I use Mastra memory?", "turnIndex": 1 },
       "response": {
         "content": "Based on the docs (\"Overview: Mastra memory\"), Mastra memory supports threads, working memory, and semantic recall."
       }
