@@ -1,0 +1,9 @@
+services:
+  mastra:
+    build:
+      target: build
+    command: ["npx", "mastra", "dev"]
+    volumes:
+      - ./src:/app/src:ro
+    environment:
+      - NODE_ENV=development

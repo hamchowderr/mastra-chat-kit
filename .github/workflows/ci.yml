@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Tier 1–3.5 only: deterministic, AIMock-backed, zero API spend, no secrets.
+# Real-provider (Tier 4) tests are intentionally NOT run in CI.
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (biome)
+        run: pnpm lint
+
+      - name: Server tests (Tier 1 — Vitest + AIMock, in-memory store)
+        run: pnpm --filter @mastra-chat-kit/server test
+
+      - name: Web component tests (jsdom + RTL, all 48 elements)
+        run: pnpm --filter @mastra-chat-kit/web test
+
+      - name: Web production build
+        run: pnpm --filter @mastra-chat-kit/web build

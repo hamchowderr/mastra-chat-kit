@@ -1,0 +1,10 @@
+# Local-only overrides. Docker Compose auto-merges this file on `docker compose up`
+# for LOCAL development, publishing the mastra service on host port 4111.
+#
+# Coolify does NOT use this file — it deploys with an explicit
+# `-f docker-compose.yml`, so the host-port bind never happens in production
+# (Traefik routes the public domain to the internally-exposed 4111 instead).
+services:
+  mastra:
+    ports:
+      - "4111:4111"

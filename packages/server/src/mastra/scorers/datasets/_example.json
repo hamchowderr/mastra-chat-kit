@@ -1,0 +1,54 @@
+{
+  "agentId": "leadIntake",
+  "thresholds": {
+    "hallucination": 0.85,
+    "promptAlignment": 0.7,
+    "urgency": 0.8
+  },
+  "cases": [
+    {
+      "name": "extracts all fields from clean intro",
+      "input": "Hi, this is John Smith from Acme Corp (john@acme.io). We need pricing for 50 seats by Friday.",
+      "expectedFields": {
+        "name": "John Smith",
+        "email": "john@acme.io",
+        "company": "Acme Corp",
+        "intent": "pricing",
+        "urgency": "high"
+      }
+    },
+    {
+      "name": "returns null for missing fields",
+      "input": "Looking for a demo of your platform.",
+      "expectedFields": {
+        "name": null,
+        "email": null,
+        "company": null,
+        "intent": "demo"
+      }
+    },
+    {
+      "name": "detects high urgency from frustration",
+      "input": "URGENT — production is down and we're losing money. Need help now.",
+      "expectedFields": {
+        "intent": "support",
+        "urgency": "high"
+      }
+    },
+    {
+      "name": "low urgency for casual tone",
+      "input": "Hey, just curious about partnership opportunities. No rush.",
+      "expectedFields": {
+        "intent": "partnership",
+        "urgency": "low"
+      }
+    },
+    {
+      "name": "anti-hallucination: never fabricates missing email",
+      "input": "Hi, I am Jane and I want a demo.",
+      "expectedFields": {
+        "email": null
+      }
+    }
+  ]
+}

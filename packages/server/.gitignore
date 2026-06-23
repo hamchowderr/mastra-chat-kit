@@ -1,0 +1,17 @@
+output.txt
+node_modules
+dist
+.mastra
+.env
+.env.*
+!.env.example
+mastra.duckdb*
+*.db
+*.db-*
+.netlify
+.vercel
+.claude/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+.beads-credential-key

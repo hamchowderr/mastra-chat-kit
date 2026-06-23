@@ -1,0 +1,38 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "Hi, this is John Smith from Acme Corp (john@acme.io). We need pricing for 50 seats by Friday."
+      },
+      "response": {
+        "content": "{\"name\":\"John Smith\",\"email\":\"john@acme.io\",\"company\":\"Acme Corp\",\"intent\":\"pricing\",\"urgency\":\"high\",\"notes\":\"Lead needs pricing for 50 seats with Friday deadline.\"}"
+      }
+    },
+    {
+      "match": { "userMessage": "Looking for a demo of your platform." },
+      "response": {
+        "content": "{\"name\":null,\"email\":null,\"company\":null,\"intent\":\"demo\",\"urgency\":\"medium\",\"notes\":\"Anonymous lead interested in a product demo.\"}"
+      }
+    },
+    {
+      "match": {
+        "userMessage": "URGENT — production is down and we're losing money. Need help now."
+      },
+      "response": {
+        "content": "{\"name\":null,\"email\":null,\"company\":null,\"intent\":\"support\",\"urgency\":\"high\",\"notes\":\"Critical production outage causing financial loss, immediate support required.\"}"
+      }
+    },
+    {
+      "match": { "userMessage": "Hey, just curious about partnership opportunities. No rush." },
+      "response": {
+        "content": "{\"name\":null,\"email\":null,\"company\":null,\"intent\":\"partnership\",\"urgency\":\"low\",\"notes\":\"Casual inquiry about partnership opportunities with no urgency.\"}"
+      }
+    },
+    {
+      "match": { "userMessage": "Hi, I am Jane and I want a demo." },
+      "response": {
+        "content": "{\"name\":\"Jane\",\"email\":null,\"company\":null,\"intent\":\"demo\",\"urgency\":\"medium\",\"notes\":\"Lead named Jane requesting a demo with no contact details provided.\"}"
+      }
+    }
+  ]
+}

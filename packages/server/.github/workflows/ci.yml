@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+
+  build:
+    runs-on: ubuntu-latest
+    needs: typecheck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Mastra build
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          MASTRA_TELEMETRY_DISABLED: '1'
+          APP_SECRET: ${{ secrets.CI_APP_SECRET }}
+          SUPABASE_URL: https://stub.supabase.co
+          SUPABASE_ANON_KEY: stub
+          SUPABASE_SERVICE_ROLE_KEY: stub
+          SUPABASE_DB_URL: postgres://stub:stub@localhost:5432/stub
+          ANTHROPIC_API_KEY: stub
+
+  eval:
+    runs-on: ubuntu-latest
+    needs: typecheck
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: mastra
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Start AIMock
+        run: |
+          docker run -d --name aimock \
+            -p 4010:4010 \
+            -v ${{ github.workspace }}/fixtures:/fixtures \
+            ghcr.io/copilotkit/aimock -h 0.0.0.0 -f /fixtures
+          echo "Waiting for AIMock on port 4010..."
+          for i in $(seq 1 30); do
+            curl -s http://127.0.0.1:4010/ > /dev/null 2>&1 && echo "AIMock ready" && exit 0
+            sleep 1
+          done
+          echo "=== AIMock logs ===" && docker logs aimock
+          echo "AIMock failed to start" && exit 1
+      - name: Create empty .env for CI
+        run: touch .env
+      - name: Run eval gate
+        run: npm run eval
+        env:
+          USE_AIMOCK: 'true'
+          AIMOCK_URL: http://127.0.0.1:4010
+          OPENAI_BASE_URL: http://127.0.0.1:4010/v1
+          MASTRA_TELEMETRY_DISABLED: '1'
+          APP_SECRET: ${{ secrets.CI_APP_SECRET }}
+          SUPABASE_URL: https://stub.supabase.co
+          SUPABASE_ANON_KEY: stub
+          SUPABASE_SERVICE_ROLE_KEY: stub
+          SUPABASE_DB_URL: postgres://postgres:postgres@localhost:5432/mastra
+          ANTHROPIC_API_KEY: stub
+          OPENAI_API_KEY: stub
+          GOOGLE_GENERATIVE_AI_API_KEY: stub
+          NODE_ENV: test
+          LOG_LEVEL: warn
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: mastra:ci-${{ github.sha }}
