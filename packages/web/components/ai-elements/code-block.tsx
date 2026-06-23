@@ -393,6 +393,16 @@ export const CodeBlockContent = ({
   const [asyncTokens, setAsyncTokens] = useState<TokenizedCode | null>(null);
   const asyncKeyRef = useRef({ code, language });
 
+  // Gate highlighting on mount. The token cache (`tokensCache`) is module-level
+  // and lives for the whole Node process, so once the server has highlighted a
+  // block, later SSR renders emit COLORED tokens — while every fresh client
+  // starts with a cold cache and its first (hydration) render emits the plain
+  // `rawTokens`. That divergence is a React hydration mismatch. Forcing the
+  // first render (SSR + client hydration) to always be `rawTokens` makes the two
+  // identical regardless of cache state; Shiki is applied only after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Invalidate stale async tokens synchronously during render
   if (
     asyncKeyRef.current.code !== code ||
@@ -416,7 +426,7 @@ export const CodeBlockContent = ({
     };
   }, [code, language]);
 
-  const tokenized = asyncTokens ?? syncTokens;
+  const tokenized = mounted ? (asyncTokens ?? syncTokens) : rawTokens;
 
   return (
     <div className="relative overflow-auto">
