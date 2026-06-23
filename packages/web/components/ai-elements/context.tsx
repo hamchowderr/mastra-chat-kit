@@ -24,7 +24,11 @@ type ModelId = string;
 interface ContextSchema {
   usedTokens: number;
   maxTokens: number;
-  usage?: LanguageModelUsage;
+  // Partial: this element reads only flat fields (inputTokens/outputTokens/…),
+  // all optional-guarded. The SDK's LanguageModelUsage now also requires
+  // input/outputTokenDetails, which callers building usage from server metadata
+  // don't have and this element never reads.
+  usage?: Partial<LanguageModelUsage>;
   modelId?: ModelId;
 }
 

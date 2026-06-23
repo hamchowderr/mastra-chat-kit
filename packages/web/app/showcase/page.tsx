@@ -1,5 +1,6 @@
 'use client';
 
+import { jsonSchema } from 'ai';
 import { CopyIcon, GlobeIcon, RotateCwIcon } from 'lucide-react';
 import Link from 'next/link';
 import type React from 'react';
@@ -688,12 +689,12 @@ export default function ShowcasePage() {
             <AgentHeader name="chatAgent" model="claude-sonnet-4-6" />
             <AgentContent>
               <AgentInstructions>Answer questions and call tools when useful.</AgentInstructions>
-              <AgentTools>
+              <AgentTools type="multiple">
                 <AgentTool
                   value="getWeather"
                   tool={{
                     description: 'Get weather for a city',
-                    inputSchema: { type: 'object', properties: {} },
+                    inputSchema: jsonSchema({ type: 'object', properties: {} }),
                   }}
                 />
               </AgentTools>
@@ -741,7 +742,7 @@ export default function ShowcasePage() {
 
         <Card title="Sandbox" note="preview/code tabs" wide>
           <Sandbox>
-            <SandboxHeader title="weather-card demo" state="success" />
+            <SandboxHeader title="weather-card demo" state="output-available" />
             <SandboxContent>
               <SandboxTabs defaultValue="preview">
                 <SandboxTabsBar>

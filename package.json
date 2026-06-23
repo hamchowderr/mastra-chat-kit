@@ -9,6 +9,7 @@
     "dev:server": "pnpm --filter @mastra-chat-kit/server dev",
     "dev:web": "pnpm --filter @mastra-chat-kit/web dev",
     "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e": "pnpm --filter @mastra-chat-kit/web test:e2e",
     "lint": "biome check .",
@@ -17,5 +18,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.17",
+      "@types/react-dom": "19.2.3"
+    }
   }
 }

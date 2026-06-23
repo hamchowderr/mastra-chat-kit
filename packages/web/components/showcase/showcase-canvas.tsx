@@ -1,6 +1,12 @@
 'use client';
 
-import { type NodeProps, useEdgesState, useNodesState } from '@xyflow/react';
+import {
+  type Edge as FlowEdge,
+  type Node as FlowNode,
+  type NodeProps,
+  useEdgesState,
+  useNodesState,
+} from '@xyflow/react';
 import { Canvas } from '@/components/ai-elements/canvas';
 import { Connection } from '@/components/ai-elements/connection';
 import { Controls } from '@/components/ai-elements/controls';
@@ -72,8 +78,8 @@ const nodeTypes = { aiNode: AiNode };
 const edgeTypes = { animated: Edge.Animated, temporary: Edge.Temporary };
 
 export function ShowcaseCanvas() {
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, , onNodesChange] = useNodesState<FlowNode>(initialNodes);
+  const [edges, , onEdgesChange] = useEdgesState<FlowEdge>(initialEdges);
 
   return (
     <div className="h-72 w-full overflow-hidden rounded-md border border-border">

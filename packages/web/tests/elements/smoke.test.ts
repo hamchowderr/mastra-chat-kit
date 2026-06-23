@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
+// `import.meta.glob` is a Vite/Vitest-injected API, statically replaced at
+// transform time — so it MUST be called by its full name (not aliased). The
+// `vite/client` ambient types aren't on the tsconfig path, so declare its shape
+// here via interface merging instead.
+declare global {
+  interface ImportMeta {
+    glob: (pattern: string) => Record<string, () => Promise<unknown>>;
+  }
+}
+
 /**
  * Import-smoke across EVERY installed AI Element module. Catches the most common
  * breakage class — a component, dependency, or shadcn/config mismatch that stops
