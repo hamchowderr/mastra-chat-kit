@@ -1,4 +1,5 @@
-import { stepCountIs } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateText, stepCountIs } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { testChatAgent } from '../helpers/test-mastra';
 
@@ -32,5 +33,42 @@ describe('chat agent — Agent mode (AIMock)', () => {
     });
     expect(JSON.stringify(res)).toContain('searchKnowledge');
     expect(res.text.toLowerCase()).toContain('memory');
+  });
+
+  it('issues two tools in one turn (searchKnowledge + getWeather)', async () => {
+    const res = await testChatAgent.generate('Research Tokyo and tell me the weather there', {
+      memory: { thread: 'multitool', resource: 'u-multitool' },
+      stopWhen: stepCountIs(5),
+    });
+    // The multi-tool fixture returns BOTH tool calls in one assistant turn, so
+    // both render as <Tool> elements. We assert the tool invocations (reliable);
+    // the final grounded answer that follows is exercised by the e2e against the
+    // streaming route (the tier-1 generate() accessor doesn't reliably surface
+    // post-multi-tool text under AIMock).
+    const blob = JSON.stringify(res);
+    expect(blob).toContain('searchKnowledge');
+    expect(blob).toContain('getWeather');
+    expect(blob).toContain('Tokyo'); // tool args carry the query/location
+  });
+});
+
+/**
+ * Thread title generation runs `generateText` with a "3-6 word title" system
+ * prompt (POST /threads/:id/title and Memory's generateTitle). The chg fixture
+ * matches that on `systemMessage`, so the call resolves deterministically under
+ * AIMock instead of falling through to the catch-all sentence.
+ */
+describe('thread title generation (AIMock)', () => {
+  it('returns a short title from the title-gen system prompt', async () => {
+    const { text } = await generateText({
+      model: anthropic('claude-haiku-4-5'),
+      system:
+        "Generate a concise 3-6 word title summarizing the user's request in this conversation. Output ONLY the plain title text — no markdown, no quotes.",
+      prompt: 'user: Research Tokyo and tell me the weather there\nassistant: ...',
+    });
+    const title = text.trim();
+    expect(title.length).toBeGreaterThan(0);
+    expect(title.split(/\s+/).length).toBeLessThanOrEqual(8);
+    expect(title.toLowerCase()).toContain('tokyo');
   });
 });

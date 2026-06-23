@@ -6,13 +6,14 @@
     },
 
     {
-      "match": { "userMessage": "What's the weather in Los Angeles?", "sequenceIndex": 0 },
+      "_comment": "Weather is exercised by BOTH the Single-Agent test and the Harness test, which run in parallel against this one AIMock. sequenceIndex is a SHARED per-process counter, so the two suites race on it. turnIndex is stateless (counts assistant messages in the request) so each call resolves independently: turn 0 = the tool call, turn 1 = the grounded answer.",
+      "match": { "userMessage": "What's the weather in Los Angeles?", "turnIndex": 0 },
       "response": {
         "toolCalls": [{ "name": "getWeather", "arguments": { "location": "Los Angeles" } }]
       }
     },
     {
-      "match": { "userMessage": "What's the weather in Los Angeles?", "sequenceIndex": 1 },
+      "match": { "userMessage": "What's the weather in Los Angeles?", "turnIndex": 1 },
       "response": { "content": "The weather in Los Angeles looks clear right now." }
     },
 
@@ -27,6 +28,36 @@
       "match": { "userMessage": "How do I use Mastra memory?", "sequenceIndex": 1 },
       "response": {
         "content": "Based on the docs (\"Overview: Mastra memory\"), Mastra memory supports threads, working memory, and semantic recall."
+      }
+    },
+
+    {
+      "_comment": "Thread title generation. Both POST /threads/:id/title and Memory's built-in generateTitle send a system prompt asking for a '3-6 word title'. Matched on systemMessage (not the dynamic transcript) so it stays deterministic. MUST precede the multi-tool fixture below: a title request's transcript can contain that fixture's userMessage substring, and first-match-wins would otherwise return a tool call instead of a title. (beads chg)",
+      "match": { "systemMessage": "3-6 word title" },
+      "response": { "content": "Tokyo Weather And Research" }
+    },
+
+    {
+      "_comment": "Multi-tool turn: searchKnowledge AND getWeather in one assistant message (parallel tool calls), then a grounded answer. Same proven 2-call sequenceIndex shape as the weather/memory fixtures above — seq 0 issues both tools, seq 1 (after both results return) gives the final text. (A 3-deep sequence or hasToolResult gating both proved unreliable through Mastra's loop here.) (beads chg)",
+      "match": {
+        "userMessage": "Research Tokyo and tell me the weather there",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "reasoning": "I'll look up Tokyo in the knowledge base and check its current weather.",
+        "toolCalls": [
+          { "name": "searchKnowledge", "arguments": { "query": "Tokyo" } },
+          { "name": "getWeather", "arguments": { "location": "Tokyo" } }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Research Tokyo and tell me the weather there",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "From the docs (\"Overview: Tokyo\"), Tokyo is a top travel destination — and the weather there looks clear right now."
       }
     },
 
