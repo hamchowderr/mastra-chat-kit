@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:registry": "node scripts/gen-registry.mjs && shadcn build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -60,6 +61,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^29.1.1",
+    "shadcn": "^4.12.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.9"

@@ -7,6 +7,21 @@ One canonical AI chat layer — **Vercel AI Elements + AI SDK v6 + Mastra** — 
 - is **AIMock-first tested** (test everything before spending money — real API only at Tier 4),
 - ships as an **ai-elements / shadcn registry** so every project installs the same thing instead of drifting.
 
+## Install the chat layer
+
+Add the namespace to your `components.json`, then install:
+
+```jsonc
+// components.json
+"registries": { "@mastra-chat-kit": "https://mastra-chat-kit.vercel.app/r/{name}.json" }
+```
+
+```bash
+npx shadcn@latest add @mastra-chat-kit/chat
+```
+
+It depends on Vercel AI Elements upstream and overrides only the few components we patched. See [docs/registry.md](docs/registry.md) for the full design.
+
 ## Structure
 
 ```

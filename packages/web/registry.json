@@ -1,0 +1,187 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "mastra-chat-kit",
+  "homepage": "https://mastra-chat-kit.vercel.app",
+  "items": [
+    {
+      "name": "code-block",
+      "type": "registry:component",
+      "title": "Code Block (SSR-safe)",
+      "description": "AI Elements code block with an SSR hydration fix (mount-gated Shiki highlighting).",
+      "dependencies": [
+        "lucide-react",
+        "shiki"
+      ],
+      "registryDependencies": [
+        "button",
+        "select"
+      ],
+      "files": [
+        {
+          "path": "components/ai-elements/code-block.tsx",
+          "type": "registry:component",
+          "target": "components/ai-elements/code-block.tsx"
+        }
+      ]
+    },
+    {
+      "name": "image",
+      "type": "registry:component",
+      "title": "Image",
+      "description": "AI Elements image; renders from base64 (uint8Array optional).",
+      "dependencies": [
+        "ai"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "components/ai-elements/image.tsx",
+          "type": "registry:component",
+          "target": "components/ai-elements/image.tsx"
+        }
+      ]
+    },
+    {
+      "name": "context",
+      "type": "registry:component",
+      "title": "Context",
+      "description": "AI Elements context/usage display (Partial usage type).",
+      "dependencies": [
+        "ai",
+        "tokenlens"
+      ],
+      "registryDependencies": [
+        "button",
+        "hover-card",
+        "progress"
+      ],
+      "files": [
+        {
+          "path": "components/ai-elements/context.tsx",
+          "type": "registry:component",
+          "target": "components/ai-elements/context.tsx"
+        }
+      ]
+    },
+    {
+      "name": "tool",
+      "type": "registry:component",
+      "title": "Tool",
+      "description": "AI Elements tool call display, wired to the local SSR-safe code block.",
+      "dependencies": [
+        "ai",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "badge",
+        "collapsible",
+        "@mastra-chat-kit/code-block"
+      ],
+      "files": [
+        {
+          "path": "components/ai-elements/tool.tsx",
+          "type": "registry:component",
+          "target": "components/ai-elements/tool.tsx"
+        }
+      ]
+    },
+    {
+      "name": "chat-engine",
+      "type": "registry:lib",
+      "title": "Chat Engine",
+      "description": "Swappable transport + harness client for Agent mode and Harness mode.",
+      "dependencies": [
+        "ai"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "lib/transports/single-agent.ts",
+          "type": "registry:lib",
+          "target": "lib/transports/single-agent.ts"
+        },
+        {
+          "path": "lib/harness/events.ts",
+          "type": "registry:lib",
+          "target": "lib/harness/events.ts"
+        },
+        {
+          "path": "lib/harness/use-harness-chat.ts",
+          "type": "registry:lib",
+          "target": "lib/harness/use-harness-chat.ts"
+        }
+      ]
+    },
+    {
+      "name": "chat",
+      "type": "registry:block",
+      "title": "Mastra Chat",
+      "description": "Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.",
+      "dependencies": [
+        "@ai-sdk/react",
+        "ai",
+        "lucide-react",
+        "sonner"
+      ],
+      "registryDependencies": [
+        "dialog",
+        "dropdown-menu",
+        "@mastra-chat-kit/code-block",
+        "@mastra-chat-kit/context",
+        "@mastra-chat-kit/image",
+        "@mastra-chat-kit/tool",
+        "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/attachments.json",
+        "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
+        "https://ai-sdk.dev/elements/api/registry/confirmation.json",
+        "https://ai-sdk.dev/elements/api/registry/conversation.json",
+        "https://ai-sdk.dev/elements/api/registry/file-tree.json",
+        "https://ai-sdk.dev/elements/api/registry/inline-citation.json",
+        "https://ai-sdk.dev/elements/api/registry/message.json",
+        "https://ai-sdk.dev/elements/api/registry/model-selector.json",
+        "https://ai-sdk.dev/elements/api/registry/plan.json",
+        "https://ai-sdk.dev/elements/api/registry/prompt-input.json",
+        "https://ai-sdk.dev/elements/api/registry/queue.json",
+        "https://ai-sdk.dev/elements/api/registry/reasoning.json",
+        "https://ai-sdk.dev/elements/api/registry/shimmer.json",
+        "https://ai-sdk.dev/elements/api/registry/sources.json",
+        "https://ai-sdk.dev/elements/api/registry/suggestion.json",
+        "https://ai-sdk.dev/elements/api/registry/task.json",
+        "https://ai-sdk.dev/elements/api/registry/terminal.json",
+        "https://ai-sdk.dev/elements/api/registry/web-preview.json"
+      ],
+      "files": [
+        {
+          "path": "components/chat/chat.tsx",
+          "type": "registry:component",
+          "target": "components/chat/chat.tsx"
+        },
+        {
+          "path": "components/chat/chat-sidebar.tsx",
+          "type": "registry:component",
+          "target": "components/chat/chat-sidebar.tsx"
+        },
+        {
+          "path": "components/chat/chat-switcher.tsx",
+          "type": "registry:component",
+          "target": "components/chat/chat-switcher.tsx"
+        },
+        {
+          "path": "components/chat/composer.tsx",
+          "type": "registry:component",
+          "target": "components/chat/composer.tsx"
+        },
+        {
+          "path": "components/chat/harness-chat.tsx",
+          "type": "registry:component",
+          "target": "components/chat/harness-chat.tsx"
+        },
+        {
+          "path": "components/chat/tool-views.tsx",
+          "type": "registry:component",
+          "target": "components/chat/tool-views.tsx"
+        }
+      ]
+    }
+  ]
+}
