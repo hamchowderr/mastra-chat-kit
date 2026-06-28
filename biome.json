@@ -13,7 +13,8 @@
       "!**/.beads",
       "!packages/web/components/ui",
       "!packages/web/components/ai-elements",
-      "!packages/web/app/globals.css"
+      "!packages/web/app/globals.css",
+      "!packages/web/registry.json"
     ]
   },
   "formatter": {

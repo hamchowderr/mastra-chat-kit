@@ -113,6 +113,66 @@
       ]
     },
     {
+      "name": "chat-routes",
+      "type": "registry:block",
+      "title": "Chat Routes (Mastra proxy)",
+      "description": "Same-origin Next route handlers + proxy that forward chat/threads/harness/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.",
+      "dependencies": [],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "lib/mastra-proxy.ts",
+          "type": "registry:file",
+          "target": "lib/mastra-proxy.ts"
+        },
+        {
+          "path": "app/api/chat/[agentId]/route.ts",
+          "type": "registry:file",
+          "target": "app/api/chat/[agentId]/route.ts"
+        },
+        {
+          "path": "app/api/threads/route.ts",
+          "type": "registry:file",
+          "target": "app/api/threads/route.ts"
+        },
+        {
+          "path": "app/api/threads/search/route.ts",
+          "type": "registry:file",
+          "target": "app/api/threads/search/route.ts"
+        },
+        {
+          "path": "app/api/threads/[id]/route.ts",
+          "type": "registry:file",
+          "target": "app/api/threads/[id]/route.ts"
+        },
+        {
+          "path": "app/api/threads/[id]/messages/route.ts",
+          "type": "registry:file",
+          "target": "app/api/threads/[id]/messages/route.ts"
+        },
+        {
+          "path": "app/api/threads/[id]/title/route.ts",
+          "type": "registry:file",
+          "target": "app/api/threads/[id]/title/route.ts"
+        },
+        {
+          "path": "app/api/harness/approve/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/approve/route.ts"
+        },
+        {
+          "path": "app/api/harness/stream/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/stream/route.ts"
+        },
+        {
+          "path": "app/api/images/[id]/route.ts",
+          "type": "registry:file",
+          "target": "app/api/images/[id]/route.ts"
+        }
+      ]
+    },
+    {
       "name": "chat",
       "type": "registry:block",
       "title": "Mastra Chat",
@@ -148,7 +208,8 @@
         "https://ai-sdk.dev/elements/api/registry/suggestion.json",
         "https://ai-sdk.dev/elements/api/registry/task.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json",
-        "https://ai-sdk.dev/elements/api/registry/web-preview.json"
+        "https://ai-sdk.dev/elements/api/registry/web-preview.json",
+        "@mastra-chat-kit/chat-routes"
       ],
       "files": [
         {

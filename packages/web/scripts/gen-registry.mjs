@@ -163,7 +163,37 @@ const ENGINE_FILES = [
   });
 }
 
-// 3) chat: the headline block — the canonical shell.
+// 3) chat-routes: the same-origin Next proxy routes the UI calls. Without these
+// the installed chat block has nothing to fetch. They proxy 1:1 to a Mastra
+// server at MASTRA_SERVER_URL (default http://localhost:4111). registry:file with
+// explicit targets so they land at the exact app/ paths the components expect.
+const ROUTE_FILES = [
+  'lib/mastra-proxy.ts',
+  'app/api/chat/[agentId]/route.ts',
+  'app/api/threads/route.ts',
+  'app/api/threads/search/route.ts',
+  'app/api/threads/[id]/route.ts',
+  'app/api/threads/[id]/messages/route.ts',
+  'app/api/threads/[id]/title/route.ts',
+  'app/api/harness/approve/route.ts',
+  'app/api/harness/stream/route.ts',
+  'app/api/images/[id]/route.ts',
+];
+{
+  const c = classify(ROUTE_FILES);
+  items.push({
+    name: 'chat-routes',
+    type: 'registry:block',
+    title: 'Chat Routes (Mastra proxy)',
+    description:
+      'Same-origin Next route handlers + proxy that forward chat/threads/harness/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.',
+    dependencies: c.npm,
+    registryDependencies: regDeps(c, 'chat-routes'),
+    files: ROUTE_FILES.map((f) => ({ path: f, type: 'registry:file', target: f })),
+  });
+}
+
+// 4) chat: the headline block — the canonical shell.
 const CHAT_FILES = [
   'components/chat/chat.tsx',
   'components/chat/chat-sidebar.tsx',
@@ -181,7 +211,9 @@ const CHAT_FILES = [
     description:
       'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.',
     dependencies: c.npm,
-    registryDependencies: regDeps(c, 'chat'),
+    // chat-routes is appended explicitly: the UI calls those endpoints via fetch
+    // (not import), so the import-trace can't discover the dependency on its own.
+    registryDependencies: [...regDeps(c, 'chat'), NS('chat-routes')],
     files: CHAT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
   });
 }

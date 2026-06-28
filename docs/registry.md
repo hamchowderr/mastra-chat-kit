@@ -14,6 +14,7 @@ our own copies of only the few we had to patch.
 |---|---|---|
 | `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, Agent/Harness modes. **This is what you install.** |
 | `chat-engine` | lib | Swappable transport + harness client (`lib/transports`, `lib/harness`). |
+| `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server. Pulled in automatically by `chat`. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
 | `context` | component | AI Elements context/usage with `Partial<LanguageModelUsage>`. |
@@ -41,6 +42,15 @@ we drop the overrides and depend 100% on upstream.
 
 ## Consuming the registry
 
+### Prerequisites
+
+A standard shadcn-initialized project — run `npx shadcn@latest init` first. That
+provides the theme the chat layer assumes: the full token set (incl. `sidebar-*`),
+the `@theme inline` mapping, `tw-animate-css`, and `@custom-variant dark`. The
+components use only **standard** shadcn tokens, so they inherit your chosen
+`baseColor` — the registry deliberately ships **no** `cssVars` (it won't override
+your palette).
+
 In the consumer project's `components.json`, add the namespace:
 
 ```json
@@ -58,9 +68,39 @@ npx shadcn@latest add @mastra-chat-kit/chat
 ```
 
 shadcn resolves the dependency graph automatically: our 4 vendored components +
-`chat-engine` from `@mastra-chat-kit`, the other AI Elements from Vercel, and the
-shadcn/ui primitives from the default registry. (Individual items also install,
-e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.)
+`chat-engine` + `chat-routes` from `@mastra-chat-kit`, the other AI Elements from
+Vercel, and the shadcn/ui primitives from the default registry. (Individual items
+also install, e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.) Installing
+`chat` lays down **61 files** — the UI plus the `app/api/*` proxy routes.
+
+### Wire it to a Mastra server
+
+The UI is pure frontend; it talks to a Mastra server over same-origin Next route
+handlers (the `chat-routes` item) that proxy to `MASTRA_SERVER_URL`:
+
+```bash
+# .env.local
+MASTRA_SERVER_URL=http://localhost:4111   # default if unset
+```
+
+Point it at the kit's own `server` package (or any Mastra server) that exposes
+this contract — the routes proxy 1:1:
+
+| Next route (installed) | → Mastra server endpoint |
+|---|---|
+| `POST /api/chat/:agentId` | `POST /chat/:agentId` (streaming) |
+| `GET /api/threads` | `GET /threads` |
+| `GET /api/threads/search?q=` | `GET /threads/search?q=` |
+| `GET /api/threads/:id/messages` | `GET /threads/:id/messages` |
+| `GET`/`DELETE /api/threads/:id` | `GET`/`DELETE /threads/:id` |
+| `POST /api/threads/:id/title` | `POST /threads/:id/title` |
+| `POST /api/harness/approve` | `POST /harness/approve` |
+| `/api/harness/stream` | `/harness/stream` (SSE) |
+| `GET /api/images/:id` | `GET /images/:id` |
+
+Then mount `<ChatSwitcher />` (Agent/Harness toggle) or `<Chat agentId="…" />`
+from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
+`<Toaster />` in your root layout if you want notifications.
 
 ## Building / maintaining the registry
 
