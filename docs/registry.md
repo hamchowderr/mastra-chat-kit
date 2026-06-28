@@ -40,6 +40,10 @@ keep all of it tracking upstream **except** three files we had to patch, plus
 These are tracked in `bd mastra-chat-kit-k5f` to upstream to Vercel; once merged
 we drop the overrides and depend 100% on upstream.
 
+**Attribution:** the 4 redistributed files are adapted from Vercel AI Elements
+(Apache-2.0, © 2023 Vercel) — see [`packages/web/NOTICE`](../packages/web/NOTICE)
+for the per-file change statements required by the License.
+
 ## Consuming the registry
 
 ### Prerequisites

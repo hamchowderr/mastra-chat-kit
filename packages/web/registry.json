@@ -209,6 +209,7 @@
         "https://ai-sdk.dev/elements/api/registry/task.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json",
         "https://ai-sdk.dev/elements/api/registry/web-preview.json",
+        "sonner",
         "@mastra-chat-kit/chat-routes"
       ],
       "files": [

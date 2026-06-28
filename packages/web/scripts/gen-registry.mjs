@@ -211,9 +211,11 @@ const CHAT_FILES = [
     description:
       'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.',
     dependencies: c.npm,
-    // chat-routes is appended explicitly: the UI calls those endpoints via fetch
-    // (not import), so the import-trace can't discover the dependency on its own.
-    registryDependencies: [...regDeps(c, 'chat'), NS('chat-routes')],
+    // Appended explicitly (the import-trace can't discover these):
+    // - chat-routes: the UI calls those endpoints via fetch, not import.
+    // - sonner: the shell calls toast() but the styled <Toaster/> is ui/sonner.tsx,
+    //   which the app mounts in its layout — ship it so consumers have it.
+    registryDependencies: [...regDeps(c, 'chat'), 'sonner', NS('chat-routes')],
     files: CHAT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
   });
 }
