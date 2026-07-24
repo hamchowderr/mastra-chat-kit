@@ -18,12 +18,20 @@
  * Session per user (keyed by resourceId).
  */
 
+import path from 'node:path';
 import { AgentController, type Session } from '@mastra/core/agent-controller';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
-import { LocalFilesystem, Workspace } from '@mastra/core/workspace';
+import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace';
+import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 
 const CHAT_MODEL_ID = 'anthropic/claude-sonnet-4-6';
+
+// Absolute root for the agent's workspace (filesystem + sandbox share it). Under
+// `mastra dev` the cwd shifts, so resolve a relative WORKSPACE_ROOT once here.
+const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
+  ? env.WORKSPACE_ROOT
+  : path.resolve(process.cwd(), env.WORKSPACE_ROOT);
 
 /** Fixed resource id for the single logical user this reference serves. */
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
@@ -52,13 +60,14 @@ export function createChatHarness(opts?: {
     ],
     storage: opts?.storage ?? new InMemoryStore(),
     resourceId: opts?.resourceId ?? CHAT_RESOURCE_ID,
-    // AgentController sessions require a Workspace instance (core 1.52+), and a
-    // Workspace needs at least a filesystem/sandbox/skills. A local filesystem is
-    // the lightest option; the derived fs tools are approval-gated by the harness
-    // (HITL) like any other tool, so nothing runs without an explicit decision.
+    // A real workspace: filesystem + shell sandbox, both rooted at WORKSPACE_ROOT.
+    // This gives the agent the full derived tool set — read/write/edit/list/delete/
+    // search files AND executeCommand (shell). Every tool is approval-gated by the
+    // harness (HITL), so nothing runs without an explicit decision.
     workspace: new Workspace({
       id: 'chat-workspace',
-      filesystem: new LocalFilesystem({ basePath: './.mastra-workspace' }),
+      filesystem: new LocalFilesystem({ basePath: WORKSPACE_ROOT }),
+      sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_ROOT }),
     }),
   });
 }

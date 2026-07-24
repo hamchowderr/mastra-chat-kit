@@ -31,6 +31,11 @@ const envSchema = z
     TURSO_DATABASE_URL: z.string().default('file:./mastra.db').transform(absoluteFileUrl),
     TURSO_AUTH_TOKEN: z.string().optional(),
 
+    // Root dir the harness agent's workspace (filesystem + shell sandbox) works
+    // in — it reads/writes files and runs commands here. Set an absolute path for
+    // a stable location; a relative path is resolved to absolute at load.
+    WORKSPACE_ROOT: z.string().default('./agent-workspace'),
+
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.
     DOLT_HOST: z.string().optional(),
