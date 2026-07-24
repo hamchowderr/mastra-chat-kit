@@ -51,6 +51,7 @@ import {
 } from '@/components/chat/tool-views';
 import { collectToolResults, type HarnessContentPart } from '@/lib/harness/events';
 import { useHarnessChat } from '@/lib/harness/use-harness-chat';
+import { cn } from '@/lib/utils';
 
 /**
  * Agent Harness chat — consumes the Harness SSE (`useHarnessChat`) and renders its
@@ -59,7 +60,7 @@ import { useHarnessChat } from '@/lib/harness/use-harness-chat';
  * Image, submit_plan → Plan, the step sequence → ChainOfThought, task_updated → Task,
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
-export function HarnessChat() {
+export function HarnessChat({ fluid = false }: { fluid?: boolean }) {
   const { transcript, status, sendMessage, approve } = useHarnessChat();
   const { messages, tasks, pendingApproval, usage, queuedFollowUps, error } = transcript;
   const resultsById = collectToolResults(messages);
@@ -67,7 +68,14 @@ export function HarnessChat() {
   const handleSend = ({ text }: ComposerSubmit) => sendMessage(text);
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-1 flex-col">
+    // `fluid` fills the column when the workbench panel is open; otherwise the
+    // chat keeps a comfortable centered reading width.
+    <div
+      className={cn(
+        'flex h-full w-full flex-1 flex-col',
+        fluid ? 'max-w-none' : 'mx-auto max-w-3xl',
+      )}
+    >
       {/* Live session state: real token usage (Context) + queued follow-ups (Queue). */}
       {(usage || queuedFollowUps > 0) && (
         <div className="flex items-center gap-3 border-border border-b px-4 py-2">

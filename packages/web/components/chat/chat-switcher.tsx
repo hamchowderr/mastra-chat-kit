@@ -1,120 +1,53 @@
 'use client';
 
-import { PanelLeftIcon } from 'lucide-react';
+import { PanelRightIcon } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import { Chat } from '@/components/chat/chat';
-import { ChatSidebar } from '@/components/chat/chat-sidebar';
+import { useState } from 'react';
 import { HarnessChat } from '@/components/chat/harness-chat';
-import { cn } from '@/lib/utils';
-
-type Engine = 'single' | 'harness' | 'code';
-
-const ENGINES: { id: Engine; label: string }[] = [
-  { id: 'single', label: 'Single Agent' },
-  { id: 'harness', label: 'Agent Harness' },
-  { id: 'code', label: 'Code Agent' },
-];
+import { WorkbenchPanel } from '@/components/chat/workbench-panel';
 
 /**
- * The chat app shell. Owns the persistent chat-history sidebar (Mastra threads
- * for the Single Agent), the engine toggle, and the cross-cutting state the two
- * need to share: the active `threadId`, sidebar collapse, and a `listVersion`
- * counter the Chat bumps after each turn so the sidebar re-fetches.
+ * The app shell — the batteries-included agent workbench.
  *
- * The sidebar is the Single Agent's history: selecting a chat (or "New chat")
- * snaps the engine to `single` and loads/clears that thread. Harness and Code
- * keep their current behavior (no persisted thread wiring in this pass).
+ * One harness agent (an `AgentController` with a real Workspace: filesystem +
+ * shell sandbox + browser) is the whole app: `<HarnessChat>` is the primary
+ * column, with a collapsible `<WorkbenchPanel>` (Files · Terminal · Browser) on
+ * the right surfacing what that Workspace is doing.
+ *
+ * The old engine tabs (Single / Harness / Code) are gone — there's one agent now.
+ * The Single-Agent chat + its history sidebar (`chat.tsx`, `chat-sidebar.tsx`)
+ * still live in the repo but are unwired here; harness thread history is a
+ * follow-up (see the P3.5 issue) since the harness manages its own threads.
  */
 export function ChatSwitcher() {
-  const [engine, setEngine] = useState<Engine>('single');
-  const [threadId, setThreadId] = useState<string | null>(null);
-  // Whether the active thread was freshly minted (eligible for AI title-gen)
-  // vs. selected from history (already titled, must not be regenerated/cleared).
-  const [threadIsNew, setThreadIsNew] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
-  const [listVersion, setListVersion] = useState(0);
-
-  // Lazily mint the first thread id on the client (avoids an SSR/CSR mismatch
-  // from generating a uuid during render).
-  useEffect(() => {
-    setThreadId((id) => id ?? crypto.randomUUID());
-  }, []);
-
-  const refreshList = useCallback(() => setListVersion((v) => v + 1), []);
-
-  const newChat = useCallback(() => {
-    setThreadId(crypto.randomUUID());
-    setThreadIsNew(true);
-    setEngine('single');
-  }, []);
-
-  const selectChat = useCallback((id: string) => {
-    setThreadId(id);
-    setThreadIsNew(false);
-    setEngine('single');
-  }, []);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
 
   return (
-    <div className="flex h-full flex-1">
-      <ChatSidebar
-        activeThreadId={engine === 'single' ? threadId : null}
-        onSelect={selectChat}
-        onNew={newChat}
-        refreshSignal={listVersion}
-        collapsed={collapsed}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="relative flex items-center justify-center gap-1 border-border border-b p-2">
+    <div className="flex h-full flex-1 flex-col">
+      <header className="flex items-center justify-between border-border border-b p-2">
+        <span className="pl-2 font-medium text-sm">mastra-chat-kit</span>
+        <nav className="flex items-center gap-3 text-sm">
+          <Link href="/showcase" className="text-muted-foreground hover:text-foreground">
+            Showroom
+          </Link>
+          <Link href="/status" className="text-muted-foreground hover:text-foreground">
+            Status
+          </Link>
           <button
             type="button"
-            aria-label={collapsed ? 'Show chat history' : 'Hide chat history'}
-            onClick={() => setCollapsed((v) => !v)}
-            className="absolute left-2 flex size-9 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:text-foreground active:scale-[0.96]"
+            aria-label={rightCollapsed ? 'Show workbench panel' : 'Hide workbench panel'}
+            aria-pressed={!rightCollapsed}
+            onClick={() => setRightCollapsed((v) => !v)}
+            className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
           >
-            <PanelLeftIcon className="size-4" />
+            <PanelRightIcon className="size-4" />
           </button>
+        </nav>
+      </header>
 
-          <div className="inline-flex rounded-lg bg-muted p-0.5">
-            {ENGINES.map((e) => (
-              <button
-                type="button"
-                key={e.id}
-                onClick={() => setEngine(e.id)}
-                className={cn(
-                  'rounded-md px-3 py-1 font-medium text-sm transition active:scale-[0.96]',
-                  engine === e.id
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {e.label}
-              </button>
-            ))}
-          </div>
-          <nav className="absolute right-3 flex items-center gap-3 text-sm">
-            <Link href="/showcase" className="text-muted-foreground hover:text-foreground">
-              Showroom
-            </Link>
-            <Link href="/status" className="text-muted-foreground hover:text-foreground">
-              Status
-            </Link>
-          </nav>
-        </div>
-
-        {/* Single Agent keeps its persisted thread mounted across engine switches
-            so its history/state survive a peek at Harness or Code. */}
-        <div className={cn('flex min-h-0 flex-1 flex-col', engine !== 'single' && 'hidden')}>
-          <Chat
-            agentId="chat"
-            threadId={threadId ?? undefined}
-            threadIsNew={threadIsNew}
-            onActivity={refreshList}
-          />
-        </div>
-        {engine === 'harness' && <HarnessChat />}
-        {engine === 'code' && <Chat agentId="code" />}
+      <div className="flex min-h-0 flex-1">
+        <HarnessChat fluid={!rightCollapsed} />
+        {!rightCollapsed && <WorkbenchPanel />}
       </div>
     </div>
   );
