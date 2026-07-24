@@ -346,21 +346,31 @@ const serverConfig = {
           filter: { resourceId: LOCAL_RESOURCE },
           perPage: false,
         });
-        // One batched recall to derive first-message title fallbacks.
+        // Per-thread recall to derive first-message title fallbacks. libSQL's
+        // getThreadById can't bind an array, so a batched `threadId: ids` throws
+        // ("SQLite3 can only bind numbers, strings, bigints, buffers, and null")
+        // and 500s the whole list — recall one id at a time. Best-effort: threads
+        // carry a generated title regardless, so a recall miss just skips the
+        // fallback rather than failing the request.
         const ids = threads.map((t) => t.id);
         const firstMsg = new Map<string, string>();
-        if (ids.length > 0) {
-          const { messages } = await memory.recall({
-            threadId: ids,
-            resourceId: LOCAL_RESOURCE,
-            perPage: false,
-          });
-          for (const m of messages) {
-            // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
-            const mm = m as any;
-            if (mm.role === 'user' && mm.threadId && !firstMsg.has(mm.threadId)) {
-              firstMsg.set(mm.threadId, messageText(mm));
+        for (const id of ids) {
+          try {
+            const { messages } = await memory.recall({
+              threadId: id,
+              resourceId: LOCAL_RESOURCE,
+              perPage: false,
+            });
+            for (const m of messages) {
+              // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
+              const mm = m as any;
+              if (mm.role === 'user' && !firstMsg.has(id)) {
+                firstMsg.set(id, messageText(mm));
+                break;
+              }
             }
+          } catch {
+            // best-effort — thread.title still applies
           }
         }
         const items = threads
