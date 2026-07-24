@@ -30,10 +30,11 @@ import { leadIntakeAgent } from './agents/_example';
 import { chatAgent } from './agents/chat';
 import { codeAgent } from './agents/code';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
-import { getChatSession } from './lib/harness';
+import { getChatSession, WORKSPACE_ROOT } from './lib/harness';
 import { getImage } from './lib/image-store';
 import { getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
+import { readWorkspaceFile, readWorkspaceTree } from './lib/workspace-files';
 import {
   hallucinationScorer,
   promptAlignmentScorer,
@@ -669,6 +670,28 @@ const serverConfig = {
           return c.json({ error: 'image not found' }, 404);
         }
         return c.json(img);
+      },
+    }),
+
+    // Workbench Files panel: read the harness agent's workspace (WORKSPACE_ROOT)
+    // directly off disk. GET /workspace/files → the file tree; GET /workspace/file
+    // ?path=<rel> → one file's text (confined to WORKSPACE_ROOT by the reader).
+    registerApiRoute('/workspace/files', {
+      method: 'GET',
+      handler: async (c) => c.json({ root: WORKSPACE_ROOT, tree: await readWorkspaceTree() }),
+    }),
+    registerApiRoute('/workspace/file', {
+      method: 'GET',
+      handler: async (c) => {
+        const p = c.req.query('path');
+        if (!p) {
+          return c.json({ error: 'path query is required' }, 400);
+        }
+        const file = await readWorkspaceFile(p);
+        if (!file) {
+          return c.json({ error: 'not found' }, 404);
+        }
+        return c.json(file);
       },
     }),
   ],

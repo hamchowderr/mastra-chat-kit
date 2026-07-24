@@ -31,7 +31,8 @@ const CHAT_MODEL_ID = 'anthropic/claude-sonnet-4-6';
 
 // Absolute root for the agent's workspace (filesystem + sandbox share it). Under
 // `mastra dev` the cwd shifts, so resolve a relative WORKSPACE_ROOT once here.
-const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
+// Exported so the /workspace/* routes can read the same folder the agent works in.
+export const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
   ? env.WORKSPACE_ROOT
   : path.resolve(process.cwd(), env.WORKSPACE_ROOT);
 
