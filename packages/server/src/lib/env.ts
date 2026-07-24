@@ -1,4 +1,19 @@
+import path from 'node:path';
 import { z } from 'zod';
+
+/**
+ * Resolve a relative `file:` libSQL URL to an ABSOLUTE path at load time. Under
+ * `mastra dev` the process cwd differs between module load (package root) and
+ * request handling (the bundled runtime dir), so a bare `file:./mastra.db` would
+ * split reads/writes/deletes across two different files — threads persist to one
+ * and the sidebar reads the other. Pinning it absolute keeps every op on one DB.
+ */
+function absoluteFileUrl(url: string): string {
+  if (!url.startsWith('file:')) return url;
+  const p = url.slice('file:'.length);
+  if (p.startsWith('/') || path.isAbsolute(p)) return url;
+  return `file:${path.resolve(process.cwd(), p.replace(/^\.\//, '')).replace(/\\/g, '/')}`;
+}
 
 const boolish = z
   .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
@@ -13,7 +28,7 @@ const envSchema = z
     // Storage + vectors run on libSQL/Turso. Local dev uses a file: DB (no
     // server, no Docker); prod points at a libsql:// Turso URL with an auth
     // token. To switch the whole kit back to Postgres, see docs/postgres.md.
-    TURSO_DATABASE_URL: z.string().default('file:./mastra.db'),
+    TURSO_DATABASE_URL: z.string().default('file:./mastra.db').transform(absoluteFileUrl),
     TURSO_AUTH_TOKEN: z.string().optional(),
 
     // Dolt (versioned business data) — the compose `dolt` service. Optional so

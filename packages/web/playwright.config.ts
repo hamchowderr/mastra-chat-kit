@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -13,7 +14,12 @@ import { defineConfig, devices } from '@playwright/test';
  * different libSQL/Turso URL.
  */
 
-const DB_URL = process.env.E2E_DB_URL ?? 'file:./mastra-e2e.db';
+// ABSOLUTE path on purpose: under `mastra dev` the server's cwd shifts between
+// module load and request time, so a relative `file:./x.db` splits reads/writes
+// across two files (empty sidebar). An absolute URL pins every op to one DB, and
+// matches the file `e2e/global-setup.ts` resets.
+const DB_FILE = process.env.E2E_DB_FILE ?? path.resolve(process.cwd(), '../server/mastra-e2e.db');
+const DB_URL = process.env.E2E_DB_URL ?? `file:${DB_FILE.replace(/\\/g, '/')}`;
 
 // Ports are overridable so the e2e stack doesn't collide with other local dev
 // servers (set E2E_SERVER_PORT / E2E_WEB_PORT / AIMOCK_URL when 4111/3000/4010
