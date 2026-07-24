@@ -27,6 +27,7 @@
     "@ai-sdk/openai": "^4.0.20",
     "@mastra/ai-sdk": "^1.6.3",
     "@mastra/auth": "^1.1.2",
+    "@mastra/browser-viewer": "0.2.1",
     "@mastra/core": "^1.52.1",
     "@mastra/editor": "^0.13.8",
     "@mastra/evals": "^1.6.0",

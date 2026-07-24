@@ -1,6 +1,6 @@
 import { InMemoryStore } from '@mastra/core/storage';
 import { describe, expect, it } from 'vitest';
-import { createChatHarness } from '../../src/mastra/lib/harness';
+import { createBrowser, createChatHarness } from '../../src/mastra/lib/harness';
 
 /**
  * Agent Harness mode end-to-end through AIMock — deterministic, zero spend.
@@ -70,6 +70,32 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     expect(blob).toContain('getWeather');
     // "Los Angeles" appears in the executed tool's result regardless of final text.
     expect(blob.toLowerCase()).toContain('los angeles');
+  });
+});
+
+/**
+ * The workspace carries a browser (`@mastra/browser-viewer`) so the agent gets
+ * browser tools alongside filesystem + shell. Chrome must launch LAZILY — the
+ * server (and this test suite, and AIMock/CI) must boot without spawning a
+ * browser. This locks that: constructing + initializing the real production
+ * harness config leaves the browser un-launched until a tool actually drives it.
+ */
+describe('harness workspace browser (lazy)', () => {
+  it('attaches a browser but does not launch Chrome at construct/init', async () => {
+    const viewer = createBrowser();
+    expect(viewer.isBrowserRunning()).toBe(false);
+
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-browser',
+      browser: viewer,
+    });
+    await controller.init();
+    // Boot-critical invariant: init() must NOT have launched the browser.
+    expect(viewer.isBrowserRunning()).toBe(false);
+
+    await controller.destroy();
+    expect(viewer.isBrowserRunning()).toBe(false);
   });
 });
 

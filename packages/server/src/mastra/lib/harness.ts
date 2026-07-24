@@ -19,7 +19,9 @@
  */
 
 import path from 'node:path';
+import { BrowserViewer } from '@mastra/browser-viewer';
 import { AgentController, type Session } from '@mastra/core/agent-controller';
+import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
@@ -37,6 +39,22 @@ const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
 
 /**
+ * Build the workspace's browser: a `BrowserViewer` (a `MastraBrowser`) that owns
+ * a Playwright-driven Chrome and injects its CDP URL into the CLI the agent
+ * shells out to (`agent-browser` by default), so shell-driven and native browser
+ * tools drive the SAME window. Construction is cheap — Chrome launches lazily on
+ * first use, so this stays off the boot/AIMock/test path until a browser tool
+ * actually fires. Pass `browser: null` to `createChatHarness` to opt out.
+ */
+export function createBrowser(): BrowserViewer {
+  return new BrowserViewer({
+    cli: env.BROWSER_CLI,
+    headless: env.BROWSER_HEADLESS,
+    ...(env.BROWSER_EXECUTABLE_PATH ? { executablePath: env.BROWSER_EXECUTABLE_PATH } : {}),
+  });
+}
+
+/**
  * Build (but don't init) an AgentController around `chatAgent` in a single
  * "default" mode. Tests pass their own `storage` (InMemoryStore) for
  * zero-dependency AIMock runs; the live singleton falls back to an in-memory
@@ -45,7 +63,10 @@ export const CHAT_RESOURCE_ID = 'chat-kit-user';
 export function createChatHarness(opts?: {
   storage?: MastraStorage;
   resourceId?: string;
+  /** Override the workspace browser; pass `null` to omit it (hermetic tests). */
+  browser?: MastraBrowser | null;
 }): AgentController {
+  const browser = opts?.browser === null ? undefined : (opts?.browser ?? createBrowser());
   return new AgentController({
     id: 'chat-harness',
     defaultModeId: 'default',
@@ -60,14 +81,16 @@ export function createChatHarness(opts?: {
     ],
     storage: opts?.storage ?? new InMemoryStore(),
     resourceId: opts?.resourceId ?? CHAT_RESOURCE_ID,
-    // A real workspace: filesystem + shell sandbox, both rooted at WORKSPACE_ROOT.
-    // This gives the agent the full derived tool set — read/write/edit/list/delete/
-    // search files AND executeCommand (shell). Every tool is approval-gated by the
-    // harness (HITL), so nothing runs without an explicit decision.
+    // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
+    // + a browser. This gives the agent the full derived tool set — read/write/
+    // edit/list/delete/search files, executeCommand (shell), AND browser tools.
+    // Every tool is approval-gated by the harness (HITL), so nothing runs without
+    // an explicit decision.
     workspace: new Workspace({
       id: 'chat-workspace',
       filesystem: new LocalFilesystem({ basePath: WORKSPACE_ROOT }),
       sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_ROOT }),
+      ...(browser ? { browser } : {}),
     }),
   });
 }

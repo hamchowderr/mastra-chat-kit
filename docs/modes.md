@@ -83,6 +83,18 @@ route `POST /harness/stream` subscribes to the Session, sends the user message, 
 streams each `AgentControllerEvent` as SSE; `POST /harness/approve` resolves a parked
 tool-approval gate on the same Session.
 
+The `Workspace` is what makes this a batteries-included agent, not just a chat loop.
+It bundles three capabilities, each of which auto-derives its own approval-gated tools:
+
+- **Filesystem** (`LocalFilesystem`, rooted at `WORKSPACE_ROOT`) — read / write / edit /
+  list / delete / search files.
+- **Shell sandbox** (`LocalSandbox`) — `executeCommand`, real commands via `execa`.
+- **Browser** (`BrowserViewer` from `@mastra/browser-viewer`) — a Playwright-managed
+  Chrome. It injects its CDP URL into the CLI the agent shells out to (`agent-browser`
+  by default), so shell-driven *and* native browser tools drive the same window. Chrome
+  launches **lazily** on first browser tool use — nothing spawns at boot. Configure via
+  `BROWSER_CLI` / `BROWSER_HEADLESS` / `BROWSER_EXECUTABLE_PATH`.
+
 **Web** (`packages/web/lib/harness/`): the `useHarnessChat` hook mirrors `useChat`'s
 `{ messages, sendMessage, status }` shape but speaks the SSE protocol, folding each
 event into a transcript (`reduceHarnessEvent` in `lib/harness/events.ts`). The chat

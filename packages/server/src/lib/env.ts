@@ -36,6 +36,21 @@ const envSchema = z
     // a stable location; a relative path is resolved to absolute at load.
     WORKSPACE_ROOT: z.string().default('./agent-workspace'),
 
+    // Browser slot for the harness workspace (@mastra/browser-viewer). It manages
+    // a Playwright-driven Chrome and injects its CDP URL into the CLI the agent
+    // shells out to — so `agent-browser <cmd>` in the sandbox drives the SAME
+    // browser the native browser tools drive. Launch is lazy (nothing spawns at
+    // boot), so this is safe to leave on under AIMock/tests.
+    BROWSER_CLI: z
+      .enum(['agent-browser', 'browser-use', 'browse', 'browse-cli'])
+      .default('agent-browser'),
+    // Headless by default: the live browser panel screencasts frames into the UI
+    // (P3), so a visible OS window isn't needed. Set false to pop a real window.
+    BROWSER_HEADLESS: boolish.default(true),
+    // playwright-core ships NO browser binary. Point this at an installed Chrome
+    // (or a `playwright install chromium` cache) if launch can't find one.
+    BROWSER_EXECUTABLE_PATH: z.string().optional(),
+
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.
     DOLT_HOST: z.string().optional(),
