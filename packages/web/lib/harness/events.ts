@@ -49,6 +49,14 @@ export type HarnessUsage = {
   cachedInputTokens?: number;
 };
 
+/**
+ * Live shell state for the workbench Terminal tab. The harness streams the
+ * sandbox's stdout/stderr as `shell_output` events (one per chunk, per running
+ * command); we accumulate them into a single scrollback buffer. `running` drives
+ * the Terminal's streaming caret and flips off when the run/tool settles.
+ */
+export type HarnessTerminal = { output: string; running: boolean };
+
 /** What the SSE consumer folds events into and the view renders. */
 export type HarnessTranscript = {
   threadId: string | null;
@@ -57,6 +65,7 @@ export type HarnessTranscript = {
   pendingApproval: PendingApproval | null;
   usage: HarnessUsage | null;
   queuedFollowUps: number;
+  terminal: HarnessTerminal;
   error: string | null;
   done: boolean;
 };
@@ -68,6 +77,7 @@ export const emptyTranscript = (): HarnessTranscript => ({
   pendingApproval: null,
   usage: null,
   queuedFollowUps: 0,
+  terminal: { output: '', running: false },
   error: null,
   done: false,
 });
@@ -95,12 +105,25 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
     case '__thread__':
       return { ...state, threadId: event.threadId ?? state.threadId };
     case '__done__':
-      return { ...state, done: true, pendingApproval: null };
+      return {
+        ...state,
+        done: true,
+        pendingApproval: null,
+        terminal: { ...state.terminal, running: false },
+      };
+    // The sandbox streams command stdout/stderr as it runs — accumulate it into
+    // the Terminal scrollback and mark a command in flight.
+    case 'shell_output':
+      return {
+        ...state,
+        terminal: { output: state.terminal.output + String(event.output ?? ''), running: true },
+      };
     // Once the gate resolves (approved → tool runs, or declined → run ends), the
     // approval is no longer pending. Clear it on any of these resolution events.
+    // These also settle a running command, so drop the Terminal's streaming caret.
     case 'tool_end':
     case 'agent_end':
-      return { ...state, pendingApproval: null };
+      return { ...state, pendingApproval: null, terminal: { ...state.terminal, running: false } };
     case 'message_start':
     case 'message_update':
     case 'message_end':

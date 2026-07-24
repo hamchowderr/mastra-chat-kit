@@ -65,6 +65,19 @@ describe('harness reducer', () => {
     expect(finished.done).toBe(true);
   });
 
+  it('accumulates shell_output into the terminal buffer and toggles running', () => {
+    const streaming = reduceHarnessEvents(emptyTranscript(), [
+      { type: 'shell_output', toolCallId: 'c1', output: 'line 1\n', stream: 'stdout' },
+      { type: 'shell_output', toolCallId: 'c1', output: 'line 2\n', stream: 'stderr' },
+    ]);
+    expect(streaming.terminal.output).toBe('line 1\nline 2\n');
+    expect(streaming.terminal.running).toBe(true);
+    // the command settling drops the streaming caret but keeps the scrollback
+    const settled = reduceHarnessEvent(streaming, { type: 'tool_end', toolCallId: 'c1' });
+    expect(settled.terminal.running).toBe(false);
+    expect(settled.terminal.output).toBe('line 1\nline 2\n');
+  });
+
   it('passes unknown events through untouched', () => {
     const before = emptyTranscript();
     const after = reduceHarnessEvent(before, { type: 'om_status', windows: {} });

@@ -50,7 +50,7 @@ import {
   StepTrace,
 } from '@/components/chat/tool-views';
 import { collectToolResults, type HarnessContentPart } from '@/lib/harness/events';
-import { useHarnessChat } from '@/lib/harness/use-harness-chat';
+import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
 import { cn } from '@/lib/utils';
 
 /**
@@ -60,8 +60,14 @@ import { cn } from '@/lib/utils';
  * Image, submit_plan → Plan, the step sequence → ChainOfThought, task_updated → Task,
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
-export function HarnessChat({ fluid = false }: { fluid?: boolean }) {
-  const { transcript, status, sendMessage, approve } = useHarnessChat();
+export function HarnessChat({
+  harness,
+  fluid = false,
+}: {
+  harness: UseHarnessChat;
+  fluid?: boolean;
+}) {
+  const { transcript, status, sendMessage, approve } = harness;
   const { messages, tasks, pendingApproval, usage, queuedFollowUps, error } = transcript;
   const resultsById = collectToolResults(messages);
 

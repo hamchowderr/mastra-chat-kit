@@ -91,5 +91,13 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     });
   }, []);
 
-  return { transcript, status, sendMessage, approve };
+  /** Clear the workbench Terminal scrollback (the shell buffer is cumulative). */
+  const clearTerminal = useCallback(() => {
+    setTranscript((s) => ({ ...s, terminal: { ...s.terminal, output: '' } }));
+  }, []);
+
+  return { transcript, status, sendMessage, approve, clearTerminal };
 }
+
+/** The shared harness transport, lifted to the shell so chat + workbench panel drive one session. */
+export type UseHarnessChat = ReturnType<typeof useHarnessChat>;

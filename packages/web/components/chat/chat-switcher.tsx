@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { HarnessChat } from '@/components/chat/harness-chat';
 import { WorkbenchPanel } from '@/components/chat/workbench-panel';
+import { useHarnessChat } from '@/lib/harness/use-harness-chat';
 
 /**
  * The app shell — the batteries-included agent workbench.
@@ -21,6 +22,9 @@ import { WorkbenchPanel } from '@/components/chat/workbench-panel';
  */
 export function ChatSwitcher() {
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  // One harness session, shared by the chat and the workbench panel — so the
+  // panel's Terminal/Files/Browser reflect the same run the user is chatting with.
+  const harness = useHarnessChat();
 
   return (
     <div className="flex h-full flex-1 flex-col">
@@ -46,8 +50,8 @@ export function ChatSwitcher() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <HarnessChat fluid={!rightCollapsed} />
-        {!rightCollapsed && <WorkbenchPanel />}
+        <HarnessChat harness={harness} fluid={!rightCollapsed} />
+        {!rightCollapsed && <WorkbenchPanel harness={harness} />}
       </div>
     </div>
   );
