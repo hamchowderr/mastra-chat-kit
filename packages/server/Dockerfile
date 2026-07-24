@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# Use node:22-slim (Debian/glibc), NOT node:22-alpine (musl).
-# DuckDB native modules segfault on Alpine even with gcompat.
-# This makes the image ~676MB instead of ~150MB. See README "Deployment Notes".
+# Storage runs on libSQL/Turso (no DuckDB, no Postgres), so this image has no
+# native-module glibc constraint. node:22-slim (Debian) is used for broad
+# compatibility; node:22-alpine also works if you want a smaller image.
 # ─── Stage 1: build ───────────────────────────────────────────────
 FROM node:22-slim AS build
 WORKDIR /app
@@ -22,7 +22,6 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 
 # tini — proper signal handling for SIGTERM
-# node:22-slim is Debian-based (glibc), so no gcompat needed for native modules (e.g. DuckDB)
 RUN apt-get update && apt-get install -y --no-install-recommends tini wget && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1001 nodejs && \

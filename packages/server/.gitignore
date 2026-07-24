@@ -5,9 +5,9 @@ dist
 .env
 .env.*
 !.env.example
-mastra.duckdb*
 *.db
 *.db-*
+.mastra-workspace/
 .netlify
 .vercel
 .claude/

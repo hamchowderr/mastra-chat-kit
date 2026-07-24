@@ -10,16 +10,11 @@ const envSchema = z
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     APP_SECRET: z.string().min(32, 'APP_SECRET must be at least 32 chars'),
 
-    // Supabase client vars are optional — only needed if you wire up the
-    // Supabase auth/RLS client. Plain Postgres (the compose `postgres` service)
-    // only needs SUPABASE_DB_URL below.
-    SUPABASE_URL: z.string().url().optional(),
-    SUPABASE_ANON_KEY: z.string().min(1).optional(),
-    SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-    SUPABASE_DB_URL: z
-      .string()
-      .url()
-      .refine((v) => v.startsWith('postgres'), 'Must be a postgres:// connection string'),
+    // Storage + vectors run on libSQL/Turso. Local dev uses a file: DB (no
+    // server, no Docker); prod points at a libsql:// Turso URL with an auth
+    // token. To switch the whole kit back to Postgres, see docs/postgres.md.
+    TURSO_DATABASE_URL: z.string().default('file:./mastra.db'),
+    TURSO_AUTH_TOKEN: z.string().optional(),
 
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.

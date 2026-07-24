@@ -1,13 +1,39 @@
-# mastra-chat-kit
+<div align="center">
 
-One canonical AI chat layer — **Vercel AI Elements + AI SDK v6 + Mastra** — that:
+# 💬 mastra-chat-kit
 
-- exercises **every** AI Element and **every** prop (see `packages/web/app/showcase`),
-- works in **Agent mode** (bare `Agent`, stateless) *or* **Harness mode** (session-controlled: modes, tool approvals, subagents, model switching, follow-ups),
-- is **AIMock-first tested** (test everything before spending money — real API only at Tier 4),
-- ships as an **ai-elements / shadcn registry** so every project installs the same thing instead of drifting.
+### One canonical AI chat layer. Every AI Element, every prop. Agent mode or Harness mode.
 
-## Install the chat layer
+**mastra-chat-kit is a production-grade chat frontend + backend built on [Vercel AI Elements](https://ai-sdk.dev/elements), the [AI SDK v7](https://ai-sdk.dev), and [Mastra](https://mastra.ai).** It exercises every AI Element and every prop, runs the *same* UI in **Agent mode** (a bare stateless agent) or **Harness mode** (a session-controlled `AgentController` with modes, tool approvals, subagents, model switching, and follow-ups), and ships as an **ai-elements / shadcn registry** so every project installs the same chat layer instead of drifting.
+
+[![License: Internal](https://img.shields.io/badge/license-internal-blue)](#-license)
+[![Status: scaffolding](https://img.shields.io/badge/status-scaffolding-orange)]()
+[![Node: 22+](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](#-getting-started)
+[![Built on Mastra](https://img.shields.io/badge/built%20on-Mastra-000)](https://mastra.ai)
+[![AI SDK v7](https://img.shields.io/badge/AI%20SDK-v7-000?logo=vercel)](https://ai-sdk.dev)
+[![Storage: libSQL / Turso](https://img.shields.io/badge/storage-libSQL%20%2F%20Turso-4ff8d4)](https://turso.tech)
+
+</div>
+
+![mastra-chat-kit Showcase](docs/screenshot.png)
+
+> _Screenshot placeholder — to be added. See `packages/web/app/showcase` for every element + prop, live._
+
+---
+
+## ⚡ What it is
+
+One chat layer, built once, installed everywhere:
+
+- **Every AI Element, every prop.** `packages/web/app/showcase` renders the full Vercel AI Elements surface — messages, reasoning, tools, sources, tasks, context/usage, approvals — with every prop exercised, so nothing is untested when you compose a real chat.
+- **Two engines, one UI.** The web layer talks to the server over a `ChatTransport`. Swap the transport and the *same* `useChat` + AI Elements run in **Agent mode** (stateless HTTP) or **Harness mode** (session SSE). Nothing in the UI changes.
+- **AIMock-first.** Test everything before spending a cent — unit, integration, component, and e2e all run against deterministic [AIMock](https://aimock.copilotkit.dev) fixtures. A real provider is touched only at the final tier.
+- **Ships as a registry.** `npx shadcn@latest add @mastra-chat-kit/chat` installs the canonical shell into any project. It depends on upstream AI Elements and overrides only the few components we patched.
+- **Zero-friction storage.** Memory, threads, observability, and vector search all run on **libSQL/Turso** — a local `file:` DB for dev (no Docker, no server) and a `libsql://` Turso URL for prod. Postgres is a documented opt-in, not a requirement.
+
+---
+
+## 📦 Install the chat layer
 
 Add the namespace to your `components.json`, then install:
 
@@ -20,39 +46,202 @@ Add the namespace to your `components.json`, then install:
 npx shadcn@latest add @mastra-chat-kit/chat
 ```
 
-It depends on Vercel AI Elements upstream and overrides only the few components we patched. See [docs/registry.md](docs/registry.md) for the full design.
+It pulls upstream [AI Elements](https://ai-sdk.dev/elements) and overrides only the components we patched (a tool-renderer registry, one approval component, the canonical chat shell). See [`docs/registry.md`](docs/registry.md) for the full design and [`docs/coverage.md`](docs/coverage.md) for the element → event mapping.
 
-## Structure
+---
+
+## 🎛️ Two modes, one UI
+
+The web layer is pure frontend. **Agent mode** drives `useChat` with `singleAgentTransport` (`lib/transports/single-agent.ts` → `DefaultChatTransport`); **Harness mode** swaps in the `useHarnessChat` hook (`lib/harness/`), which mirrors `useChat`'s `{ messages, sendMessage, status }` shape but speaks the Harness SSE protocol. The AI Elements above stay identical either way.
+
+| | 🟢 **Agent mode** | 🟣 **Harness mode** |
+|---|---|---|
+| **Backend** | `agent.stream` → `toAISdkStream` → `createUIMessageStreamResponse` | `AgentController` → `Session`; commands in, events out |
+| **Route** | `POST /chat/:agent` (HTTP) | `POST /harness/stream` (SSE) + `POST /harness/approve` |
+| **Web client** | `useChat` + `singleAgentTransport` (`DefaultChatTransport`) | `useHarnessChat` hook (command POST + SSE) |
+| **Wire format** | AI SDK `UIMessage` parts | `AgentControllerEvent`s → `AgentControllerDisplayState` |
+| **Modes / approvals / subagents / model-switch / follow-ups** | n/a | first-class |
+
+**Harness mode** runs on Mastra's `AgentController` — the session controller that Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (It was originally shipped as `Harness` and renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `harness` name for its routes and files.) A **Session** drives the same `chatAgent`, tool calls pause for **approve / decline** (HITL) before running, and the web layer maps controller events onto the very same AI Elements.
+
+**→ [`docs/modes.md`](docs/modes.md)** explains both modes in full, using Mastra's exact vocabulary — Session, Thread, Mode, tool approvals, subagents, and `AgentControllerDisplayState`.
+
+---
+
+## 🧠 How it works
+
+```
+   Browser  ·  AI Elements + useChat  ·  packages/web (Next.js 16, :3000)
+        │
+        │  Agent = useChat + transport   ·   Harness = useHarnessChat hook
+        ├─────────────────────────────┬────────────────────────────────┐
+        ▼                             ▼                                 │
+   Agent mode (HTTP)            Harness mode (SSE)                       │
+   POST /chat/:agent           POST /harness/stream                     │
+        │                             │                                 │
+        ▼                             ▼                                 │
+   agent.stream                 AgentController → Session               │
+   → toAISdkStream              modes · approvals · subagents ·         │
+   → UIMessage parts            model-switch · follow-ups → events      │
+        └─────────────┬───────────────┘                                 │
+                      ▼                                                  │
+             packages/server  ·  Mastra + Hono (:4111)                  │
+                      │                                                  │
+                      ▼                                                  │
+        LibSQLStore + LibSQLVector  ──  fastembed (local, 384-d)        │
+        file: local  ·  libsql:// Turso prod                            │
+        memory · threads · observability · semantic recall  ◀───────────┘
+```
+
+Both modes wrap the **same** `chatAgent`. Agent mode streams AI SDK `UIMessage` parts over HTTP; Harness mode streams `AgentControllerEvent`s over SSE. Storage, threads, observability, and vector recall all land in one libSQL/Turso database; embeddings run locally via `fastembed` (no embedding API).
+
+---
+
+## 🧪 Testing — AIMock first
+
+Every tier is **AIMock-backed, zero LLM spend** — real provider keys are intentionally absent, so an accidental real call fails loudly instead of billing you.
+
+| Tier | Command | What it covers |
+|---|---|---|
+| **unit + integration** | `pnpm --filter server test` | Agent + Harness flows via [AIMock](https://aimock.copilotkit.dev) — a `globalSetup` boots the mock on :4010 |
+| **evals** | `pnpm --filter server eval` | `@mastra/evals` scorers (run with `USE_AIMOCK=true`) |
+| **component** | `pnpm --filter web test` | Every AI Element (Vitest + RTL) |
+| **e2e** | `pnpm test:e2e` | Full chat flow, both modes (Playwright, AIMock-backed) |
+
+`pnpm test` runs the unit/integration + component tiers across both packages. No script hits a real provider yet — a real-model smoke tier is on the roadmap.
+
+> **e2e note:** the Playwright config runs the web as a **production build** (`next build && next start`), not `next dev` — Turbopack's HMR socket breaks React hydration under headless Chromium.
+
+---
+
+## 🧱 Architecture
+
+A two-package pnpm-workspaces monorepo: a Mastra + Hono **server** and a Next.js **web** frontend.
 
 ```
 packages/
-├── server/   # Mastra (from mastra-base): agents, Harness, Memory, all @mastra/* packages, AIMock fixtures
-│             #   routes: /chat/:agent (Agent mode) + /harness/{chat,stream} (Harness mode, SSE)
-└── web/      # Next.js 16 App Router + AI Elements
-              #   components/chat (canonical shell, tool-renderer registry, one approval component)
-              #   lib/transports/{httpAgent,harness,ipc}.ts (the swappable engine — one file each)
-              #   app/showcase (every element + prop)
+├─ server/                  Mastra + Hono agent server (:4111)
+│  └─ src/
+│     ├─ lib/env.ts           Zod-validated env — crashes on bad config
+│     └─ mastra/
+│        ├─ index.ts          Boot: env → AIMock → Mastra; Agent + Harness routes
+│        ├─ agents/           chat · code · _example (leadIntake)
+│        ├─ lib/
+│        │  ├─ harness.ts       AgentController + Session (Harness mode)
+│        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
+│        │  └─ dolt.ts          optional versioned business data (mysql2)
+│        ├─ scorers/          eval scorers + datasets
+│        └─ tools/            agent tools (getWeather, dolt, image, …)
+└─ web/                      Next.js 16 App Router + AI Elements (:3000)
+   ├─ app/showcase/            every element + prop, live
+   ├─ components/chat/         canonical shell · tool-renderer registry · approvals
+   ├─ components/ai-elements/  vendored AI Elements (you own these files)
+   ├─ lib/transports/          single-agent.ts — Agent-mode DefaultChatTransport
+   └─ lib/harness/             use-harness-chat.ts + events — Harness-mode SSE client
 ```
 
-The web layer is pure frontend and talks to the server over a `ChatTransport`; only the transport changes between Agent and Harness mode. `useChat` + AI Elements stay constant.
+### Stack
 
-## Two modes
+| Layer | Technology |
+|---|---|
+| Agent framework | [Mastra](https://mastra.ai) — `@mastra/core` (Agent + AgentController + Workspace), `@mastra/memory`, `@mastra/ai-sdk`, `@mastra/evals`, `@mastra/observability`, `@mastra/editor`, `@mastra/mcp`, `@mastra/auth`, `@mastra/loggers` |
+| AI SDK | [Vercel AI SDK **v7**](https://ai-sdk.dev) — `ai`, `@ai-sdk/react` (`useChat`), `@ai-sdk/anthropic`, `@ai-sdk/openai` |
+| Chat UI | [AI Elements](https://ai-sdk.dev/elements) (vendored, shadcn-style) + [shadcn/ui](https://ui.shadcn.com) |
+| LLM | Claude (Anthropic) — Sonnet 4.6 default, Opus 4.8 / Haiku 4.5 selectable; OpenAI models via allowlist |
+| Storage + vectors | **[libSQL / Turso](https://turso.tech)** — `@mastra/libsql` (`LibSQLStore` + `LibSQLVector`); `file:` local, `libsql://` prod. [Postgres opt-in →](docs/postgres.md) |
+| Embeddings | [fastembed](https://github.com/qdrant/fastembed) — local ONNX `bge-small` (384-d), no embedding API |
+| Versioned data | [Dolt](https://www.dolthub.com) via `mysql2` (optional — the app boots without it) |
+| API server | [Hono](https://hono.dev) (mounted via Mastra) |
+| Frontend | [Next.js](https://nextjs.org) 16, [React](https://react.dev) 19, [Tailwind](https://tailwindcss.com) 4 |
+| Testing | [Vitest](https://vitest.dev), [Playwright](https://playwright.dev), [AIMock](https://aimock.copilotkit.dev) |
+| Linting | [Biome](https://biomejs.dev) |
+| Monorepo | pnpm workspaces |
 
-| | Agent mode | Harness mode |
+---
+
+## 🚀 Getting started
+
+**Prerequisites:** Node.js 22+ · pnpm 10+ · an Anthropic (or OpenAI) API key. **No Docker, no Postgres** — storage defaults to a local `file:` libSQL DB.
+
+```bash
+# 1. Install all workspace deps
+pnpm install
+
+# 2. Configure the server env
+cp packages/server/.env.example packages/server/.env
+#   Set APP_SECRET (openssl rand -hex 32) + one provider key.
+#   Leave TURSO_DATABASE_URL as-is to use the local file: DB.
+
+# 3. Run server (:4111) + web (:3000) together
+pnpm dev
+```
+
+Open the web app at `http://localhost:3000` (chat) and `/showcase` (every element). For deterministic, zero-cost dev, run the server against AIMock: `pnpm --filter server dev:mock`.
+
+---
+
+## 🗄️ Storage — libSQL / Turso by default
+
+Everything Mastra persists — memory, threads, observability traces, and the vector index for semantic recall — lives in **one libSQL database**. libSQL has native vector search, so there's no separate vector service, no pgvector, and no DuckDB.
+
+| Environment | `TURSO_DATABASE_URL` | Needs |
 |---|---|---|
-| Backend | `agent.stream` → `toAISdkStream` → `createUIMessageStreamResponse` | `Harness` singleton; commands in, `display_state_changed` snapshots out (SSE) |
-| Transport | `DefaultChatTransport` (HTTP) | `harnessTransport` (command POST + SSE → `UIMessageChunk`) |
-| Modes / approvals / subagents | n/a | first-class |
+| **Local dev** | `file:./mastra.db` (default) | nothing — no server, no Docker |
+| **Production** | `libsql://<db>-<org>.turso.io` + `TURSO_AUTH_TOKEN` | a [Turso](https://turso.tech) database |
 
-## Testing (AIMock first — see vault: "LLM Dev Principle — Mastra + AIMock First")
+Prefer Postgres (Supabase / Neon / RDS)? It's a small, self-contained swap — see **[`docs/postgres.md`](docs/postgres.md)**.
 
-| Tier | Command | Costs $ |
+---
+
+## 🔭 Inspect & tune the agents (Mastra Studio)
+
+The server runs on [Mastra](https://mastra.ai), so you can open it in **Mastra Studio** — a browser dashboard for the agents without the web app.
+
+```bash
+pnpm --filter server dev    # server + Studio → http://localhost:4111
+```
+
+- 💬 **Chat** with the agents directly (uses your `ANTHROPIC_API_KEY`)
+- ✏️ **Edit & version** system prompts (draft/publish) via `@mastra/editor`
+- 🧠 **Memory & threads** — every conversation, persisted to libSQL
+- 🔭 **Traces** — per-run agent / tool / LLM spans
+- ✅ **Scorers** — score runs against the eval datasets
+
+---
+
+## ☁️ Deployment
+
+It's a Mastra app, so it deploys anywhere a Node server or edge runtime runs. `TURSO_DATABASE_URL` selects storage — a local file for dev, a Turso URL for prod — and the web app is a standard Next.js deploy.
+
+| Host | Server | Web |
 |---|---|---|
-| 1 unit/integration (Vitest + AIMock) | `pnpm test` | no |
-| 1.5 evals (`@mastra/evals` + AIMock) | `pnpm --filter server eval` | no |
-| component — per element (Vitest + RTL) | `pnpm --filter web test` | no |
-| 2 live DB | `pnpm --filter server test:live` | no |
-| 3.5 e2e (Playwright, AIMock-backed) | `pnpm test:e2e` | no |
-| 4 real provider (no AIMock) | `pnpm --filter server test:sdk` | **yes** |
+| **Local** | `pnpm --filter server dev` | `pnpm --filter web dev` |
+| **Vercel** | Mastra build; point at Turso | `next build` (default target) |
+| **Mastra Cloud** | Mastra's hosted platform (Observe / Server / Studio) | — |
+| **VPS / container** | `Dockerfile` (bundles Studio); Turso or self-hosted libSQL | any Next.js host |
 
-> Status: scaffolding. See vault note `1. Projects/Mastra Chat Kit/Mastra Chat Kit.md` for the full design + audit.
+Turso's database-per-tenant model and edge replication make libSQL a natural fit for multi-tenant and edge deploys.
+
+---
+
+## 🗺️ Roadmap
+
+- 🌐 **Publish the registry** — host `@mastra-chat-kit` on Vercel so any project can `shadcn add` the chat layer.
+- 🧩 **Upstream the AI Elements patches** — contribute the vendored fixes back to `vercel/ai-elements`.
+- 🔁 **More clients** — add an IPC/desktop client (Electron) alongside the Agent-mode transport and the Harness SSE hook.
+- 🧾 **Real-provider smoke tier** — a small opt-in test script that runs against a live model, gated behind an explicit key.
+
+---
+
+## 🙏 Acknowledgments
+
+- **[Mastra](https://mastra.ai/)** — the agent framework: agents, AgentController, memory, evals, observability.
+- **[Vercel](https://vercel.com/)** — the [AI SDK](https://ai-sdk.dev) and [AI Elements](https://ai-sdk.dev/elements) this chat layer is built from.
+- **[Turso](https://turso.tech/)** — libSQL, the zero-friction storage + vector backend.
+- **[Anthropic](https://www.anthropic.com/)**, **[Hono](https://hono.dev/)**, **[Next.js](https://nextjs.org/)**, and **[shadcn/ui](https://ui.shadcn.com/)** — models, server, frontend, and components.
+
+---
+
+## 📜 License
+
+**Internal.** © 2026 Otaku Solutions. Part of the Mastra kit lineage (sibling to `mastra-base` / `mastra-base-turso`). Questions: **hello@otakusolutions.io**.

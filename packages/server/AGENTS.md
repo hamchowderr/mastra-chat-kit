@@ -87,16 +87,18 @@ Note: `createPromptAlignmentScorerLLM` with `evaluationMode: 'system'` requires 
 
 ## Storage
 
-The Mastra instance uses a composite store:
-- **default domain** → `PostgresStore` (Supabase Postgres via `SUPABASE_DB_URL`)
-- **observability domain** → `DuckDBStore`
+The Mastra instance runs on **libSQL/Turso**. A single `LibSQLStore` serves every
+domain (default, editor, observability), and `LibSQLVector` (see
+`src/mastra/lib/memory.ts`) backs semantic recall. libSQL has native vector
+search, so there's no separate DuckDB or pgvector.
 
-Both require an explicit `id` field:
 ```typescript
-new PostgresStore({ id: 'mastra-storage', connectionString: env.SUPABASE_DB_URL })
+new LibSQLStore({ id: 'mastra-storage', url: env.TURSO_DATABASE_URL })
 ```
 
-`DuckDBStore` requires glibc. Do not run it in Alpine-based containers — use `node:22-slim`.
+`url` is `file:./mastra.db` for local dev (no server, no Docker) and a `libsql://`
+Turso URL (with `TURSO_AUTH_TOKEN`) in prod. Both `LibSQLStore` and `LibSQLVector`
+require an explicit `id`. To switch the kit to Postgres, see `docs/postgres.md`.
 
 ---
 
@@ -126,7 +128,7 @@ The `MastraEditor` instance gives non-developers a way to iterate on agent promp
 - **Never read `process.env` directly** — use `env` from `src/lib/env.ts`
 - **Never construct an AI SDK client before `configureAIMock()`** — AIMock will be bypassed silently
 - **Never set `ANTHROPIC_BASE_URL = AIMOCK_URL` bare** — `@ai-sdk/anthropic` appends `/messages`, so set it to `${AIMOCK_URL}/v1` to land at `/v1/messages` (where AIMock actually listens)
-- **Never change the Dockerfile base to `node:22-alpine`** or any musl-based image — DuckDB native binaries will SIGSEGV at runtime. If you genuinely need a smaller image, swap `DuckDBStore` for `LibSQLStore` in the observability domain in `src/mastra/index.ts` instead. See README "Deployment Notes".
+- **Never treat a `file:` libSQL DB as multi-writer** — a local `file:./mastra.db` is single-process; for prod / multi-process use a `libsql://` Turso URL (with `TURSO_AUTH_TOKEN`), or switch to Postgres (`docs/postgres.md`).
 - **Never add a new env var without updating `.env.example`** — new devs won't know it exists
 - **Never skip the Zod schema for a new env var** — process will start with undefined values silently
 - **Never import from `src/mastra/` in `src/lib/`** — creates circular dependency risk

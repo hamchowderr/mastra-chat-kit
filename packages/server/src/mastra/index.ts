@@ -13,14 +13,12 @@ import { MastraJwtAuth } from '@mastra/auth';
 // 3. Mastra imports — agents/tools constructed below now see the right base URLs
 import { Mastra } from '@mastra/core/mastra';
 import { registerApiRoute } from '@mastra/core/server';
-import { MastraCompositeStore } from '@mastra/core/storage';
-import { DuckDBStore } from '@mastra/duckdb';
 import { MastraEditor } from '@mastra/editor';
 import { fastembed } from '@mastra/fastembed';
+import { LibSQLStore } from '@mastra/libsql';
 import { PinoLogger } from '@mastra/loggers';
 import { MCPServer } from '@mastra/mcp';
 import { DefaultExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
-import { PostgresStore } from '@mastra/pg';
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -32,7 +30,7 @@ import { leadIntakeAgent } from './agents/_example';
 import { chatAgent } from './agents/chat';
 import { codeAgent } from './agents/code';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
-import { getChatHarness } from './lib/harness';
+import { getChatSession } from './lib/harness';
 import { getImage } from './lib/image-store';
 import { getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
@@ -59,10 +57,16 @@ const mcpServer = new MCPServer({
   agents: { leadIntake: leadIntakeAgent },
 });
 
-// One shared Postgres store for both default + editor slots. Two separate
-// instances on the same DB race on first boot creating shared types
-// (mastra_ai_spans) -> 23505. Sharing one instance avoids it.
-const pgStore = new PostgresStore({ id: 'mastra-storage', connectionString: env.SUPABASE_DB_URL });
+// One libSQL/Turso store serves every Mastra domain (default, editor, and
+// observability). Local dev uses a file: DB — no server, no Docker; prod points
+// TURSO_DATABASE_URL at a libsql:// Turso URL with TURSO_AUTH_TOKEN. libSQL has
+// native vector search, so there's no DuckDB (observability) or pgvector to run.
+// To switch the whole kit to Postgres instead, see docs/postgres.md.
+const storage = new LibSQLStore({
+  id: 'mastra-storage',
+  url: env.TURSO_DATABASE_URL,
+  ...(env.TURSO_AUTH_TOKEN ? { authToken: env.TURSO_AUTH_TOKEN } : {}),
+});
 
 // Models the Single Agent route will accept from body.model (the composer's model
 // picker). Keep in sync with web `MODELS` in components/chat/composer.tsx. The
@@ -576,25 +580,30 @@ const serverConfig = {
           return c.json({ error: 'text is required' }, 400);
         }
 
-        const harness = await getChatHarness();
-        const activeThreadId = threadId ?? (await harness.createThread({ title: 'Chat' })).id;
-        await harness.switchThread({ threadId: activeThreadId });
+        const session = await getChatSession();
+        // Resume the given thread, or start a fresh "Chat" thread when none is sent.
+        if (threadId) {
+          await session.thread.switch({ threadId });
+        } else {
+          await session.thread.create({ title: 'Chat' });
+        }
+        const activeThreadId = session.thread.requireId();
 
         const encoder = new TextEncoder();
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
-            // biome-ignore lint/suspicious/noExplicitAny: SSE payloads are heterogeneous HarnessEvents
+            // biome-ignore lint/suspicious/noExplicitAny: SSE payloads are heterogeneous AgentControllerEvents
             const send = (obj: any) =>
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
-            const unsubscribe = harness.subscribe((event) => send(event));
+            const unsubscribe = session.subscribe((event) => send(event));
             // Abort the in-flight run if the client disconnects.
-            c.req.raw.signal?.addEventListener('abort', () => harness.abort());
+            c.req.raw.signal?.addEventListener('abort', () => session.abort());
 
             // Hand the client the active thread id so it can continue the conversation.
             send({ type: '__thread__', threadId: activeThreadId });
             try {
-              await harness.sendMessage({ content: text });
+              await session.sendMessage({ content: text });
             } catch (err) {
               send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
             } finally {
@@ -634,8 +643,8 @@ const serverConfig = {
             400,
           );
         }
-        const harness = await getChatHarness();
-        harness.session.respondToToolApproval({ decision });
+        const session = await getChatSession();
+        session.respondToToolApproval({ decision });
         return c.json({ ok: true });
       },
     }),
@@ -661,14 +670,7 @@ export const mastra = new Mastra({
   agents: { leadIntake: leadIntakeAgent, chat: chatAgent, code: codeAgent },
   scorers: { hallucinationScorer, promptAlignmentScorer, urgencyScorer },
   mcpServers: { baseMcp: mcpServer },
-  storage: new MastraCompositeStore({
-    id: 'composite-storage',
-    default: pgStore,
-    editor: pgStore,
-    domains: {
-      observability: await new DuckDBStore().getStore('observability'),
-    },
-  }),
+  storage,
   logger: new PinoLogger({
     name: 'Mastra',
     level: env.LOG_LEVEL,

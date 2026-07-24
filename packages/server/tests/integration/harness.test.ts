@@ -10,22 +10,22 @@ import { createChatHarness } from '../../src/mastra/lib/harness';
  */
 describe('chat agent — Agent Harness mode (AIMock)', () => {
   it('streams harness events for a greeting', async () => {
-    const harness = createChatHarness({
+    const controller = createChatHarness({
       storage: new InMemoryStore(),
       resourceId: 'u-harness-greeting',
     });
-    await harness.init();
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-greeting' });
 
-    // biome-ignore lint/suspicious/noExplicitAny: HarnessEvent union is wide; we assert on .type
+    // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide; we assert on .type
     const events: any[] = [];
-    const unsubscribe = harness.subscribe((event) => events.push(event));
+    const unsubscribe = session.subscribe((event) => events.push(event));
 
-    const thread = await harness.createThread({ title: 'greeting' });
-    await harness.switchThread({ threadId: thread.id });
-    await harness.sendMessage({ content: 'Hello' });
+    await session.thread.create({ title: 'greeting' });
+    await session.sendMessage({ content: 'Hello' });
 
     unsubscribe();
-    await harness.destroy();
+    await controller.destroy();
 
     const types = new Set(events.map((e) => e.type));
     // The harness must surface assistant message activity...
@@ -39,32 +39,32 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
   // proves the full round-trip — model requests the tool, we approve, the tool
   // executes, and the run completes — over the real Harness approval surface.
   it('gates getWeather behind approval, then completes when approved', async () => {
-    const harness = createChatHarness({
+    const controller = createChatHarness({
       storage: new InMemoryStore(),
       resourceId: 'u-harness-weather',
     });
-    await harness.init();
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-weather' });
 
-    // biome-ignore lint/suspicious/noExplicitAny: HarnessEvent union is wide; we assert on .type
+    // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide; we assert on .type
     const events: any[] = [];
-    const unsubscribe = harness.subscribe((event) => events.push(event));
+    const unsubscribe = session.subscribe((event) => events.push(event));
 
-    const thread = await harness.createThread({ title: 'weather' });
-    await harness.switchThread({ threadId: thread.id });
+    await session.thread.create({ title: 'weather' });
 
     // sendMessage stays pending at the approval gate — do NOT await it yet.
-    const done = harness.sendMessage({ content: "What's the weather in Los Angeles?" });
+    const done = session.sendMessage({ content: "What's the weather in Los Angeles?" });
 
     // Wait for the gate to arm.
     await waitFor(() => events.some((e) => e.type === 'tool_approval_required'), 15_000);
     expect(events.some((e) => e.type === 'tool_approval_required')).toBe(true);
 
     // Approve → the run resumes, the tool executes, and sendMessage resolves.
-    harness.session.respondToToolApproval({ decision: 'approve' });
+    session.respondToToolApproval({ decision: 'approve' });
     await done;
 
     unsubscribe();
-    await harness.destroy();
+    await controller.destroy();
 
     const blob = JSON.stringify(events);
     expect(blob).toContain('getWeather');

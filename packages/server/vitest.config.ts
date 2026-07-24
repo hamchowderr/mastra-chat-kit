@@ -25,7 +25,7 @@ export default defineConfig({
       OPENAI_API_KEY: 'mock',
       // env.ts requirements (only used if a test imports the full Mastra index).
       APP_SECRET: 'test-app-secret-at-least-32-characters-long',
-      SUPABASE_DB_URL: 'postgres://mock:mock@localhost:5432/mock',
+      TURSO_DATABASE_URL: 'file:./mastra-test.db',
     },
   },
 });
