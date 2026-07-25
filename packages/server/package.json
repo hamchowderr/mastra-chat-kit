@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "dev:mock": "aimock --config aimock.json"
+    "dev:mock": "aimock --config aimock.json",
+    "setup:browser": "playwright-core install chromium"
   },
   "keywords": [],
   "author": "",
@@ -47,6 +48,7 @@
     "@types/node": "^25.6.0",
     "@vitest/ui": "^4.1.9",
     "mastra": "^1.20.1",
+    "playwright-core": "1.61.1",
     "supabase": "^2.98.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",

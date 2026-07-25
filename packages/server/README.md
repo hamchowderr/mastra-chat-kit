@@ -161,6 +161,7 @@ template-mastra-base/
 | `npm run eval` | Run offline eval gate against all cases in the dataset |
 | `npm run typecheck` | TypeScript type check (zero-emit) |
 | `npm run score:list` | List registered scorers |
+| `npm run setup:browser` | Download the Chromium the harness Browser panel drives (run once after install) |
 
 ---
 
@@ -236,6 +237,7 @@ For typical VPS deployments (Hetzner, DigitalOcean, etc.) the 676MB size is not 
 | PostHog telemetry noise in restricted networks | Mastra runtime phones home on startup | Set `MASTRA_TELEMETRY_DISABLED=1` in `.env` |
 | DB connection errors at scale | Direct Supabase connection has limited slots | Use the **session pooler** URL from Supabase dashboard (Project Settings → Database → Connection string → Session pooler) |
 | Pino transport error in Docker | `pino-pretty` missing from production deps | Ensure it's in `dependencies`, not `devDependencies`, in any packages you add |
+| Browser panel blank / screencast emits no frames | Chromium not installed, or `BROWSER_EXECUTABLE_PATH` points at a system Chrome (its launcher forks/detaches — `playwright-core` can't drive it headless) | Run `npm run setup:browser` once; leave `BROWSER_EXECUTABLE_PATH` **unset** so browser-viewer uses its bundled Chromium |
 
 ---
 

@@ -707,6 +707,10 @@ const serverConfig = {
           if (!browser.isBrowserRunning()) {
             await browser.launch();
           }
+          // A blank launch has no page/target, so CDP screencast emits nothing.
+          // ensureReady() gives the browser a page to capture; startScreencast then
+          // emits the initial frame, and the agent's navigations produce the rest.
+          await browser.ensureReady();
           const stream = await browser.startScreencast({
             format: 'jpeg',
             quality: 70,
