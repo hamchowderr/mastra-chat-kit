@@ -17,7 +17,7 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
   const threadRef = useRef<string | null>(null);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, opts?: { model?: string; webSearch?: boolean }) => {
       if (!text.trim()) {
         return;
       }
@@ -31,7 +31,14 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text, threadId: threadRef.current }),
+          // The composer's model/web-search selections ride along so the harness
+          // honors them (the run switches model via `session.model.switch`).
+          body: JSON.stringify({
+            text,
+            threadId: threadRef.current,
+            model: opts?.model,
+            webSearch: opts?.webSearch,
+          }),
         });
         if (!res.ok || !res.body) {
           throw new Error(`harness stream failed: ${res.status}`);

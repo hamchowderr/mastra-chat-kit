@@ -71,7 +71,8 @@ export function HarnessChat({
   const { messages, tasks, pendingApproval, usage, queuedFollowUps, error } = transcript;
   const resultsById = collectToolResults(messages);
 
-  const handleSend = ({ text }: ComposerSubmit) => sendMessage(text);
+  const handleSend = ({ text, model, webSearch }: ComposerSubmit) =>
+    sendMessage(text, { model, webSearch });
 
   return (
     // `fluid` fills the column when the workbench panel is open; otherwise the

@@ -586,7 +586,11 @@ const serverConfig = {
     registerApiRoute('/harness/stream', {
       method: 'POST',
       handler: async (c) => {
-        const { text, threadId } = await c.req.json<{ text?: string; threadId?: string }>();
+        const { text, threadId, model } = await c.req.json<{
+          text?: string;
+          threadId?: string;
+          model?: string;
+        }>();
         if (!text?.trim()) {
           return c.json({ error: 'text is required' }, 400);
         }
@@ -614,6 +618,12 @@ const serverConfig = {
             // Hand the client the active thread id so it can continue the conversation.
             send({ type: '__thread__', threadId: activeThreadId });
             try {
+              // Honor the composer's model pick (validated against the same allow-list
+              // the Single Agent route uses). Switching here — inside the subscribed
+              // stream — lets the resulting `model_changed` event flow to the client too.
+              if (model && MODEL_ALLOWLIST.has(model)) {
+                await session.model.switch({ modelId: model });
+              }
               await session.sendMessage({ content: text });
             } catch (err) {
               send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
