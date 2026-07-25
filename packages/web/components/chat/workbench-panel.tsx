@@ -3,6 +3,7 @@
 import { FilesIcon, GlobeIcon, TerminalIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Terminal } from '@/components/ai-elements/terminal';
+import { WorkbenchBrowser } from '@/components/chat/workbench-browser';
 import { WorkbenchFiles } from '@/components/chat/workbench-files';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
@@ -58,8 +59,8 @@ export function WorkbenchPanel({ harness }: { harness: UseHarnessChat }) {
             </PanelPlaceholder>
           )}
         </TabsContent>
-        <TabsContent value="browser" className="min-h-0 flex-1 overflow-auto p-4">
-          <PanelPlaceholder>A live view of the agent's browser appears here.</PanelPlaceholder>
+        <TabsContent value="browser" className="min-h-0 flex-1 overflow-hidden p-3">
+          <WorkbenchBrowser />
         </TabsContent>
       </Tabs>
     </div>

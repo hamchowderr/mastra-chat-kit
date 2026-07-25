@@ -97,6 +97,7 @@ export function createChatHarness(opts?: {
 }
 
 let singleton: AgentController | null = null;
+let singletonBrowser: BrowserViewer | null = null;
 let initPromise: Promise<AgentController> | null = null;
 
 /** Lazily construct + `init()` the process-wide AgentController exactly once. */
@@ -106,13 +107,29 @@ export function getChatHarness(): Promise<AgentController> {
   }
   if (!initPromise) {
     initPromise = (async () => {
-      const harness = createChatHarness();
+      // Create the browser explicitly so the screencast route can reach the same
+      // instance the agent's browser tools drive.
+      const browser = createBrowser();
+      const harness = createChatHarness({ browser });
       await harness.init();
       singleton = harness;
+      singletonBrowser = browser;
       return harness;
     })();
   }
   return initPromise;
+}
+
+/**
+ * The process-wide `BrowserViewer` backing the harness workspace — the same Chrome
+ * the agent drives. The `/browser/screencast` route uses it to stream frames.
+ */
+export async function getChatBrowser(): Promise<BrowserViewer> {
+  await getChatHarness();
+  if (!singletonBrowser) {
+    throw new Error('chat browser not initialized');
+  }
+  return singletonBrowser;
 }
 
 /**

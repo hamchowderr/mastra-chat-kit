@@ -30,7 +30,7 @@ import { leadIntakeAgent } from './agents/_example';
 import { chatAgent } from './agents/chat';
 import { codeAgent } from './agents/code';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
-import { getChatSession, WORKSPACE_ROOT } from './lib/harness';
+import { getChatBrowser, getChatSession, WORKSPACE_ROOT } from './lib/harness';
 import { getImage } from './lib/image-store';
 import { getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
@@ -692,6 +692,80 @@ const serverConfig = {
           return c.json({ error: 'not found' }, 404);
         }
         return c.json(file);
+      },
+    }),
+
+    // Workbench Browser panel: a live screencast (SSE) of the harness agent's Chrome
+    // (the @mastra/browser-viewer instance). Launches the browser on first view, then
+    // forwards base64 JPEG frames + URL changes; the agent's browser tools drive the
+    // SAME window, so the panel shows what the agent sees.
+    registerApiRoute('/browser/screencast', {
+      method: 'GET',
+      handler: async (c) => {
+        const browser = await getChatBrowser();
+        try {
+          if (!browser.isBrowserRunning()) {
+            await browser.launch();
+          }
+          const stream = await browser.startScreencast({
+            format: 'jpeg',
+            quality: 70,
+            maxWidth: 1280,
+            maxHeight: 720,
+          });
+
+          const encoder = new TextEncoder();
+          const body = new ReadableStream<Uint8Array>({
+            async start(controller) {
+              const send = (obj: unknown) => {
+                try {
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+                } catch {
+                  /* stream already closed */
+                }
+              };
+              stream.on('frame', (f: { data: string; viewport: unknown }) =>
+                send({ type: 'frame', data: f.data, viewport: f.viewport }),
+              );
+              stream.on('url', (url: string) => send({ type: 'url', url }));
+              stream.on('error', (e: unknown) =>
+                send({ type: 'error', error: e instanceof Error ? e.message : String(e) }),
+              );
+              stream.on('stop', (reason: string) => {
+                send({ type: 'stop', reason });
+                try {
+                  controller.close();
+                } catch {
+                  /* already closed */
+                }
+              });
+              // `startScreencast()` returns an already-started stream, so listeners
+              // are attached here and frames flow immediately.
+              // Stop the screencast when the panel disconnects.
+              c.req.raw.signal?.addEventListener('abort', () => {
+                stream.stop().catch(() => {});
+                try {
+                  controller.close();
+                } catch {
+                  /* already closed */
+                }
+              });
+            },
+          });
+
+          return new Response(body, {
+            headers: {
+              'content-type': 'text/event-stream',
+              'cache-control': 'no-cache, no-transform',
+              connection: 'keep-alive',
+            },
+          });
+        } catch (err) {
+          return c.json(
+            { error: err instanceof Error ? err.message : 'screencast unavailable' },
+            503,
+          );
+        }
       },
     }),
   ],
