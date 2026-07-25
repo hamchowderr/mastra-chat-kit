@@ -629,13 +629,29 @@ const serverConfig = {
         const encoder = new TextEncoder();
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
+            // Guard every enqueue: once the client disconnects the stream controller
+            // closes, but the session keeps emitting events for a few ticks while the
+            // run finalizes — enqueueing then throws "Controller is already closed".
+            let closed = false;
             // biome-ignore lint/suspicious/noExplicitAny: SSE payloads are heterogeneous AgentControllerEvents
-            const send = (obj: any) =>
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+            const send = (obj: any) => {
+              if (closed) {
+                return;
+              }
+              try {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+              } catch {
+                closed = true; // client went away mid-run
+              }
+            };
 
             const unsubscribe = session.subscribe((event) => send(event));
-            // Abort the in-flight run if the client disconnects.
-            c.req.raw.signal?.addEventListener('abort', () => session.abort());
+            // On client disconnect: stop forwarding, drop the subscription, abort the run.
+            c.req.raw.signal?.addEventListener('abort', () => {
+              closed = true;
+              unsubscribe();
+              session.abort();
+            });
 
             // Hand the client the active thread id so it can continue the conversation.
             send({ type: '__thread__', threadId: activeThreadId });
@@ -656,7 +672,13 @@ const serverConfig = {
             } finally {
               unsubscribe();
               send({ type: '__done__' });
-              controller.close();
+              if (!closed) {
+                try {
+                  controller.close();
+                } catch {
+                  /* already closed */
+                }
+              }
             }
           },
         });
