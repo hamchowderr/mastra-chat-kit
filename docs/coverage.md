@@ -1,10 +1,17 @@
-# Coverage Matrix — Mastra/Harness → AI SDK v6 → AI Elements
+# Coverage Matrix — Mastra / Agent Harness → AI SDK → AI Elements
 
-> **Live, browsable version:** the app serves this as a page at **`/status`** (the in-product
-> wiring map, sourced from `packages/web/lib/wiring.ts`). Keep that file and this doc in sync.
+> **Companion references (re-grounded 2026-07-25):**
+> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (11 consumed, 39 dropped).
+> - [ai-elements.md](./ai-elements.md) — all **48** vendored AI Elements (22 live, 26 showroom).
+>
+> **Live, browsable version:** the app serves a wiring map at **`/status`** (from
+> `packages/web/lib/wiring.ts`). That file still reflects the older counts — re-grounding it to match
+> these docs is tracked in `mastra-chat-kit-698.8`.
 
-> Grounded in the **installed** type declarations, not docs:
-> `@mastra/core@1.45.0`, `@mastra/ai-sdk@1.5.0`, `ai@6.0.208`, `@ai-sdk/react@3.0.210`, `ai-elements` (48 modules).
+> Grounded in the **installed** declarations, not docs:
+> `@mastra/core@1.52.1`, `@mastra/ai-sdk@1.6.3`, `ai@7.0.37`, `@ai-sdk/react@4.0.40`,
+> `ai-elements` (48 modules). Note the **upstream ceiling**: `@mastra/ai-sdk` only types
+> `version: 'v5'|'v6'`, so the `ai@7` client runs against v6-shaped UIMessage parts.
 >
 > Purpose: prove that **everything an agent can emit has a place to render**, and track
 > exactly what is wired vs. still pending. This is the spec for the Agent Harness build and
@@ -62,9 +69,14 @@ Finish-reason mapping: Mastra's extended `tripwire`/`retry` → AI SDK `other`; 
 
 ## 3. Mastra **Agent Harness** event → element  (the bigger surface)
 
-The Harness emits `HarnessEvent` + a canonical `HarnessDisplayState` (~40 event types). Most do **not**
-fit a standard UIMessage part — they ride the Harness event stream (or `data-*`). Every one has a
-natural element target.
+The Harness emits **50** `AgentControllerEvent` types + a canonical `display_state_changed` snapshot.
+The web reducer currently **consumes 11 and drops 39** — see [harness-events.md](./harness-events.md)
+for the full per-event table, payloads, and target elements. Most events do **not** fit a standard
+UIMessage part — they ride the Harness event stream (or `data-*`). Every one has a natural element target.
+
+> ⚠️ **`mastra-chat-kit-vud`:** on an **OpenAI** model the AgentController hangs on any tool call, so
+> the tool/subagent/shell events below cannot be exercised on OpenAI yet (Anthropic is fine). The map
+> is the spec regardless.
 
 **Status:** the display path is now wired (server `POST /harness/stream` SSE → web `useHarnessChat`
 reducer → `HarnessChat` view on the same elements). Note: `display_state_changed` is intentionally
@@ -187,11 +199,11 @@ faking structured suites/frames would be unreliable. Voice + the Workflow canvas
 The composer's **Search** toggle sends `body.webSearch`. When on, the `/chat/:agentId` route runs the
 turn with Anthropic's provider-native web search.
 
-**Caveat (important):** this can't stream through the Mastra agent loop. `@mastra/core@1.45` (the
-latest stable — we're already on it; the fix is unreleased, GH #14148/#10327 open) has no
-provider-executed/server-hosted tool handling — the loop stops at the `web_search` tool call
-(`srvtoolu_` id, `providerExecuted:true`) and never forwards Anthropic's inline result (usage 0, no
-sources). Confirmed with both `toolsets` and agent-tool placement.
+**Caveat (important):** this can't stream through the Mastra agent loop. `@mastra/core@1.52.1` (the
+latest stable — we're already on it; the fix is unreleased) has no provider-executed/server-hosted
+tool handling — the loop stops at the `web_search` tool call (`srvtoolu_` id, `providerExecuted:true`)
+and never forwards Anthropic's inline result (usage 0, no sources). Confirmed with both `toolsets` and
+agent-tool placement.
 
 So **web-search turns bypass the Mastra loop**: the route calls the AI SDK `streamText` directly
 (`anthropic(model)` + `anthropic.tools.webSearch_20250305()`), streamed to the SAME v6 UIMessage
