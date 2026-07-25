@@ -86,20 +86,79 @@ export const emptyTranscript = (): HarnessTranscript => ({
 type AnyEvent = { type: string; [k: string]: any };
 
 /**
- * Providers other than Anthropic (notably OpenAI) can hand us a message whose
- * `content` is `null` or a bare string — e.g. an assistant turn that's purely a
- * tool call, or a message shell that arrives before its parts stream in. The
- * transcript model and every consumer (`collectToolResults`, the renderer) assume
- * an array of parts, so coerce it here at the single point messages enter.
+ * Map one Mastra "format 2" UI part (core ≥1.52) to a transcript part.
+ * Assistant text arrives as `{type:'text',text}`; the user's own turn arrives as
+ * a `data-user-message` part with the text on `data.contents`; reasoning and tool
+ * parts map to thinking / tool_call / tool_result.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: format-2 UI parts are a heterogeneous union
+function mapFormat2Part(p: any): HarnessContentPart | null {
+  if (!p || typeof p !== 'object') return null;
+  const t = p.type as string | undefined;
+  if (t === 'text') {
+    return typeof p.text === 'string' && p.text ? { type: 'text', text: p.text } : null;
+  }
+  if (t === 'data-user-message' && typeof p.data?.contents === 'string') {
+    return { type: 'text', text: p.data.contents };
+  }
+  if (t === 'reasoning' && typeof p.text === 'string') {
+    return { type: 'thinking', thinking: p.text };
+  }
+  if (typeof t === 'string' && (t.startsWith('tool-') || t === 'dynamic-tool')) {
+    const name = t === 'dynamic-tool' ? (p.toolName ?? 'tool') : t.replace('tool-', '');
+    if (p.output !== undefined || p.state === 'output-available' || p.state === 'output-error') {
+      return {
+        type: 'tool_result',
+        id: p.toolCallId ?? '',
+        name,
+        result: p.output,
+        isError: p.state === 'output-error',
+      };
+    }
+    return { type: 'tool_call', id: p.toolCallId ?? '', name, args: p.input };
+  }
+  return null;
+}
+
+/**
+ * Coerce a message's `content` into `HarnessContentPart[]`. Handles: a plain
+ * array (older format), a bare string (some providers), and — crucially — the
+ * Mastra core ≥1.52 "format 2" object `{ format, parts, metadata }` whose `parts`
+ * are AI-SDK UI parts. Everything else (null shells before parts stream) → [].
  */
 function normalizeContent(content: unknown): HarnessContentPart[] {
   if (Array.isArray(content)) return content as HarnessContentPart[];
   if (typeof content === 'string' && content.length > 0) return [{ type: 'text', text: content }];
+  const parts = (content as { parts?: unknown } | null)?.parts;
+  if (Array.isArray(parts)) {
+    return parts.map(mapFormat2Part).filter((p): p is HarnessContentPart => p !== null);
+  }
   return [];
 }
 
+/**
+ * A `role: "signal"` message that carries the user's turn (a `data-user-message`
+ * part, or `metadata.signal.type === "user"`) IS the user speaking — surface it
+ * as `user` so the renderer shows it (it only renders user/assistant). Any other
+ * signal becomes `system` (rendered nowhere).
+ */
+function effectiveRole(msg: HarnessMessage): 'user' | 'assistant' | 'system' {
+  const role = msg.role as string;
+  if (role === 'user' || role === 'assistant' || role === 'system') return role;
+  const c = msg.content as { parts?: unknown[]; metadata?: { signal?: { type?: string } } } | null;
+  const isUser =
+    c?.metadata?.signal?.type === 'user' ||
+    (Array.isArray(c?.parts) &&
+      c.parts.some((p) => (p as { type?: string })?.type === 'data-user-message'));
+  return isUser ? 'user' : 'system';
+}
+
 function upsertMessage(messages: HarnessMessage[], msg: HarnessMessage): HarnessMessage[] {
-  const m = Array.isArray(msg.content) ? msg : { ...msg, content: normalizeContent(msg.content) };
+  const m: HarnessMessage = {
+    ...msg,
+    role: effectiveRole(msg),
+    content: Array.isArray(msg.content) ? msg.content : normalizeContent(msg.content),
+  };
   const idx = messages.findIndex((x) => x.id === m.id);
   if (idx === -1) {
     return [...messages, m];

@@ -590,30 +590,44 @@ const serverConfig = {
       handler: async (c) => {
         const session = await getChatSession();
         const threads = await session.thread.list();
-        const ids = threads.map((t) => t.id);
-        const firstMsgs = ids.length
-          ? await session.thread.firstUserMessages({ threadIds: ids })
-          : new Map();
-        const items = threads
-          .flatMap((t) => {
-            const first = messageText(firstMsgs.get(t.id));
-            const explicitTitle = typeof t.title === 'string' ? t.title.trim() : '';
-            // Skip phantom empty threads (a session bound a thread but never sent a
-            // message) so the sidebar only lists real conversations.
-            if (!explicitTitle && !first) {
-              return [];
+        const items: Array<{
+          id: string;
+          title: string;
+          archived: boolean;
+          createdAt: string;
+          updatedAt: string;
+        }> = [];
+        for (const t of threads) {
+          const explicitTitle = typeof t.title === 'string' ? t.title.trim() : '';
+          // The user's turn is persisted with role "signal" (a data-user-message
+          // part), which `firstUserMessages` (role "user") misses — scan the opening
+          // messages for the first non-assistant text to use as the display title.
+          let first = '';
+          if (!explicitTitle) {
+            const msgs = await session.thread.listMessages({ threadId: t.id, limit: 8 });
+            for (const m of msgs) {
+              if ((m as { role?: string }).role !== 'assistant') {
+                const text = messageText(m);
+                if (text) {
+                  first = text;
+                  break;
+                }
+              }
             }
-            return [
-              {
-                id: t.id,
-                title: threadTitle(t, first),
-                archived: Boolean((t.metadata as Record<string, unknown> | undefined)?.archived),
-                createdAt: new Date(t.createdAt).toISOString(),
-                updatedAt: new Date(t.updatedAt).toISOString(),
-              },
-            ];
-          })
-          .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+          }
+          // Skip phantom empty threads (bound but never sent a message).
+          if (!explicitTitle && !first) {
+            continue;
+          }
+          items.push({
+            id: t.id,
+            title: threadTitle(t, first),
+            archived: Boolean((t.metadata as Record<string, unknown> | undefined)?.archived),
+            createdAt: new Date(t.createdAt).toISOString(),
+            updatedAt: new Date(t.updatedAt).toISOString(),
+          });
+        }
+        items.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
         return c.json({ threads: items });
       },
     }),
