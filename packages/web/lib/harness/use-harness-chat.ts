@@ -17,8 +17,15 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
   const threadRef = useRef<string | null>(null);
 
   const sendMessage = useCallback(
-    async (text: string, opts?: { model?: string; webSearch?: boolean }) => {
-      if (!text.trim()) {
+    async (
+      text: string,
+      opts?: {
+        model?: string;
+        webSearch?: boolean;
+        files?: Array<{ url: string; mediaType: string; filename?: string }>;
+      },
+    ) => {
+      if (!text.trim() && !opts?.files?.length) {
         return;
       }
       // NOTE: no optimistic user message — the Harness echoes the user turn as its
@@ -31,13 +38,15 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          // The composer's model/web-search selections ride along so the harness
-          // honors them (the run switches model via `session.model.switch`).
+          // The composer's model / web-search / attachment selections ride along so
+          // the harness honors them: the run switches model via `session.model.switch`,
+          // web search flows through the request context, and files pass to sendMessage.
           body: JSON.stringify({
             text,
             threadId: threadRef.current,
             model: opts?.model,
             webSearch: opts?.webSearch,
+            files: opts?.files,
           }),
         });
         if (!res.ok || !res.body) {

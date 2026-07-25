@@ -12,6 +12,7 @@ import { handleChatStream } from '@mastra/ai-sdk';
 import { MastraJwtAuth } from '@mastra/auth';
 // 3. Mastra imports — agents/tools constructed below now see the right base URLs
 import { Mastra } from '@mastra/core/mastra';
+import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
 import { MastraEditor } from '@mastra/editor';
 import { fastembed } from '@mastra/fastembed';
@@ -586,14 +587,35 @@ const serverConfig = {
     registerApiRoute('/harness/stream', {
       method: 'POST',
       handler: async (c) => {
-        const { text, threadId, model } = await c.req.json<{
+        const { text, threadId, model, webSearch, files } = await c.req.json<{
           text?: string;
           threadId?: string;
           model?: string;
+          webSearch?: boolean;
+          // The composer's attachments (FileUIPart): `url` is a data URL after the
+          // client's submit-time blob→dataURL conversion, so it's safe to forward.
+          files?: Array<{ url: string; mediaType: string; filename?: string }>;
         }>();
         if (!text?.trim()) {
           return c.json({ error: 'text is required' }, 400);
         }
+        // Route the composer's "Search" toggle through the request context (not the
+        // user message) so the agent's dynamic instructions flip into browse-the-web
+        // mode — driving the workspace browser the Browser panel screencasts.
+        let requestContext: RequestContext | undefined;
+        if (webSearch === true) {
+          requestContext = new RequestContext();
+          requestContext.set('webSearch', true);
+        }
+        // Map the composer's attachments onto sendMessage's file shape ({ data, ... }).
+        // `createMessageInput` accepts a data URL as `data` for both text and binary parts.
+        const messageFiles = files?.length
+          ? files.map((f) => ({
+              data: f.url,
+              mediaType: f.mediaType,
+              ...(f.filename ? { filename: f.filename } : {}),
+            }))
+          : undefined;
 
         const session = await getChatSession();
         // Resume the given thread, or start a fresh "Chat" thread when none is sent.
@@ -624,7 +646,11 @@ const serverConfig = {
               if (model && MODEL_ALLOWLIST.has(model)) {
                 await session.model.switch({ modelId: model });
               }
-              await session.sendMessage({ content: text });
+              await session.sendMessage({
+                content: text,
+                ...(messageFiles ? { files: messageFiles } : {}),
+                ...(requestContext ? { requestContext } : {}),
+              });
             } catch (err) {
               send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
             } finally {

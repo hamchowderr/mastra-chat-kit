@@ -130,18 +130,39 @@ export const generateImage = createTool({
   },
 });
 
-export const chatAgent = new Agent({
-  id: 'chat',
-  name: 'Chat Assistant',
-  description:
-    'General conversational assistant that exercises the full chat UI: streamed text, reasoning, tool input/output, sources, and images. The reference agent for mastra-chat-kit.',
-  instructions: `You are a helpful, concise assistant.
+const BASE_INSTRUCTIONS = `You are a helpful, concise assistant.
 
 - When the user asks about weather, call getWeather.
 - When the user asks a factual or how-to question, call searchKnowledge and ground your answer in the results, citing the document titles.
 - When the user asks for an image, picture, drawing, or illustration, call generateImage with a vivid prompt.
 - Keep responses tight and skimmable. Use markdown (lists, code blocks) where it helps.
-- Never fabricate tool results; only state what the tools return.`,
+- Never fabricate tool results; only state what the tools return.`;
+
+// Appended when the composer's "Search" toggle is on. The Harness path passes
+// `webSearch: true` on the request context (see /harness/stream), and in that path
+// the agent has real workspace browser tools — the SAME Chrome the Browser panel
+// screencasts — so web search is routed THROUGH the browser: it navigates the live
+// web and reads pages rather than answering from memory. The Single Agent path uses
+// provider-executed web_search instead and never sets this key, so this only applies
+// in Harness mode.
+const WEB_SEARCH_INSTRUCTIONS = `
+
+The user has enabled web search for this turn. Use your browser tools to look things up on the live web:
+- Navigate to relevant pages and read them before answering anything time-sensitive, factual, or about current events.
+- Prefer real browsing over your training data, and cite the URLs you actually visited.
+- The user can watch you browse in the Browser panel, so keep your navigation purposeful.`;
+
+export const chatAgent = new Agent({
+  id: 'chat',
+  name: 'Chat Assistant',
+  description:
+    'General conversational assistant that exercises the full chat UI: streamed text, reasoning, tool input/output, sources, and images. The reference agent for mastra-chat-kit.',
+  // Dynamic so the Harness "Search" toggle (request context `webSearch`) can switch
+  // the agent into browse-the-web mode. Static string otherwise.
+  instructions: ({ requestContext }) =>
+    requestContext.get('webSearch') === true
+      ? BASE_INSTRUCTIONS + WEB_SEARCH_INSTRUCTIONS
+      : BASE_INSTRUCTIONS,
   model: env.CHAT_MODEL,
   tools: { getWeather, searchKnowledge, generateImage },
   // Default execution options applied to EVERY run (chatRoute + Harness): enable
