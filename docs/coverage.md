@@ -74,9 +74,10 @@ The web reducer currently **consumes 11 and drops 39** — see [harness-events.m
 for the full per-event table, payloads, and target elements. Most events do **not** fit a standard
 UIMessage part — they ride the Harness event stream (or `data-*`). Every one has a natural element target.
 
-> ⚠️ **`mastra-chat-kit-vud`:** on an **OpenAI** model the AgentController hangs on any tool call, so
-> the tool/subagent/shell events below cannot be exercised on OpenAI yet (Anthropic is fine). The map
-> is the spec regardless.
+> ✅ **`mastra-chat-kit-vud` (fixed):** the harness tool flow works with OpenAI. The earlier "hangs on
+> any tool call" symptom was `TokenLimiter` in `defaultOutputProcessors` breaking tool-call streaming
+> (fixed in `d290068`), NOT an upstream bug. Tool calls are gated by default (`tool_approval_required`
+> → `Confirmation`).
 
 **Status:** the display path is now wired (server `POST /harness/stream` SSE → web `useHarnessChat`
 reducer → `HarnessChat` view on the same elements). Note: `display_state_changed` is intentionally

@@ -13,11 +13,11 @@ subagents, tasks, goals, observational memory, and a canonical display state.
 `POST /harness/stream` SSE. The web reducer currently **consumes 11 and drops 39**. This file is the
 source of truth for what each event means and where it should render.
 
-> ⚠️ **Runtime caveat (`mastra-chat-kit-vud`):** with an **OpenAI** model, the AgentController hangs
-> at `generationCount:0` on *any* tool call, so every **tool / subagent / shell** event below cannot
-> currently be exercised on OpenAI (the identical tool call works through the AI-SDK single-agent
-> route). Anthropic is unaffected. The mapping still stands as the spec; the events just can't fire on
-> OpenAI until `vud` is fixed upstream.
+> ✅ **`mastra-chat-kit-vud` (fixed 2026-07-25):** the harness tool flow works with OpenAI. An earlier
+> "hangs on every tool call (`generationCount:0`)" symptom was **not** upstream — it was `TokenLimiter`
+> in this kit's `defaultOutputProcessors` breaking tool-call streaming (removed in commit `d290068`).
+> Note: tool calls are **gated by default** — the AgentController emits `tool_approval_required` and
+> pauses until the UI's `Confirmation` element approves (see rows 13/17 below).
 
 ## Legend
 - **Consumed** — a `case` in `reduceHarnessEvent` folds it into the transcript today.
