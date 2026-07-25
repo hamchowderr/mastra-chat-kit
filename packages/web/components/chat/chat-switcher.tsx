@@ -1,9 +1,10 @@
 'use client';
 
-import { PanelRightIcon } from 'lucide-react';
+import { PanelLeftIcon, PanelRightIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { HarnessChat } from '@/components/chat/harness-chat';
+import { HarnessSidebar } from '@/components/chat/harness-sidebar';
 import { WorkbenchPanel } from '@/components/chat/workbench-panel';
 import { useHarnessChat } from '@/lib/harness/use-harness-chat';
 
@@ -21,15 +22,28 @@ import { useHarnessChat } from '@/lib/harness/use-harness-chat';
  * follow-up (see the P3.5 issue) since the harness manages its own threads.
  */
 export function ChatSwitcher() {
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
-  // One harness session, shared by the chat and the workbench panel — so the
-  // panel's Terminal/Files/Browser reflect the same run the user is chatting with.
+  // One harness session, shared by the sidebar, the chat, and the workbench panel
+  // — so conversation history, the transcript, and the panel's Terminal/Files/
+  // Browser all reflect the same session.
   const harness = useHarnessChat();
 
   return (
     <div className="flex h-full flex-1 flex-col">
       <header className="flex items-center justify-between border-border border-b p-2">
-        <span className="pl-2 font-medium text-sm">mastra-chat-kit</span>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label={leftCollapsed ? 'Show conversations' : 'Hide conversations'}
+            aria-pressed={!leftCollapsed}
+            onClick={() => setLeftCollapsed((v) => !v)}
+            className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
+          >
+            <PanelLeftIcon className="size-4" />
+          </button>
+          <span className="pl-1 font-medium text-sm">mastra-chat-kit</span>
+        </div>
         <nav className="flex items-center gap-3 text-sm">
           <Link href="/showcase" className="text-muted-foreground hover:text-foreground">
             Showroom
@@ -50,6 +64,13 @@ export function ChatSwitcher() {
       </header>
 
       <div className="flex min-h-0 flex-1">
+        <HarnessSidebar
+          activeThreadId={harness.activeThreadId}
+          onSelect={harness.openThread}
+          onNew={harness.reset}
+          refreshSignal={harness.refreshSignal}
+          collapsed={leftCollapsed}
+        />
         <HarnessChat harness={harness} fluid={!rightCollapsed} />
         {!rightCollapsed && <WorkbenchPanel harness={harness} />}
       </div>

@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { emptyTranscript, type HarnessTranscript, reduceHarnessEvent } from './events';
+import {
+  emptyTranscript,
+  type HarnessTranscript,
+  reduceHarnessEvent,
+  uiMessagesToHarness,
+} from './events';
 
 export type HarnessStatus = 'ready' | 'streaming' | 'error';
 
@@ -15,6 +20,9 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
   const [transcript, setTranscript] = useState<HarnessTranscript>(emptyTranscript);
   const [status, setStatus] = useState<HarnessStatus>('ready');
   const threadRef = useRef<string | null>(null);
+  // Bumps whenever a turn completes so the conversation sidebar refetches (a new
+  // thread appears / an existing one re-sorts to the top).
+  const [refreshSignal, setRefreshSignal] = useState(0);
 
   const sendMessage = useCallback(
     async (
@@ -84,6 +92,9 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
           chunk = await reader.read();
         }
         setStatus('ready');
+        // A completed turn may have created a new thread (or bumped an existing
+        // one) — nudge the sidebar to refetch.
+        setRefreshSignal((n) => n + 1);
       } catch (err) {
         setTranscript((s) => ({
           ...s,
@@ -112,7 +123,56 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     setTranscript((s) => ({ ...s, terminal: { ...s.terminal, output: '' } }));
   }, []);
 
-  return { transcript, status, sendMessage, approve, clearTerminal };
+  /**
+   * Load a past conversation into the view. Fetches its messages (text-only
+   * restore) and seeds a fresh transcript; follow-up turns continue this thread
+   * (threadRef) so the server switches to it and memory carries context.
+   */
+  const openThread = useCallback(async (threadId: string) => {
+    try {
+      const res = await fetch(`/api/harness/threads/${encodeURIComponent(threadId)}/messages`, {
+        cache: 'no-store',
+      });
+      const data = (await res.json()) as {
+        messages?: Array<{
+          id: string;
+          role: string;
+          parts?: Array<{ type: string; text?: string }>;
+        }>;
+      };
+      threadRef.current = threadId;
+      setStatus('ready');
+      setTranscript({
+        ...emptyTranscript(),
+        threadId,
+        messages: uiMessagesToHarness(data.messages ?? []),
+      });
+    } catch {
+      threadRef.current = threadId;
+      setTranscript({ ...emptyTranscript(), threadId });
+    }
+  }, []);
+
+  /** Clear the transcript and start a brand-new conversation (server mints a thread). */
+  const reset = useCallback(() => {
+    threadRef.current = null;
+    setStatus('ready');
+    setTranscript(emptyTranscript());
+  }, []);
+
+  return {
+    transcript,
+    status,
+    sendMessage,
+    approve,
+    clearTerminal,
+    openThread,
+    reset,
+    /** The active conversation id (null before the first turn / after reset). */
+    activeThreadId: transcript.threadId,
+    /** Increments when a turn completes — drives the sidebar refetch. */
+    refreshSignal,
+  };
 }
 
 /** The shared harness transport, lifted to the shell so chat + workbench panel drive one session. */

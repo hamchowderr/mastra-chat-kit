@@ -579,6 +579,102 @@ const serverConfig = {
       },
     }),
 
+    // ──────────────────────────────────────────────────────────────────────
+    // Agent Harness conversation history (the sidebar). The harness persists its
+    // threads/messages to its own store (see lib/harness.ts), so these read the
+    // live Session's thread domain directly — `session.thread.list()` /
+    // `listMessages()` / `delete()` — no Memory involved. Title/search fall back
+    // to the first user message (Foreman-style) until AI titling lands (698.11).
+    // ──────────────────────────────────────────────────────────────────────
+
+    // List the harness's conversations (newest first) with a display title.
+    registerApiRoute('/harness/threads', {
+      method: 'GET',
+      handler: async (c) => {
+        const session = await getChatSession();
+        const threads = await session.thread.list();
+        const ids = threads.map((t) => t.id);
+        const firstMsgs = ids.length
+          ? await session.thread.firstUserMessages({ threadIds: ids })
+          : new Map();
+        const items = threads
+          .flatMap((t) => {
+            const first = messageText(firstMsgs.get(t.id));
+            const explicitTitle = typeof t.title === 'string' ? t.title.trim() : '';
+            // Skip phantom empty threads (a session bound a thread but never sent a
+            // message) so the sidebar only lists real conversations.
+            if (!explicitTitle && !first) {
+              return [];
+            }
+            return [
+              {
+                id: t.id,
+                title: threadTitle(t, first),
+                archived: Boolean((t.metadata as Record<string, unknown> | undefined)?.archived),
+                createdAt: new Date(t.createdAt).toISOString(),
+                updatedAt: new Date(t.updatedAt).toISOString(),
+              },
+            ];
+          })
+          .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+        return c.json({ threads: items });
+      },
+    }),
+
+    // Title/first-message search over the harness's conversations (v1: no
+    // semantic recall — the harness store isn't in the fastembed message index).
+    registerApiRoute('/harness/threads/search', {
+      method: 'GET',
+      handler: async (c) => {
+        const q = (c.req.query('q') ?? '').trim();
+        if (q.length < 2) {
+          return c.json({ threads: [] });
+        }
+        const session = await getChatSession();
+        const threads = await session.thread.list();
+        const ids = threads.map((t) => t.id);
+        const firstMsgs = ids.length
+          ? await session.thread.firstUserMessages({ threadIds: ids })
+          : new Map();
+        const ql = q.toLowerCase();
+        const results = threads
+          .map((t) => {
+            const first = messageText(firstMsgs.get(t.id));
+            return { id: t.id, title: threadTitle(t, first), first };
+          })
+          .filter((r) => r.title.toLowerCase().includes(ql) || r.first.toLowerCase().includes(ql))
+          .map((r) => ({
+            id: r.id,
+            title: r.title,
+            snippet: r.first ? searchSnippet(r.first, q) : '',
+            score: 1,
+          }));
+        return c.json({ threads: results });
+      },
+    }),
+
+    // Load one harness conversation's messages as v6 UIMessages (text-only
+    // restore, same as the Single Agent path — richer parts rehydrate on the
+    // live stream when the conversation continues).
+    registerApiRoute('/harness/threads/:id/messages', {
+      method: 'GET',
+      handler: async (c) => {
+        const session = await getChatSession();
+        const messages = await session.thread.listMessages({ threadId: c.req.param('id') });
+        return c.json({ messages: messages.map(toUIMessage) });
+      },
+    }),
+
+    // Delete a harness conversation (hard delete; clears the binding if active).
+    registerApiRoute('/harness/threads/:id', {
+      method: 'DELETE',
+      handler: async (c) => {
+        const session = await getChatSession();
+        await session.thread.delete({ threadId: c.req.param('id') });
+        return c.json({ ok: true });
+      },
+    }),
+
     // Agent Harness endpoint: POST /harness/stream → SSE of HarnessEvents.
     // Body: { text: string, threadId?: string }. The Harness wraps the same
     // chatAgent but emits the richer orchestration surface (sessions, modes,
@@ -618,11 +714,13 @@ const serverConfig = {
           : undefined;
 
         const session = await getChatSession();
-        // Resume the given thread, or start a fresh "Chat" thread when none is sent.
+        // Resume the given thread, or start a fresh thread when none is sent. No
+        // placeholder title — the sidebar derives the display title from the first
+        // user message (Foreman-style) until AI titling lands (see 698.11).
         if (threadId) {
           await session.thread.switch({ threadId });
         } else {
-          await session.thread.create({ title: 'Chat' });
+          await session.thread.create();
         }
         const activeThreadId = session.thread.requireId();
 

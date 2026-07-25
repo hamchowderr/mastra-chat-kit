@@ -24,6 +24,7 @@ import { AgentController, type Session } from '@mastra/core/agent-controller';
 import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace';
+import { LibSQLStore } from '@mastra/libsql';
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 
@@ -38,6 +39,22 @@ export const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
 
 /** Fixed resource id for the single logical user this reference serves. */
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
+
+/**
+ * The live singleton's persistent thread/message store. A real store (not the
+ * `InMemoryStore` default) is what makes `session.thread.list()` /
+ * `listMessages()` return prior conversations across restarts — i.e. what powers
+ * the harness conversation sidebar. Same libSQL/Turso DB the rest of the kit
+ * uses (its own AgentController tables, so it never collides with Memory's).
+ * Tests still pass their own `InMemoryStore` for hermetic AIMock runs.
+ */
+function createHarnessStore(): MastraStorage {
+  return new LibSQLStore({
+    id: 'chat-harness-storage',
+    url: env.TURSO_DATABASE_URL,
+    ...(env.TURSO_AUTH_TOKEN ? { authToken: env.TURSO_AUTH_TOKEN } : {}),
+  });
+}
 
 /**
  * Build the workspace's browser: a `BrowserViewer` (a `MastraBrowser`) that owns
@@ -110,7 +127,9 @@ export function getChatHarness(): Promise<AgentController> {
       // Create the browser explicitly so the screencast route can reach the same
       // instance the agent's browser tools drive.
       const browser = createBrowser();
-      const harness = createChatHarness({ browser });
+      // Persistent store → the session's threads/messages survive restarts, so
+      // the conversation sidebar can list + reopen them (`session.thread.list()`).
+      const harness = createChatHarness({ browser, storage: createHarnessStore() });
       await harness.init();
       singleton = harness;
       singletonBrowser = browser;

@@ -177,6 +177,26 @@ export function reduceHarnessEvents(
   return events.reduce(reduceHarnessEvent, state);
 }
 
+/**
+ * Convert restored v6 UIMessages (text-only, from `/harness/threads/:id/messages`)
+ * into transcript messages, so reopening a past conversation shows its history.
+ * Only text is restored here; richer parts (tools, thinking) rehydrate on the live
+ * stream when the conversation continues — same trade-off the Single Agent path makes.
+ */
+export function uiMessagesToHarness(
+  messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }> }>,
+): HarnessMessage[] {
+  return messages.map((m) => ({
+    id: m.id,
+    role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
+    content: (m.parts ?? [])
+      .filter(
+        (p): p is { type: 'text'; text: string } => p.type === 'text' && typeof p.text === 'string',
+      )
+      .map((p) => ({ type: 'text', text: p.text })),
+  }));
+}
+
 /** Collect tool_result content across all messages, keyed by tool-call id. */
 export function collectToolResults(messages: HarnessMessage[]): Map<string, HarnessContentPart> {
   const byId = new Map<string, HarnessContentPart>();
