@@ -1,8 +1,11 @@
 'use client';
 
 import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
   MoreHorizontalIcon,
   PanelLeftIcon,
+  PencilIcon,
   SearchIcon,
   SquarePenIcon,
   Trash2Icon,
@@ -22,11 +25,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-type ThreadItem = { id: string; title: string; createdAt: string; updatedAt: string };
+type ThreadItem = {
+  id: string;
+  title: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
 type SearchHit = { id: string; title: string; snippet: string; score: number };
 
 /** Debounce any fast-changing value (search input) without an extra dependency. */
@@ -52,11 +62,10 @@ function groupOf(ts: number, todayStart: number): (typeof GROUP_ORDER)[number] {
 
 /**
  * Agent Harness conversation history — the Foreman-style left rail wired to the
- * harness's persisted threads (`/api/harness/threads*`, backed by the live
- * Session's own thread store). New-chat, debounced title/first-message search,
- * date-grouped list, per-chat delete. The shell (`ChatSwitcher`) owns the active
- * thread; this only reads/mutates the list and reports selections back up.
- * `refreshSignal` bumps whenever a turn finishes so a freshly-created thread (and
+ * harness's persisted threads (`/api/harness/threads*`). New-chat, debounced
+ * title/first-message search, date-grouped list, per-chat rename / archive+undo /
+ * delete, and a collapsible Archived section. The shell (`ChatSwitcher`) owns the
+ * active thread; `refreshSignal` bumps when a turn finishes so a new thread (and
  * its title) shows up.
  */
 export function HarnessSidebar({
@@ -75,6 +84,7 @@ export function HarnessSidebar({
   onToggleCollapse: () => void;
 }) {
   const [threads, setThreads] = useState<ThreadItem[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ThreadItem | null>(null);
 
   const [search, setSearch] = useState('');
@@ -125,11 +135,14 @@ export function HarnessSidebar({
     };
   }, [debouncedSearch, isSearching]);
 
-  // Threads grouped by last-activity day, in fixed order.
+  const active = useMemo(() => threads.filter((t) => !t.archived), [threads]);
+  const archived = useMemo(() => threads.filter((t) => t.archived), [threads]);
+
+  // Active chats grouped by last-activity day, in fixed order.
   const groups = useMemo(() => {
     const todayStart = new Date().setHours(0, 0, 0, 0);
     const buckets = new Map<string, ThreadItem[]>();
-    for (const t of threads) {
+    for (const t of active) {
       const label = groupOf(+new Date(t.updatedAt ?? t.createdAt ?? todayStart), todayStart);
       const arr = buckets.get(label) ?? [];
       arr.push(t);
@@ -138,7 +151,49 @@ export function HarnessSidebar({
     return GROUP_ORDER.map((label) => ({ label, items: buckets.get(label) ?? [] })).filter(
       (g) => g.items.length > 0,
     );
-  }, [threads]);
+  }, [active]);
+
+  const handleArchive = async (t: ThreadItem, nextArchived: boolean) => {
+    setThreads((prev) => prev.map((x) => (x.id === t.id ? { ...x, archived: nextArchived } : x)));
+    try {
+      const res = await fetch(`/api/harness/threads/${t.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ archived: nextArchived }),
+      });
+      if (!res.ok) throw new Error(`archive failed (${res.status})`);
+      if (nextArchived) {
+        toast.success('Conversation archived', {
+          action: { label: 'Undo', onClick: () => handleArchive(t, false) },
+        });
+      } else {
+        toast.success('Conversation restored');
+      }
+    } catch {
+      toast.error(nextArchived ? 'Failed to archive' : 'Failed to restore');
+      void refresh();
+    }
+  };
+
+  const handleRename = async (t: ThreadItem, title: string) => {
+    const next = title.trim();
+    if (!next || next === t.title) {
+      return;
+    }
+    setThreads((prev) => prev.map((x) => (x.id === t.id ? { ...x, title: next } : x)));
+    try {
+      const res = await fetch(`/api/harness/threads/${t.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: next }),
+      });
+      if (!res.ok) throw new Error(`rename failed (${res.status})`);
+      toast.success('Conversation renamed');
+    } catch {
+      toast.error('Failed to rename');
+      void refresh();
+    }
+  };
 
   const handleDelete = async (t: ThreadItem) => {
     setPendingDelete(null);
@@ -149,7 +204,7 @@ export function HarnessSidebar({
       toast.success('Conversation deleted');
       if (t.id === activeThreadId) onNew();
     } catch {
-      toast.error('Failed to delete conversation');
+      toast.error('Failed to delete');
       void refresh();
     }
   };
@@ -174,6 +229,7 @@ export function HarnessSidebar({
             <PanelLeftIcon className="size-4" />
           </button>
         </div>
+
         {/* New chat */}
         <div className="px-2 pb-2">
           <button
@@ -235,7 +291,7 @@ export function HarnessSidebar({
             </Section>
           ) : (
             <>
-              {threads.length === 0 && (
+              {active.length === 0 && (
                 <Empty>Your conversations will appear here once you start chatting.</Empty>
               )}
               {groups.map((g) => (
@@ -246,11 +302,39 @@ export function HarnessSidebar({
                       thread={t}
                       isActive={t.id === activeThreadId}
                       onClick={() => onSelect(t.id)}
+                      onArchive={() => handleArchive(t, true)}
+                      onRename={(title) => handleRename(t, title)}
                       onDelete={() => setPendingDelete(t)}
                     />
                   ))}
                 </Section>
               ))}
+
+              {archived.length > 0 && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowArchived((v) => !v)}
+                    className="flex h-9 w-full items-center gap-2 rounded-md px-2 font-medium text-muted-foreground text-xs uppercase tracking-wide transition-colors hover:text-foreground"
+                  >
+                    <ArchiveIcon className="size-3.5" />
+                    {showArchived ? 'Hide archived' : `Archived (${archived.length})`}
+                  </button>
+                  {showArchived &&
+                    archived.map((t) => (
+                      <ChatRow
+                        key={t.id}
+                        thread={t}
+                        isActive={t.id === activeThreadId}
+                        onClick={() => onSelect(t.id)}
+                        onArchive={() => handleArchive(t, false)}
+                        onRename={(title) => handleRename(t, title)}
+                        onDelete={() => setPendingDelete(t)}
+                        archivedRow
+                      />
+                    ))}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -307,13 +391,57 @@ function ChatRow({
   thread,
   isActive,
   onClick,
+  onArchive,
+  onRename,
   onDelete,
+  archivedRow,
 }: {
   thread: ThreadItem;
   isActive: boolean;
   onClick: () => void;
+  onArchive: () => void;
+  onRename: (title: string) => void;
   onDelete: () => void;
+  archivedRow?: boolean;
 }) {
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(thread.title);
+
+  const startRename = () => {
+    setDraft(thread.title);
+    setRenaming(true);
+  };
+  const commit = () => {
+    setRenaming(false);
+    onRename(draft);
+  };
+
+  if (renaming) {
+    return (
+      <div className="flex items-center rounded-lg bg-accent/60 px-2">
+        <input
+          ref={(el) => {
+            if (el) {
+              el.focus();
+              el.select();
+            }
+          }}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commit();
+            } else if (e.key === 'Escape') {
+              setRenaming(false);
+            }
+          }}
+          className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -324,6 +452,7 @@ function ChatRow({
       <button
         type="button"
         onClick={onClick}
+        onDoubleClick={startRename}
         className="flex h-10 min-w-0 flex-1 items-center px-2 text-left text-sm"
       >
         <span className="truncate">{thread.title}</span>
@@ -340,6 +469,24 @@ function ChatRow({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onClick={startRename}>
+            <PencilIcon className="size-4" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onArchive}>
+            {archivedRow ? (
+              <>
+                <ArchiveRestoreIcon className="size-4" />
+                Restore
+              </>
+            ) : (
+              <>
+                <ArchiveIcon className="size-4" />
+                Archive
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={onDelete}>
             <Trash2Icon className="size-4" />
             Delete

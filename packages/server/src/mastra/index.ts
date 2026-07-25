@@ -686,6 +686,39 @@ const serverConfig = {
       },
     }),
 
+    // Archive/unarchive or rename a harness conversation. The AgentController's
+    // public `session.thread.rename`/metadata are ACTIVE-thread scoped, but the
+    // harness's threads now live in the shared store, so the Memory can update any
+    // thread by id (same table) — the exact path the Single Agent sidebar uses.
+    registerApiRoute('/harness/threads/:id', {
+      method: 'PATCH',
+      handler: async (c) => {
+        const id = c.req.param('id');
+        const body = await c.req.json<{ archived?: boolean; title?: string }>();
+        const memory = await mastra.getAgent('chat').getMemory();
+        if (!memory) {
+          return c.json({ error: 'memory not configured' }, 500);
+        }
+        const thread = await memory.getThreadById({ threadId: id });
+        if (!thread) {
+          return c.json({ error: 'not found' }, 404);
+        }
+        const metadata = { ...(thread.metadata as Record<string, unknown> | undefined) };
+        if (typeof body.archived === 'boolean') {
+          metadata.archived = body.archived;
+        }
+        await memory.updateThread({
+          id,
+          title:
+            typeof body.title === 'string' && body.title.trim()
+              ? body.title.trim()
+              : (thread.title ?? ''),
+          metadata,
+        });
+        return c.json({ ok: true });
+      },
+    }),
+
     // Agent Harness endpoint: POST /harness/stream → SSE of HarnessEvents.
     // Body: { text: string, threadId?: string }. The Harness wraps the same
     // chatAgent but emits the richer orchestration surface (sessions, modes,
