@@ -16,7 +16,6 @@ import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
 import { MastraEditor } from '@mastra/editor';
 import { fastembed } from '@mastra/fastembed';
-import { LibSQLStore } from '@mastra/libsql';
 import { PinoLogger } from '@mastra/loggers';
 import { MCPServer } from '@mastra/mcp';
 import { DefaultExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
@@ -33,7 +32,7 @@ import { codeAgent } from './agents/code';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
 import { getChatBrowser, getChatSession, WORKSPACE_ROOT } from './lib/harness';
 import { getImage } from './lib/image-store';
-import { getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
+import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
 import { readWorkspaceFile, readWorkspaceTree } from './lib/workspace-files';
 import {
@@ -64,11 +63,9 @@ const mcpServer = new MCPServer({
 // TURSO_DATABASE_URL at a libsql:// Turso URL with TURSO_AUTH_TOKEN. libSQL has
 // native vector search, so there's no DuckDB (observability) or pgvector to run.
 // To switch the whole kit to Postgres instead, see docs/postgres.md.
-const storage = new LibSQLStore({
-  id: 'mastra-storage',
-  url: env.TURSO_DATABASE_URL,
-  ...(env.TURSO_AUTH_TOKEN ? { authToken: env.TURSO_AUTH_TOKEN } : {}),
-});
+// The ONE shared libSQL store — same instance the agents' Memory and the harness
+// AgentController use, so threads/messages never split across DB files.
+const storage = getSharedStore();
 
 // Models the Single Agent route will accept from body.model (the composer's model
 // picker). Keep in sync with web `MODELS` in components/chat/composer.tsx. The

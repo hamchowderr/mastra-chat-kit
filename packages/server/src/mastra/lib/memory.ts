@@ -29,9 +29,28 @@
  */
 
 import { fastembed } from '@mastra/fastembed';
-import { LibSQLVector } from '@mastra/libsql';
+import { LibSQLStore, LibSQLVector } from '@mastra/libsql';
 import { Memory } from '@mastra/memory';
 import { env } from '../../lib/env';
+
+// ONE shared libSQL store instance for the whole server — the Mastra instance,
+// every agent's Memory, AND the harness AgentController all use THIS so
+// threads/messages land in a single DB. Passing it explicitly (rather than
+// letting Memory fall back to its own relative `file:mastra.db`) is what keeps
+// the agent's writes and the harness's `session.thread.list()` reads in the same
+// file — otherwise they split (the agent writes to src/mastra/public/mastra.db
+// under `mastra dev` while the harness reads the absolutized ./mastra.db).
+let sharedStore: LibSQLStore | null = null;
+export function getSharedStore(): LibSQLStore {
+  if (!sharedStore) {
+    sharedStore = new LibSQLStore({
+      id: 'mastra-storage',
+      url: env.TURSO_DATABASE_URL,
+      ...(env.TURSO_AUTH_TOKEN ? { authToken: env.TURSO_AUTH_TOKEN } : {}),
+    });
+  }
+  return sharedStore;
+}
 
 /** Default working-memory scratchpad. Short, focused labels per Mastra's guidance. */
 export const DEFAULT_WORKING_MEMORY_TEMPLATE = `# User Profile
@@ -74,6 +93,9 @@ export const MESSAGE_VECTOR_INDEX = 'memory_messages_384';
  */
 export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TEMPLATE): Memory {
   return new Memory({
+    // Explicit shared store (NOT Memory's relative-path default) so the agent's
+    // threads/messages persist to the same DB the harness reads. See getSharedStore.
+    storage: getSharedStore(),
     embedder: fastembed,
     vector: getSharedVector(),
     options: {

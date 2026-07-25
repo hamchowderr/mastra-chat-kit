@@ -24,9 +24,9 @@ import { AgentController, type Session } from '@mastra/core/agent-controller';
 import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace';
-import { LibSQLStore } from '@mastra/libsql';
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
+import { getSharedStore } from './memory';
 
 const CHAT_MODEL_ID = env.CHAT_MODEL;
 
@@ -41,19 +41,15 @@ export const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
 
 /**
- * The live singleton's persistent thread/message store. A real store (not the
- * `InMemoryStore` default) is what makes `session.thread.list()` /
- * `listMessages()` return prior conversations across restarts — i.e. what powers
- * the harness conversation sidebar. Same libSQL/Turso DB the rest of the kit
- * uses (its own AgentController tables, so it never collides with Memory's).
+ * The live singleton's persistent thread/message store. It MUST be the very same
+ * shared store instance the chatAgent's Memory uses (`getSharedStore`) — that's
+ * what keeps the harness's `session.thread.list()` reads and the agent's message
+ * writes in ONE DB. A separate store (even same URL) risks the agent writing to a
+ * different resolved file than the harness reads, leaving the sidebar empty.
  * Tests still pass their own `InMemoryStore` for hermetic AIMock runs.
  */
 function createHarnessStore(): MastraStorage {
-  return new LibSQLStore({
-    id: 'chat-harness-storage',
-    url: env.TURSO_DATABASE_URL,
-    ...(env.TURSO_AUTH_TOKEN ? { authToken: env.TURSO_AUTH_TOKEN } : {}),
-  });
+  return getSharedStore();
 }
 
 /**
