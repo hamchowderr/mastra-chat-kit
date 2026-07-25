@@ -30,13 +30,6 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
-import {
-  Queue,
-  QueueList,
-  QueueSection,
-  QueueSectionLabel,
-  QueueSectionTrigger,
-} from '@/components/ai-elements/queue';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task';
 import {
@@ -106,7 +99,7 @@ function ThinkingIndicator() {
  */
 export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   const { transcript, status, sendMessage, approve } = harness;
-  const { messages, tasks, pendingApproval, usage, queuedFollowUps, error } = transcript;
+  const { messages, tasks, pendingApproval, usage, error } = transcript;
   const resultsById = collectToolResults(messages);
 
   const handleSend = ({ text, model, webSearch, files }: ComposerSubmit) =>
@@ -116,14 +109,41 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
       files: files?.map((f) => ({ url: f.url, mediaType: f.mediaType, filename: f.filename })),
     });
 
+  // Live token usage lives INSIDE the composer footer (not floating in the chat).
+  const contextSlot = usage ? (
+    <Context
+      usedTokens={usage.totalTokens ?? 0}
+      maxTokens={200_000}
+      modelId="anthropic/claude-haiku-4-5"
+      usage={{
+        inputTokens: usage.promptTokens ?? 0,
+        outputTokens: usage.completionTokens ?? 0,
+        totalTokens: usage.totalTokens ?? 0,
+        reasoningTokens: usage.reasoningTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+      }}
+    >
+      <ContextTrigger />
+      <ContextContent>
+        <ContextContentHeader />
+        <ContextContentBody>
+          <ContextInputUsage />
+          <ContextOutputUsage />
+          <ContextReasoningUsage />
+        </ContextContentBody>
+      </ContextContent>
+    </Context>
+  ) : null;
+
   // White composer so it pops against the zinc canvas. Rendered centered under the
-  // hero on the empty state, or pinned at the bottom once the chat is going.
+  // hero on the empty state, or pinned at the bottom once the chat is going. The
+  // token-usage Context rides in its footer.
   const composer = (
     <Composer
       onSend={handleSend}
       status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
-      // White (bg-card) so it pops against the zinc canvas, solid border + soft float.
       className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
+      footerExtra={contextSlot}
     />
   );
 
@@ -132,45 +152,6 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
     // align-stretch and then collapses to content height; letting it stretch to the
     // row is what actually fills the column. min-h-0 lets the conversation scroll.
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-      {/* Live session state: real token usage (Context) + queued follow-ups (Queue). */}
-      {(usage || queuedFollowUps > 0) && (
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-3">
-          {usage && (
-            <Context
-              usedTokens={usage.totalTokens ?? 0}
-              maxTokens={200_000}
-              modelId="anthropic/claude-haiku-4-5"
-              usage={{
-                inputTokens: usage.promptTokens ?? 0,
-                outputTokens: usage.completionTokens ?? 0,
-                totalTokens: usage.totalTokens ?? 0,
-                reasoningTokens: usage.reasoningTokens,
-                cachedInputTokens: usage.cachedInputTokens,
-              }}
-            >
-              <ContextTrigger />
-              <ContextContent>
-                <ContextContentHeader />
-                <ContextContentBody>
-                  <ContextInputUsage />
-                  <ContextOutputUsage />
-                  <ContextReasoningUsage />
-                </ContextContentBody>
-              </ContextContent>
-            </Context>
-          )}
-          {queuedFollowUps > 0 && (
-            <Queue>
-              <QueueSection defaultOpen>
-                <QueueSectionTrigger>
-                  <QueueSectionLabel count={queuedFollowUps} label="queued" />
-                </QueueSectionTrigger>
-                <QueueList />
-              </QueueSection>
-            </Queue>
-          )}
-        </div>
-      )}
       {messages.length === 0 && status !== 'streaming' ? (
         // Empty state: hero + white composer + suggestions, centered as one group.
         <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">

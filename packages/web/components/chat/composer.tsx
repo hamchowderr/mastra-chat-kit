@@ -2,7 +2,7 @@
 
 import type { ChatStatus } from 'ai';
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   Attachment,
   AttachmentPreview,
@@ -90,10 +90,13 @@ export function Composer({
   onSend,
   status,
   className = 'm-4',
+  footerExtra,
 }: {
   onSend: (submit: ComposerSubmit) => void;
   status?: ChatStatus;
   className?: string;
+  /** Rendered in the footer, right of the tools (e.g. the live token-usage Context). */
+  footerExtra?: ReactNode;
 }) {
   const [text, setText] = useState('');
   const [model, setModel] = useState(MODELS[0].id);
@@ -222,7 +225,10 @@ export function Composer({
             </ModelSelectorContent>
           </ModelSelector>
         </PromptInputTools>
-        <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
+        <div className="flex items-center gap-2">
+          {footerExtra}
+          <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
+        </div>
       </PromptInputFooter>
     </PromptInput>
   );

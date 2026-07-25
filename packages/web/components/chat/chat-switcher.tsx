@@ -8,67 +8,70 @@ import { WorkbenchPanel } from '@/components/chat/workbench-panel';
 import { useHarnessChat } from '@/lib/harness/use-harness-chat';
 
 /**
- * The app shell — the batteries-included agent workbench.
+ * The app shell — sidebar │ chat │ workbench, no top header bar so the chat runs
+ * edge to edge. The sidebar-collapse control lives at the top of the sidebar (and
+ * floats top-left when the sidebar is collapsed, so it's always reachable); the
+ * workbench toggle floats in the chat's empty top-right gutter.
  *
- * One harness agent (an `AgentController` with a real Workspace: filesystem +
- * shell sandbox + browser) is the whole app: `<HarnessChat>` is the primary
- * column, with a collapsible `<WorkbenchPanel>` (Files · Terminal · Browser) on
- * the right surfacing what that Workspace is doing.
- *
- * The old engine tabs (Single / Harness / Code) are gone — there's one agent now.
- * The Single-Agent chat + its history sidebar (`chat.tsx`, `chat-sidebar.tsx`)
- * still live in the repo but are unwired here; harness thread history is a
- * follow-up (see the P3.5 issue) since the harness manages its own threads.
+ * One harness session (an `AgentController` with a real Workspace: filesystem +
+ * shell sandbox + browser) backs all three panes, so history, transcript, and the
+ * workbench's Files/Terminal/Browser reflect the same run.
  */
 export function ChatSwitcher() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  // Workbench (Files/Terminal/Browser) starts CLOSED so the default view is a
-  // clean chat + history, not an IDE. Open it from the header when you want to
-  // watch the agent's tools.
+  // Workbench starts CLOSED so the default view is a clean chat, not an IDE.
   const [rightCollapsed, setRightCollapsed] = useState(true);
-  // One harness session, shared by the sidebar, the chat, and the workbench panel
-  // — so conversation history, the transcript, and the panel's Terminal/Files/
-  // Browser all reflect the same session.
   const harness = useHarnessChat();
 
+  // New chat: clear the transcript, then focus the composer so it's obviously
+  // responsive — from an already-empty chat there'd otherwise be no visible change.
+  const handleNew = () => {
+    harness.reset();
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLTextAreaElement>('textarea[data-slot="input-group-control"]')
+        ?.focus();
+    });
+  };
+
   return (
-    // Flat, three-pane layout: a thin top bar, then sidebar │ chat │ workbench.
-    // Each pane owns exactly one divider (border) so nothing nests or overlaps.
-    // h-dvh pins a concrete height so the inner flex-1 panes actually fill.
-    <div className="flex h-dvh flex-1 flex-col overflow-hidden bg-background">
-      <header className="flex h-12 shrink-0 items-center justify-between px-3">
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            aria-label={leftCollapsed ? 'Show conversations' : 'Hide conversations'}
-            aria-pressed={!leftCollapsed}
-            onClick={() => setLeftCollapsed((v) => !v)}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
-          >
-            <PanelLeftIcon className="size-4" />
-          </button>
-          <span className="font-semibold text-sm tracking-tight">mastra-chat-kit</span>
-        </div>
+    <div className="relative flex h-dvh overflow-hidden bg-background">
+      <HarnessSidebar
+        activeThreadId={harness.activeThreadId}
+        onSelect={harness.openThread}
+        onNew={handleNew}
+        refreshSignal={harness.refreshSignal}
+        collapsed={leftCollapsed}
+        onToggleCollapse={() => setLeftCollapsed((v) => !v)}
+      />
+
+      {/* Collapsed → a floating control brings the sidebar back (same spot as the
+          in-sidebar toggle, so it appears to stay put). */}
+      {leftCollapsed && (
         <button
           type="button"
-          aria-label={rightCollapsed ? 'Show workbench panel' : 'Hide workbench panel'}
+          aria-label="Show conversations"
+          onClick={() => setLeftCollapsed(false)}
+          className="absolute top-2.5 left-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
+        >
+          <PanelLeftIcon className="size-4" />
+        </button>
+      )}
+
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        <HarnessChat harness={harness} />
+
+        {/* Workbench toggle floats in the chat's empty top-right gutter. */}
+        <button
+          type="button"
+          aria-label={rightCollapsed ? 'Show workbench' : 'Hide workbench'}
           aria-pressed={!rightCollapsed}
           onClick={() => setRightCollapsed((v) => !v)}
-          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
+          className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
         >
           <PanelRightIcon className="size-4" />
         </button>
-      </header>
 
-      <div className="flex min-h-0 flex-1">
-        <HarnessSidebar
-          activeThreadId={harness.activeThreadId}
-          onSelect={harness.openThread}
-          onNew={harness.reset}
-          refreshSignal={harness.refreshSignal}
-          collapsed={leftCollapsed}
-        />
-        <HarnessChat harness={harness} />
         {!rightCollapsed && <WorkbenchPanel harness={harness} />}
       </div>
     </div>

@@ -1,6 +1,13 @@
 'use client';
 
-import { MoreHorizontalIcon, SearchIcon, SquarePenIcon, Trash2Icon, XIcon } from 'lucide-react';
+import {
+  MoreHorizontalIcon,
+  PanelLeftIcon,
+  SearchIcon,
+  SquarePenIcon,
+  Trash2Icon,
+  XIcon,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -58,12 +65,14 @@ export function HarnessSidebar({
   onNew,
   refreshSignal,
   collapsed,
+  onToggleCollapse,
 }: {
   activeThreadId: string | null;
   onSelect: (id: string) => void;
   onNew: () => void;
   refreshSignal: number;
   collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [pendingDelete, setPendingDelete] = useState<ThreadItem | null>(null);
@@ -153,8 +162,20 @@ export function HarnessSidebar({
       )}
     >
       <div className="flex h-full w-72 flex-col">
+        {/* Top bar: sidebar-collapse control (aligns with the floating one shown
+            when collapsed, so it looks like it stays put). */}
+        <div className="flex h-11 items-center px-2">
+          <button
+            type="button"
+            aria-label="Hide conversations"
+            onClick={onToggleCollapse}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96]"
+          >
+            <PanelLeftIcon className="size-4" />
+          </button>
+        </div>
         {/* New chat */}
-        <div className="p-2">
+        <div className="px-2 pb-2">
           <button
             type="button"
             onClick={() => {
