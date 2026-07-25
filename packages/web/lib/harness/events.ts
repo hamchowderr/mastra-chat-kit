@@ -85,13 +85,27 @@ export const emptyTranscript = (): HarnessTranscript => ({
 // biome-ignore lint/suspicious/noExplicitAny: HarnessEvent is a wide discriminated union; we switch on .type
 type AnyEvent = { type: string; [k: string]: any };
 
+/**
+ * Providers other than Anthropic (notably OpenAI) can hand us a message whose
+ * `content` is `null` or a bare string — e.g. an assistant turn that's purely a
+ * tool call, or a message shell that arrives before its parts stream in. The
+ * transcript model and every consumer (`collectToolResults`, the renderer) assume
+ * an array of parts, so coerce it here at the single point messages enter.
+ */
+function normalizeContent(content: unknown): HarnessContentPart[] {
+  if (Array.isArray(content)) return content as HarnessContentPart[];
+  if (typeof content === 'string' && content.length > 0) return [{ type: 'text', text: content }];
+  return [];
+}
+
 function upsertMessage(messages: HarnessMessage[], msg: HarnessMessage): HarnessMessage[] {
-  const idx = messages.findIndex((m) => m.id === msg.id);
+  const m = Array.isArray(msg.content) ? msg : { ...msg, content: normalizeContent(msg.content) };
+  const idx = messages.findIndex((x) => x.id === m.id);
   if (idx === -1) {
-    return [...messages, msg];
+    return [...messages, m];
   }
   const next = messages.slice();
-  next[idx] = msg;
+  next[idx] = m;
   return next;
 }
 

@@ -27,7 +27,7 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 
-const CHAT_MODEL_ID = 'anthropic/claude-sonnet-4-6';
+const CHAT_MODEL_ID = env.CHAT_MODEL;
 
 // Absolute root for the agent's workspace (filesystem + sandbox share it). Under
 // `mastra dev` the cwd shifts, so resolve a relative WORKSPACE_ROOT once here.
