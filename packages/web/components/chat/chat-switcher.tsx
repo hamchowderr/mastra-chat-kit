@@ -1,7 +1,6 @@
 'use client';
 
 import { PanelLeftIcon, PanelRightIcon } from 'lucide-react';
-import Link from 'next/link';
 import { useState } from 'react';
 import { HarnessChat } from '@/components/chat/harness-chat';
 import { HarnessSidebar } from '@/components/chat/harness-sidebar';
@@ -33,11 +32,12 @@ export function ChatSwitcher() {
   const harness = useHarnessChat();
 
   return (
-    // The whole canvas takes the brand-tinted background; the sidebar blends into
-    // it and the chat/workbench float as one elevated card (the Foreman look).
-    <div className="flex h-full flex-1 flex-col bg-background">
-      <header className="flex items-center justify-between px-3 py-2">
-        <div className="flex items-center gap-1">
+    // Flat, three-pane layout: a thin top bar, then sidebar │ chat │ workbench.
+    // Each pane owns exactly one divider (border) so nothing nests or overlaps.
+    // h-dvh pins a concrete height so the inner flex-1 panes actually fill.
+    <div className="flex h-dvh flex-1 flex-col overflow-hidden bg-background">
+      <header className="flex h-12 shrink-0 items-center justify-between px-3">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             aria-label={leftCollapsed ? 'Show conversations' : 'Hide conversations'}
@@ -47,31 +47,17 @@ export function ChatSwitcher() {
           >
             <PanelLeftIcon className="size-4" />
           </button>
-          <span className="pl-1 font-semibold text-sm tracking-tight">mastra-chat-kit</span>
+          <span className="font-semibold text-sm tracking-tight">mastra-chat-kit</span>
         </div>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link
-            href="/showcase"
-            className="rounded-md px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-sidebar-accent hover:text-foreground"
-          >
-            Showroom
-          </Link>
-          <Link
-            href="/status"
-            className="rounded-md px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-sidebar-accent hover:text-foreground"
-          >
-            Status
-          </Link>
-          <button
-            type="button"
-            aria-label={rightCollapsed ? 'Show workbench panel' : 'Hide workbench panel'}
-            aria-pressed={!rightCollapsed}
-            onClick={() => setRightCollapsed((v) => !v)}
-            className="ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
-          >
-            <PanelRightIcon className="size-4" />
-          </button>
-        </nav>
+        <button
+          type="button"
+          aria-label={rightCollapsed ? 'Show workbench panel' : 'Hide workbench panel'}
+          aria-pressed={!rightCollapsed}
+          onClick={() => setRightCollapsed((v) => !v)}
+          className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
+        >
+          <PanelRightIcon className="size-4" />
+        </button>
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -82,13 +68,8 @@ export function ChatSwitcher() {
           refreshSignal={harness.refreshSignal}
           collapsed={leftCollapsed}
         />
-        {/* Floating card: chat (+ workbench) elevated off the tinted canvas. */}
-        <div className="min-h-0 flex-1 p-3 pl-0">
-          <div className="flex h-full overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[var(--shadow-float)]">
-            <HarnessChat harness={harness} fluid={!rightCollapsed} />
-            {!rightCollapsed && <WorkbenchPanel harness={harness} />}
-          </div>
-        </div>
+        <HarnessChat harness={harness} />
+        {!rightCollapsed && <WorkbenchPanel harness={harness} />}
       </div>
     </div>
   );

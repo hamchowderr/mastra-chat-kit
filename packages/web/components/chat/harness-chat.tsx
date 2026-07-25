@@ -104,13 +104,7 @@ function ThinkingIndicator() {
  * Image, submit_plan → Plan, the step sequence → ChainOfThought, task_updated → Task,
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
-export function HarnessChat({
-  harness,
-  fluid = false,
-}: {
-  harness: UseHarnessChat;
-  fluid?: boolean;
-}) {
+export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   const { transcript, status, sendMessage, approve } = harness;
   const { messages, tasks, pendingApproval, usage, queuedFollowUps, error } = transcript;
   const resultsById = collectToolResults(messages);
@@ -122,18 +116,25 @@ export function HarnessChat({
       files: files?.map((f) => ({ url: f.url, mediaType: f.mediaType, filename: f.filename })),
     });
 
+  // White composer so it pops against the zinc canvas. Rendered centered under the
+  // hero on the empty state, or pinned at the bottom once the chat is going.
+  const composer = (
+    <Composer
+      onSend={handleSend}
+      status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
+      // White (bg-card) so it pops against the zinc canvas, solid border + soft float.
+      className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
+    />
+  );
+
   return (
-    // `fluid` fills the column when the workbench panel is open; otherwise the
-    // chat keeps a comfortable centered reading width.
-    <div
-      className={cn(
-        'flex h-full w-full flex-1 flex-col',
-        fluid ? 'max-w-none' : 'mx-auto max-w-3xl',
-      )}
-    >
+    // Flat chat pane. NO h-full here — an explicit height opts the flex item out of
+    // align-stretch and then collapses to content height; letting it stretch to the
+    // row is what actually fills the column. min-h-0 lets the conversation scroll.
+    <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
       {/* Live session state: real token usage (Context) + queued follow-ups (Queue). */}
       {(usage || queuedFollowUps > 0) && (
-        <div className="flex items-center gap-3 border-border border-b px-4 py-2">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 pt-3">
           {usage && (
             <Context
               usedTokens={usage.totalTokens ?? 0}
@@ -170,33 +171,35 @@ export function HarnessChat({
           )}
         </div>
       )}
-      <Conversation className="flex-1">
-        <ConversationContent>
-          {messages.length === 0 ? (
-            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-8 px-4 text-center">
-              <div className="animate-fade-up space-y-2">
-                <h1 className="font-semibold text-3xl tracking-tight sm:text-4xl">
-                  What can I help with?
-                </h1>
-                <p className="text-base text-muted-foreground">
-                  Ask a question, run some code, or browse the web.
-                </p>
-              </div>
-              <div className="grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
-                {STARTERS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => handleSend({ text: s, model: '', webSearch: false })}
-                    className="animate-fade-up rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left text-muted-foreground text-sm transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            messages
+      {messages.length === 0 && status !== 'streaming' ? (
+        // Empty state: hero + white composer + suggestions, centered as one group.
+        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
+          <div className="animate-fade-up space-y-2 text-center">
+            <h1 className="font-semibold text-3xl tracking-tight sm:text-4xl">
+              What&rsquo;s on your mind today?
+            </h1>
+            <p className="text-base text-muted-foreground">
+              Ask a question, run some code, or browse the web.
+            </p>
+          </div>
+          <div className="w-full max-w-3xl">{composer}</div>
+          <div className="grid w-full max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
+            {STARTERS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => handleSend({ text: s, model: '', webSearch: false })}
+                className="animate-fade-up rounded-xl border border-border bg-card px-4 py-3 text-left text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <Conversation className="flex-1">
+          <ConversationContent className="mx-auto w-full max-w-3xl">
+            {messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
               .map((m) => {
                 // The agent's actual tool-call sequence → a ChainOfThought trace.
@@ -234,57 +237,61 @@ export function HarnessChat({
                     </Message>
                   </div>
                 );
-              })
-          )}
+              })}
 
-          {tasks.length > 0 && (
-            <Task defaultOpen>
-              <TaskTrigger title={`Tasks (${tasks.length})`} />
-              <TaskContent>
-                {tasks.map((t, i) => (
-                  <TaskItem key={t.id ?? `task-${i}`}>
-                    {t.status ? `[${t.status}] ` : ''}
-                    {t.content ?? t.title ?? 'Task'}
-                  </TaskItem>
-                ))}
-              </TaskContent>
-            </Task>
-          )}
+            {tasks.length > 0 && (
+              <Task defaultOpen>
+                <TaskTrigger title={`Tasks (${tasks.length})`} />
+                <TaskContent>
+                  {tasks.map((t, i) => (
+                    <TaskItem key={t.id ?? `task-${i}`}>
+                      {t.status ? `[${t.status}] ` : ''}
+                      {t.content ?? t.title ?? 'Task'}
+                    </TaskItem>
+                  ))}
+                </TaskContent>
+              </Task>
+            )}
 
-          {pendingApproval && (
-            <Confirmation state="approval-requested" approval={{ id: pendingApproval.toolCallId }}>
-              <ConfirmationTitle>Run {pendingApproval.toolName}?</ConfirmationTitle>
-              <ConfirmationRequest>
-                <pre className="overflow-x-auto text-xs">
-                  {JSON.stringify(pendingApproval.args, null, 2)}
-                </pre>
-                <ConfirmationActions>
-                  <ConfirmationAction onClick={() => approve('approve')}>
-                    Approve
-                  </ConfirmationAction>
-                  <ConfirmationAction variant="outline" onClick={() => approve('decline')}>
-                    Reject
-                  </ConfirmationAction>
-                </ConfirmationActions>
-              </ConfirmationRequest>
-            </Confirmation>
-          )}
+            {pendingApproval && (
+              <Confirmation
+                state="approval-requested"
+                approval={{ id: pendingApproval.toolCallId }}
+              >
+                <ConfirmationTitle>Run {pendingApproval.toolName}?</ConfirmationTitle>
+                <ConfirmationRequest>
+                  <pre className="overflow-x-auto text-xs">
+                    {JSON.stringify(pendingApproval.args, null, 2)}
+                  </pre>
+                  <ConfirmationActions>
+                    <ConfirmationAction onClick={() => approve('approve')}>
+                      Approve
+                    </ConfirmationAction>
+                    <ConfirmationAction variant="outline" onClick={() => approve('decline')}>
+                      Reject
+                    </ConfirmationAction>
+                  </ConfirmationActions>
+                </ConfirmationRequest>
+              </Confirmation>
+            )}
 
-          {/* Bot avatar + typing dots while the run is in flight and the assistant
+            {/* Bot avatar + typing dots while the run is in flight and the assistant
               hasn't started its reply yet (otherwise the reply itself is the signal). */}
-          {status === 'streaming' &&
-            messages.filter((m) => m.role === 'user' || m.role === 'assistant').at(-1)?.role !==
-              'assistant' && <ThinkingIndicator />}
+            {status === 'streaming' &&
+              messages.filter((m) => m.role === 'user' || m.role === 'assistant').at(-1)?.role !==
+                'assistant' && <ThinkingIndicator />}
 
-          {error && <p className="px-2 text-destructive text-sm">Harness error: {error}</p>}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
+            {error && <p className="px-2 text-destructive text-sm">Harness error: {error}</p>}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+      )}
 
-      <Composer
-        onSend={handleSend}
-        status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
-      />
+      {/* Bottom composer only once a chat is going — the empty state has its own
+          centered one, so it never shows twice. */}
+      {!(messages.length === 0 && status !== 'streaming') && (
+        <div className="mx-auto w-full max-w-3xl px-4 pb-4">{composer}</div>
+      )}
     </div>
   );
 }

@@ -5,126 +5,123 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ─────────────────────────────────────────────────────────────
-   Theme — warm brand accent on a neutral grayscale, ported from the
-   Foreman kit. Standard shadcn token semantics: `muted` is a subtle
-   BACKGROUND, `muted-foreground` is dim TEXT. The @theme inline block below
-   blends every surface a few percent toward --primary so the whole UI
-   (cards, inputs, borders, hovers) picks up the brand hue, not just accents.
-   Re-hue the whole app by changing --primary / --accent / --ring.
+   Neutral zinc theme with a deliberate three-tier surface hierarchy
+   (subtle, not colorful):
+
+     sidebar   = zinc-50   → recessed rail  ("dark and dingy")
+     canvas    = zinc-25   → the chat area  ("light and airy")
+     card      = white     → composer, popovers, message cards ("stark, exposed")
+
+   Text/accents are neutral (near-black). Re-brand later by changing --primary.
    ───────────────────────────────────────────────────────────── */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+  /* Surfaces (light → dark): white card, zinc-25 canvas, zinc-50 sidebar. */
+  --background: #fcfcfc; /* zinc-25 — the chat canvas */
+  --foreground: #18181b;
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
+  --popover-foreground: #18181b;
 
-  --primary: #ff4a00;
-  --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
+  --primary: #18181b; /* zinc-900 — near-black accents (send button, active) */
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5; /* zinc-100 */
   --secondary-foreground: #18181b;
   --muted: #f4f4f5;
-  --muted-foreground: #52525b;
-  --accent: #ff4a00;
-  --accent-foreground: #ffffff;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
+  --muted-foreground: #71717a; /* zinc-500 */
+  --accent: #f4f4f5; /* zinc-100 — hover fill */
+  --accent-foreground: #18181b;
+  --destructive: #e11d48;
+  --destructive-foreground: #fafafa;
 
-  --border: #d4d4d8;
-  --input: #d4d4d8;
-  --ring: #ff4a00;
+  --border: #e4e4e7; /* zinc-200 — the real structural line */
+  --input: #e4e4e7;
+  --ring: #a1a1aa; /* zinc-400 — soft focus ring */
 
-  /* Custom surface token + the floating-card shadow. */
-  --surface: #f8f8f8;
-  --shadow-float: 0 1px 2px rgba(10, 10, 10, 0.04), 0 14px 40px -18px rgba(10, 10, 10, 0.18);
+  --shadow-float: 0 1px 2px rgba(24, 24, 27, 0.04), 0 12px 32px -16px rgba(24, 24, 27, 0.12);
 
-  --chart-1: #ff4a00;
-  --chart-2: #2563eb;
-  --chart-3: #16a34a;
-  --chart-4: #d97706;
-  --chart-5: #7c3aed;
+  --chart-1: #18181b;
+  --chart-2: #52525b;
+  --chart-3: #71717a;
+  --chart-4: #a1a1aa;
+  --chart-5: #d4d4d8;
 
-  --sidebar: #f8f8f8;
-  --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #ff4a00;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f4f5;
+  --sidebar: #fafafa; /* zinc-50 — recessed rail */
+  --sidebar-foreground: #18181b;
+  --sidebar-primary: #18181b;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f4f4f5; /* zinc-100 — row hover/active */
   --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #ff4a00;
+  --sidebar-border: #e4e4e7;
+  --sidebar-ring: #a1a1aa;
 }
 
 .dark {
-  --background: #09090b;
+  /* Surfaces (light → dark): zinc-800 card, zinc-900 canvas, near-black sidebar. */
+  --background: #0c0c0e; /* canvas */
   --foreground: #fafafa;
-  --card: #111114;
+  --card: #1a1a1d; /* raised card/composer */
   --card-foreground: #fafafa;
-  --popover: #111114;
+  --popover: #1a1a1d;
   --popover-foreground: #fafafa;
 
-  --primary: #ff5a1a;
-  --primary-foreground: #ffffff;
-  --secondary: #27272a;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a; /* zinc-800 */
   --secondary-foreground: #fafafa;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
-  --accent: #ff5a1a;
-  --accent-foreground: #ffffff;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #fb7185;
+  --destructive-foreground: #18181b;
 
-  --border: #1e1e22;
-  --input: #1e1e22;
-  --ring: #ff5a1a;
+  --border: #27272a; /* zinc-800 */
+  --input: #27272a;
+  --ring: #52525b;
 
-  --surface: #111114;
-  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 44px -18px rgba(0, 0, 0, 0.6);
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -18px rgba(0, 0, 0, 0.6);
 
-  --chart-1: #ff5a1a;
-  --chart-2: #3b82f6;
-  --chart-3: #22c55e;
-  --chart-4: #f59e0b;
-  --chart-5: #a78bfa;
+  --chart-1: #fafafa;
+  --chart-2: #d4d4d8;
+  --chart-3: #a1a1aa;
+  --chart-4: #71717a;
+  --chart-5: #52525b;
 
-  --sidebar: #111114;
+  --sidebar: #161618; /* recessed rail */
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: #ff5a1a;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #18181b;
   --sidebar-accent: #27272a;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #1e1e22;
-  --sidebar-ring: #ff5a1a;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #52525b;
 }
 
 @theme inline {
-  /* Surface tokens are blended a few percent toward the brand hue (--primary)
-     so the accent color reaches the whole UI — cards, inputs, borders, hover/
-     accent states — not just focus rings. Subtle on big surfaces (3-8%),
-     stronger on accent (25%) so hovers clearly pick up the brand. Text stays
-     untinted for contrast. */
-  --color-background: color-mix(in oklab, var(--background), var(--primary) 4%);
+  /* Plain 1:1 token mapping — no hue tinting. The palette above is already the
+     final neutral; surfaces read as clean layered grays. */
+  --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-card: color-mix(in oklab, var(--card), var(--primary) 8%);
+  --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
-  --color-popover: color-mix(in oklab, var(--popover), var(--primary) 8%);
+  --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: color-mix(in oklab, var(--secondary), var(--primary) 12%);
+  --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: color-mix(in oklab, var(--muted), var(--primary) 10%);
+  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: color-mix(in oklab, var(--accent), var(--primary) 25%);
+  --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: color-mix(in oklab, var(--border), var(--primary) 16%);
-  --color-input: color-mix(in oklab, var(--input), var(--primary) 16%);
+  --color-border: var(--border);
+  --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-surface: var(--surface);
   --shadow-float: var(--shadow-float);
 
   --color-chart-1: var(--chart-1);
@@ -133,16 +130,13 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  /* Sidebar shares the page surface (not a standalone slab) so it blends into
-     the canvas and the chat card is the one floating element. Mirrors
-     --color-background's formula exactly. */
-  --color-sidebar: color-mix(in oklab, var(--background), var(--primary) 4%);
+  --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: color-mix(in oklab, var(--sidebar-accent), var(--primary) 12%);
+  --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: color-mix(in oklab, var(--sidebar-border), var(--primary) 16%);
+  --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -162,10 +156,8 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
-    /* Avoid orphans/awkward wraps in body copy. */
     text-wrap: pretty;
   }
-  /* Balanced multi-line headings (no lonely last word). */
   h1,
   h2,
   h3,

@@ -148,8 +148,8 @@ export function HarnessSidebar({
   return (
     <aside
       className={cn(
-        'shrink-0 overflow-hidden border-border bg-muted/30 transition-[width] duration-200 ease-out',
-        collapsed ? 'w-0' : 'w-72 border-r',
+        'shrink-0 overflow-hidden bg-sidebar transition-[width] duration-200 ease-out',
+        collapsed ? 'w-0' : 'w-72 border-sidebar-border border-r',
       )}
     >
       <div className="flex h-full w-72 flex-col">
