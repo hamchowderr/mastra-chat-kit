@@ -4,6 +4,14 @@
 /* next-themes toggles a `.dark` class on <html>; wire Tailwind's dark variant to it. */
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────
+   Theme — warm brand accent on a neutral grayscale, ported from the
+   Foreman kit. Standard shadcn token semantics: `muted` is a subtle
+   BACKGROUND, `muted-foreground` is dim TEXT. The @theme inline block below
+   blends every surface a few percent toward --primary so the whole UI
+   (cards, inputs, borders, hovers) picks up the brand hue, not just accents.
+   Re-hue the whole app by changing --primary / --accent / --ring.
+   ───────────────────────────────────────────────────────────── */
 :root {
   --radius: 0.625rem;
 
@@ -14,101 +22,110 @@
   --popover: #ffffff;
   --popover-foreground: #0a0a0a;
 
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
+  --primary: #ff4a00;
+  --primary-foreground: #ffffff;
   --secondary: #f4f4f5;
   --secondary-foreground: #18181b;
   --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-  --destructive: #e7000b;
-  --destructive-foreground: #fafafa;
+  --muted-foreground: #52525b;
+  --accent: #ff4a00;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
 
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #a1a1aa;
+  --border: #d4d4d8;
+  --input: #d4d4d8;
+  --ring: #ff4a00;
 
-  --chart-1: #f54a00;
-  --chart-2: #009689;
-  --chart-3: #104e64;
-  --chart-4: #ffba00;
-  --chart-5: #fd9a00;
+  /* Custom surface token + the floating-card shadow. */
+  --surface: #f8f8f8;
+  --shadow-float: 0 1px 2px rgba(10, 10, 10, 0.04), 0 14px 40px -18px rgba(10, 10, 10, 0.18);
 
-  --sidebar: #fafafa;
+  --chart-1: #ff4a00;
+  --chart-2: #2563eb;
+  --chart-3: #16a34a;
+  --chart-4: #d97706;
+  --chart-5: #7c3aed;
+
+  --sidebar: #f8f8f8;
   --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #18181b;
-  --sidebar-primary-foreground: #fafafa;
+  --sidebar-primary: #ff4a00;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f4f4f5;
   --sidebar-accent-foreground: #18181b;
-  --sidebar-border: #e4e4e7;
-  --sidebar-ring: #a1a1aa;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #ff4a00;
 }
 
 .dark {
-  --background: #0a0a0a;
+  --background: #09090b;
   --foreground: #fafafa;
-  --card: #18181b;
+  --card: #111114;
   --card-foreground: #fafafa;
-  --popover: #18181b;
+  --popover: #111114;
   --popover-foreground: #fafafa;
 
-  --primary: #e4e4e7;
-  --primary-foreground: #18181b;
+  --primary: #ff5a1a;
+  --primary-foreground: #ffffff;
   --secondary: #27272a;
   --secondary-foreground: #fafafa;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #ff6467;
-  --destructive-foreground: #fafafa;
+  --accent: #ff5a1a;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
 
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: #71717a;
+  --border: #1e1e22;
+  --input: #1e1e22;
+  --ring: #ff5a1a;
 
-  --chart-1: #1447e6;
-  --chart-2: #00bba7;
-  --chart-3: #fd9a00;
-  --chart-4: #ad46ff;
-  --chart-5: #ff2056;
+  --surface: #111114;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 44px -18px rgba(0, 0, 0, 0.6);
 
-  --sidebar: #18181b;
+  --chart-1: #ff5a1a;
+  --chart-2: #3b82f6;
+  --chart-3: #22c55e;
+  --chart-4: #f59e0b;
+  --chart-5: #a78bfa;
+
+  --sidebar: #111114;
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: #1447e6;
-  --sidebar-primary-foreground: #fafafa;
+  --sidebar-primary: #ff5a1a;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #27272a;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #71717a;
+  --sidebar-border: #1e1e22;
+  --sidebar-ring: #ff5a1a;
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-
-  --color-background: var(--background);
+  /* Surface tokens are blended a few percent toward the brand hue (--primary)
+     so the accent color reaches the whole UI — cards, inputs, borders, hover/
+     accent states — not just focus rings. Subtle on big surfaces (3-8%),
+     stronger on accent (25%) so hovers clearly pick up the brand. Text stays
+     untinted for contrast. */
+  --color-background: color-mix(in oklab, var(--background), var(--primary) 4%);
   --color-foreground: var(--foreground);
-  --color-card: var(--card);
+  --color-card: color-mix(in oklab, var(--card), var(--primary) 8%);
   --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
+  --color-popover: color-mix(in oklab, var(--popover), var(--primary) 8%);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
+  --color-secondary: color-mix(in oklab, var(--secondary), var(--primary) 12%);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
+  --color-muted: color-mix(in oklab, var(--muted), var(--primary) 10%);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
+  --color-accent: color-mix(in oklab, var(--accent), var(--primary) 25%);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
+  --color-border: color-mix(in oklab, var(--border), var(--primary) 16%);
+  --color-input: color-mix(in oklab, var(--input), var(--primary) 16%);
   --color-ring: var(--ring);
+  --color-surface: var(--surface);
+  --shadow-float: var(--shadow-float);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -116,17 +133,25 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --color-sidebar: var(--sidebar);
+  /* Sidebar shares the page surface (not a standalone slab) so it blends into
+     the canvas and the chat card is the one floating element. Mirrors
+     --color-background's formula exactly. */
+  --color-sidebar: color-mix(in oklab, var(--background), var(--primary) 4%);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent: color-mix(in oklab, var(--sidebar-accent), var(--primary) 12%);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-border: color-mix(in oklab, var(--sidebar-border), var(--primary) 16%);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
 }
 
 @layer base {
@@ -135,6 +160,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
     /* Avoid orphans/awkward wraps in body copy. */
     text-wrap: pretty;
   }
@@ -145,4 +172,53 @@
   h4 {
     text-wrap: balance;
   }
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+/* Three-dot typing indicator (assistant is responding). */
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.typing-dot {
+  animation: typing-dot 1.2s infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
 }

@@ -23,32 +23,43 @@ import { useHarnessChat } from '@/lib/harness/use-harness-chat';
  */
 export function ChatSwitcher() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
+  // Workbench (Files/Terminal/Browser) starts CLOSED so the default view is a
+  // clean chat + history, not an IDE. Open it from the header when you want to
+  // watch the agent's tools.
+  const [rightCollapsed, setRightCollapsed] = useState(true);
   // One harness session, shared by the sidebar, the chat, and the workbench panel
   // — so conversation history, the transcript, and the panel's Terminal/Files/
   // Browser all reflect the same session.
   const harness = useHarnessChat();
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <header className="flex items-center justify-between border-border border-b p-2">
+    // The whole canvas takes the brand-tinted background; the sidebar blends into
+    // it and the chat/workbench float as one elevated card (the Foreman look).
+    <div className="flex h-full flex-1 flex-col bg-background">
+      <header className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-1">
           <button
             type="button"
             aria-label={leftCollapsed ? 'Show conversations' : 'Hide conversations'}
             aria-pressed={!leftCollapsed}
             onClick={() => setLeftCollapsed((v) => !v)}
-            className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
           >
             <PanelLeftIcon className="size-4" />
           </button>
-          <span className="pl-1 font-medium text-sm">mastra-chat-kit</span>
+          <span className="pl-1 font-semibold text-sm tracking-tight">mastra-chat-kit</span>
         </div>
-        <nav className="flex items-center gap-3 text-sm">
-          <Link href="/showcase" className="text-muted-foreground hover:text-foreground">
+        <nav className="flex items-center gap-1 text-sm">
+          <Link
+            href="/showcase"
+            className="rounded-md px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          >
             Showroom
           </Link>
-          <Link href="/status" className="text-muted-foreground hover:text-foreground">
+          <Link
+            href="/status"
+            className="rounded-md px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          >
             Status
           </Link>
           <button
@@ -56,7 +67,7 @@ export function ChatSwitcher() {
             aria-label={rightCollapsed ? 'Show workbench panel' : 'Hide workbench panel'}
             aria-pressed={!rightCollapsed}
             onClick={() => setRightCollapsed((v) => !v)}
-            className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
+            className="ml-1 flex size-8 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
           >
             <PanelRightIcon className="size-4" />
           </button>
@@ -71,8 +82,13 @@ export function ChatSwitcher() {
           refreshSignal={harness.refreshSignal}
           collapsed={leftCollapsed}
         />
-        <HarnessChat harness={harness} fluid={!rightCollapsed} />
-        {!rightCollapsed && <WorkbenchPanel harness={harness} />}
+        {/* Floating card: chat (+ workbench) elevated off the tinted canvas. */}
+        <div className="min-h-0 flex-1 p-3 pl-0">
+          <div className="flex h-full overflow-hidden rounded-2xl border border-border/60 bg-card shadow-[var(--shadow-float)]">
+            <HarnessChat harness={harness} fluid={!rightCollapsed} />
+            {!rightCollapsed && <WorkbenchPanel harness={harness} />}
+          </div>
+        </div>
       </div>
     </div>
   );

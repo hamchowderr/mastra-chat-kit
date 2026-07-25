@@ -1,6 +1,6 @@
 'use client';
 
-import { CopyIcon } from 'lucide-react';
+import { CopyIcon, SparklesIcon, UserIcon } from 'lucide-react';
 import {
   Confirmation,
   ConfirmationAction,
@@ -21,7 +21,6 @@ import {
 import {
   Conversation,
   ConversationContent,
-  ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
 import {
@@ -39,7 +38,6 @@ import {
   QueueSectionTrigger,
 } from '@/components/ai-elements/queue';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
-import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task';
 import {
   Tool,
@@ -59,6 +57,45 @@ import {
 import { collectToolResults, type HarnessContentPart } from '@/lib/harness/events';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
 import { cn } from '@/lib/utils';
+
+/** Empty-state suggestion chips — exercise the agent's real toolset. */
+const STARTERS = [
+  "What's the weather in Los Angeles?",
+  'Create hello.js that prints the first 10 Fibonacci numbers, then run it.',
+  'List the files in the workspace.',
+  'Search the web for the latest Mastra release notes.',
+];
+
+/** Round avatar next to each message: user (filled brand) / assistant (bot). */
+function MsgAvatar({ role }: { role: string }) {
+  const isUser = role === 'user';
+  return (
+    <div
+      className={cn(
+        'flex size-7 shrink-0 items-center justify-center rounded-full',
+        isUser
+          ? 'bg-primary text-primary-foreground'
+          : 'border border-border bg-card text-muted-foreground',
+      )}
+    >
+      {isUser ? <UserIcon className="size-3.5" /> : <SparklesIcon className="size-3.5" />}
+    </div>
+  );
+}
+
+/** Bot avatar + three bouncing dots — shown before the assistant reply streams. */
+function ThinkingIndicator() {
+  return (
+    <div className="flex items-center gap-3">
+      <MsgAvatar role="assistant" />
+      <span className="flex items-center gap-1" aria-label="Assistant is responding" role="status">
+        <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
+        <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
+        <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
+      </span>
+    </div>
+  );
+}
 
 /**
  * Agent Harness chat — consumes the Harness SSE (`useHarnessChat`) and renders its
@@ -136,10 +173,28 @@ export function HarnessChat({
       <Conversation className="flex-1">
         <ConversationContent>
           {messages.length === 0 ? (
-            <ConversationEmptyState
-              title="mastra-chat-kit"
-              description="Agent Harness · sessions · modes · approvals · subagents · tasks"
-            />
+            <div className="flex min-h-[60vh] flex-col items-center justify-center gap-8 px-4 text-center">
+              <div className="animate-fade-up space-y-2">
+                <h1 className="font-semibold text-3xl tracking-tight sm:text-4xl">
+                  What can I help with?
+                </h1>
+                <p className="text-base text-muted-foreground">
+                  Ask a question, run some code, or browse the web.
+                </p>
+              </div>
+              <div className="grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
+                {STARTERS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => handleSend({ text: s, model: '', webSearch: false })}
+                    className="animate-fade-up rounded-xl border border-border/60 bg-card/60 px-4 py-3 text-left text-muted-foreground text-sm transition-colors hover:border-border hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
             messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -152,23 +207,32 @@ export function HarnessChat({
                         .map((p) => `Called ${(p as { name: string }).name}`)
                     : [];
                 return (
-                  <Message from={m.role} key={m.id}>
-                    <MessageContent>
-                      {steps.length > 0 && <StepTrace steps={steps} />}
-                      {m.content.map((part, i) => renderContent(part, i, resultsById))}
-                    </MessageContent>
-                    {m.role === 'assistant' && (
-                      <MessageActions>
-                        <MessageAction
-                          tooltip="Copy"
-                          label="Copy"
-                          onClick={() => copyHarnessMessage(m.content)}
-                        >
-                          <CopyIcon className="size-4" />
-                        </MessageAction>
-                      </MessageActions>
+                  <div
+                    key={m.id}
+                    className={cn(
+                      'flex w-full items-start gap-3',
+                      m.role === 'user' && 'flex-row-reverse',
                     )}
-                  </Message>
+                  >
+                    <MsgAvatar role={m.role} />
+                    <Message from={m.role} className="min-w-0 max-w-[85%] flex-1">
+                      <MessageContent>
+                        {steps.length > 0 && <StepTrace steps={steps} />}
+                        {m.content.map((part, i) => renderContent(part, i, resultsById))}
+                      </MessageContent>
+                      {m.role === 'assistant' && (
+                        <MessageActions>
+                          <MessageAction
+                            tooltip="Copy"
+                            label="Copy"
+                            onClick={() => copyHarnessMessage(m.content)}
+                          >
+                            <CopyIcon className="size-4" />
+                          </MessageAction>
+                        </MessageActions>
+                      )}
+                    </Message>
+                  </div>
                 );
               })
           )}
@@ -206,8 +270,11 @@ export function HarnessChat({
             </Confirmation>
           )}
 
-          {/* Real streaming indicator while the run is in flight. */}
-          {status === 'streaming' && <Shimmer className="px-2 text-sm">Thinking…</Shimmer>}
+          {/* Bot avatar + typing dots while the run is in flight and the assistant
+              hasn't started its reply yet (otherwise the reply itself is the signal). */}
+          {status === 'streaming' &&
+            messages.filter((m) => m.role === 'user' || m.role === 'assistant').at(-1)?.role !==
+              'assistant' && <ThinkingIndicator />}
 
           {error && <p className="px-2 text-destructive text-sm">Harness error: {error}</p>}
         </ConversationContent>
