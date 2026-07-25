@@ -1,5 +1,6 @@
 'use client';
 
+import { CopyIcon } from 'lucide-react';
 import {
   Confirmation,
   ConfirmationAction,
@@ -23,7 +24,13 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
-import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
+import {
+  Message,
+  MessageAction,
+  MessageActions,
+  MessageContent,
+  MessageResponse,
+} from '@/components/ai-elements/message';
 import {
   Queue,
   QueueList,
@@ -150,6 +157,17 @@ export function HarnessChat({
                       {steps.length > 0 && <StepTrace steps={steps} />}
                       {m.content.map((part, i) => renderContent(part, i, resultsById))}
                     </MessageContent>
+                    {m.role === 'assistant' && (
+                      <MessageActions>
+                        <MessageAction
+                          tooltip="Copy"
+                          label="Copy"
+                          onClick={() => copyHarnessMessage(m.content)}
+                        >
+                          <CopyIcon className="size-4" />
+                        </MessageAction>
+                      </MessageActions>
+                    )}
                   </Message>
                 );
               })
@@ -202,6 +220,15 @@ export function HarnessChat({
       />
     </div>
   );
+}
+
+/** Copy the plain text of a harness assistant turn (text parts only). */
+function copyHarnessMessage(content: HarnessContentPart[]) {
+  const text = content
+    .filter((p) => p.type === 'text')
+    .map((p) => (p as { text: string }).text ?? '')
+    .join('\n');
+  navigator.clipboard?.writeText(text);
 }
 
 function renderContent(
