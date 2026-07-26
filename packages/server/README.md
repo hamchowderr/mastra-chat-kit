@@ -1,6 +1,6 @@
 # template-mastra-base
 
-A production-ready Mastra agent starter. One example agent, full eval pipeline, Docker, CI — everything you need to ship a Mastra agent without building the scaffold yourself.
+A production-ready Mastra agent starter. A chat/harness agent + a coding agent, Docker, CI — everything you need to ship a Mastra agent without building the scaffold yourself.
 
 ---
 
@@ -23,11 +23,11 @@ npm run dev
 # → Mastra Studio at http://localhost:4111
 ```
 
-Chat with the `leadIntake` agent in Studio to verify everything works. Send:
+Chat with the `chat` agent in Studio to verify everything works. Send:
 
-> Hi, this is John Smith from Acme Corp (john@acme.io). We need pricing for 50 seats by Friday.
+> What files are in the workspace? Then create hello.txt with a short greeting.
 
-Expected: structured JSON output with all fields populated.
+Expected: the agent lists the workspace, then (after approval) writes the file.
 
 ---
 
@@ -40,7 +40,7 @@ This template's agents are reachable through four standard protocols. Once the d
 Direct HTTP calls. The fastest path for n8n, Make, VAPI, LiveKit, or any HTTP-aware system.
 
 ```bash
-curl -X POST http://localhost:4111/api/agents/leadIntake/generate \
+curl -X POST http://localhost:4111/api/agents/chat/generate \
   -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"Hi, I need a quote"}]}'
 ```
@@ -52,7 +52,7 @@ For streaming responses, use `/stream` instead of `/generate`. Full OpenAPI spec
 Agents have **working memory** enabled (resource-scoped — see `src/mastra/lib/memory.ts`). For it to persist across a user's conversations, pass `memory.resource` (a stable user ID) and `memory.thread` (the conversation ID) in the body:
 
 ```bash
-curl -X POST http://localhost:4111/api/agents/leadIntake/generate \
+curl -X POST http://localhost:4111/api/agents/chat/generate \
   -H "Content-Type: application/json" \
   -d '{
     "messages":[{"role":"user","content":"Hi, I need a quote"}],
@@ -68,10 +68,10 @@ Google's open standard for agent-to-agent communication. JSON-RPC over HTTP.
 
 ```bash
 # Get agent card
-curl http://localhost:4111/api/.well-known/leadIntake/agent-card.json
+curl http://localhost:4111/api/.well-known/chat/agent-card.json
 
 # Send a message (JSON-RPC)
-curl -X POST http://localhost:4111/api/a2a/leadIntake \
+curl -X POST http://localhost:4111/api/a2a/chat \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"kind":"message","messageId":"msg-1","role":"user","parts":[{"kind":"text","text":"Hi, I need a quote"}]}}}'
@@ -122,23 +122,20 @@ template-mastra-base/
 │   └── mastra/
 │       ├── index.ts                # Entry point: env → AIMock → Mastra instance
 │       ├── agents/
-│       │   └── _example.ts         # leadIntake agent — copy this for new agents
+│       │   ├── chat.ts             # Chat/harness agent (workspace + tools)
+│       │   └── code.ts             # Coding agent over the workspace sandbox
 │       ├── lib/
 │       │   └── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
-│       ├── scorers/
-│       │   ├── _example.scorers.ts # hallucination + completeness + urgency scorers
-│       │   └── datasets/
-│       │       └── _example.json   # Eval dataset — 5 cases with thresholds
 │       ├── tools/                  # Shared tools (inline tools live in agent files)
 │       └── workflows/              # Mastra workflows
 ├── scripts/
-│   └── eval.ts                     # Offline CI eval gate — exits 0/1 based on thresholds
+│   └── bake-studio.mjs             # Bakes Studio config for self-hosted serving
 ├── prompts/
 │   ├── README.md                   # Index of agent-building prompts
 │   └── build-agent.md              # Parameterized prompt for adding a new agent
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                  # typecheck → build + eval (parallel) → docker
+│       └── ci.yml                  # typecheck → build → docker
 ├── Dockerfile                      # Multi-stage, node:22-slim runtime
 ├── docker-compose.yml              # Production compose
 ├── compose.dev.yml                 # Dev compose override
@@ -155,36 +152,17 @@ template-mastra-base/
 | `npm run dev` | Start Mastra Studio at localhost:4111 |
 | `npm run build` | Bundle for production (output → `.mastra/output/`) |
 | `npm run start` | Start production server (no Studio) |
-| `npm run eval` | Run offline eval gate against all cases in the dataset |
 | `npm run typecheck` | TypeScript type check (zero-emit) |
-| `npm run score:list` | List registered scorers |
 | `npm run setup:browser` | Download the Chromium the harness Browser panel drives (run once after install) |
 
 ---
 
 ## Adding a New Agent
 
-1. Copy `src/mastra/agents/_example.ts` → `src/mastra/agents/my-agent.ts`
-2. Rename the agent, update `id`, `instructions`, `model`, tools, and output schema
+1. Copy `src/mastra/agents/chat.ts` → `src/mastra/agents/my-agent.ts`
+2. Rename the agent, update `id`, `instructions`, `model`, and tools
 3. Register it in `src/mastra/index.ts` under `agents:`
-4. Add eval cases to a new dataset file in `src/mastra/scorers/datasets/`
-5. Use `prompts/build-agent.md` with Claude Code to generate a complete agent from a description
-
----
-
-## Running Evals
-
-```bash
-# Against live Anthropic API
-npm run eval
-
-# Against AIMock (deterministic, no API cost)
-npx @copilotkit/aimock --config aimock.json &
-USE_AIMOCK=true npm run eval
-
-# Custom dataset
-node --env-file=.env --import tsx/esm scripts/eval.ts path/to/dataset.json
-```
+4. Use `prompts/build-agent.md` with Claude Code to generate a complete agent from a description
 
 ---
 

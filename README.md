@@ -125,12 +125,11 @@ packages/
 │     ├─ lib/env.ts           Zod-validated env — crashes on bad config
 │     └─ mastra/
 │        ├─ index.ts          Boot: env → AIMock → Mastra; Agent + Harness routes
-│        ├─ agents/           chat · code · _example (leadIntake)
+│        ├─ agents/           chat · code
 │        ├─ lib/
 │        │  ├─ harness.ts       AgentController + Session (Harness mode)
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
 │        │  └─ dolt.ts          optional versioned business data (mysql2)
-│        ├─ scorers/          eval scorers + datasets
 │        └─ tools/            agent tools (getWeather, dolt, image, …)
 └─ web/                      Next.js 16 App Router + AI Elements (:3000)
    ├─ app/showcase/            every element + prop, live

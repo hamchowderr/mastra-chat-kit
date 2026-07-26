@@ -39,11 +39,11 @@ Never reorder these. Never construct an `Agent` or `@ai-sdk/*` client before `co
 ```typescript
 // correct
 import { env } from '../../lib/env';
-import { leadIntakeAgent } from './agents/_example';
+import { chatAgent } from './agents/chat';
 
 // wrong
-import { env } from '@/lib/env';           // no path aliases
-import { leadIntakeAgent } from './agents'; // no barrel imports
+import { env } from '@/lib/env';        // no path aliases
+import { chatAgent } from './agents';   // no barrel imports
 ```
 
 ---
@@ -62,35 +62,15 @@ Rules:
 
 ## Agent Conventions
 
-File naming: `src/mastra/agents/<kebab-name>.ts` (prefix `_` for examples/templates).
+File naming: `src/mastra/agents/<kebab-name>.ts`.
 
-Every agent file must export:
-1. A named Zod schema (e.g. `LeadSchema`) and its inferred type
-2. The agent instance with `id`, `name`, `instructions`, `model`, and `scorers`
+Every agent file exports its agent instance with `id`, `name`, `instructions`, `model`,
+and `tools` (plus `memory`/`workspace` where relevant). Agents that return structured
+data also export a named Zod schema + its inferred type.
 
 Model string format: `anthropic/claude-sonnet-4-6` (provider/model-id).
 
-Scorers are declared inline on the agent. Scorer implementations live in `src/mastra/scorers/`. Every agent should have at least a hallucination scorer.
-
 Tools used only by one agent live inline in that agent's file. Shared tools go in `src/mastra/tools/`.
-
----
-
-## Scorer Conventions
-
-File naming: `src/mastra/scorers/<agent-name>.scorers.ts`.
-
-Dataset files: `src/mastra/scorers/datasets/<agent-name>.json`.
-
-Every scorer file exports named scorers. Every dataset file has `agentId`, `thresholds`, and `cases` — minimum 5 cases, at least 1 anti-hallucination case.
-
-Correct import paths for prebuilt scorers:
-```typescript
-import { createHallucinationScorer, createPromptAlignmentScorerLLM } from '@mastra/evals/scorers/prebuilt';
-// NOT from '@mastra/evals/scorers/llm' or '@mastra/evals/scorers/code'
-```
-
-Note: `createPromptAlignmentScorerLLM` with `evaluationMode: 'system'` requires system-prompt data in the inline scorer input. Register it on the agent only without that option, or run it manually in eval.ts. The default (no `evaluationMode`) works correctly for both inline and manual use.
 
 ---
 
@@ -151,7 +131,6 @@ The `MastraEditor` instance gives non-developers a way to iterate on agent promp
 Stop and confirm with the user before making these changes:
 
 - Changing the boot order in `src/mastra/index.ts`
-- Removing or renaming a scorer that's referenced in a dataset JSON
 - Downgrading a Mastra package version
 - Switching the storage backend (libSQL ⇄ Postgres — see `docs/postgres.md`)
 
@@ -162,7 +141,7 @@ Stop and confirm with the user before making these changes:
 ```bash
 npm run dev          # Start Studio at localhost:4111
 npm run typecheck    # Verify types before running
-npm run eval         # Run all eval cases; exits 0 on pass, 1 on fail
+npm test             # Run the vitest suite
 ```
 
 Eval runs with `USE_AIMOCK=false` hit the real Anthropic API and incur cost. Use `USE_AIMOCK=true` with AIMock running for free deterministic runs during development.

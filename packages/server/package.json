@@ -8,8 +8,6 @@
     "build": "mastra build",
     "start": "mastra start",
     "typecheck": "tsc --noEmit",
-    "eval": "node --env-file=.env --import tsx/esm scripts/eval.ts",
-    "score:list": "mastra scorers list",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

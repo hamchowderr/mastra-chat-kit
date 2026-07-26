@@ -28,7 +28,6 @@ import {
   generateText,
   streamText,
 } from 'ai';
-import { leadIntakeAgent } from './agents/_example';
 import { chatAgent } from './agents/chat';
 import { codeAgent } from './agents/code';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
@@ -37,11 +36,6 @@ import { getImage } from './lib/image-store';
 import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
 import { readWorkspaceFile, readWorkspaceTree } from './lib/workspace-files';
-import {
-  hallucinationScorer,
-  promptAlignmentScorer,
-  urgencyScorer,
-} from './scorers/_example.scorers';
 import { doltTools } from './tools/dolt';
 
 // Bootstrap the versioned Dolt database on first boot (no-op if Dolt isn't configured).
@@ -54,10 +48,10 @@ const mcpServer = new MCPServer({
   name: 'template-mastra-base',
   version: '0.1.0',
   description: 'MCP server exposing template-mastra-base agents + Dolt tools',
-  // Dolt versioned-data tools exposed over MCP. To let the example agent call
-  // them directly, spread `...doltTools` into the agent's own `tools`.
+  // Dolt versioned-data tools exposed over MCP. To let an agent call them
+  // directly, spread `...doltTools` into the agent's own `tools`.
   tools: { ...doltTools },
-  agents: { leadIntake: leadIntakeAgent },
+  agents: { chat: chatAgent },
 });
 
 // libSQL is the primary store (default/editor/memory domains + vectors). Local dev
@@ -991,8 +985,7 @@ const serverConfig = {
 
 export const mastra = new Mastra({
   server: serverConfig,
-  agents: { leadIntake: leadIntakeAgent, chat: chatAgent, code: codeAgent },
-  scorers: { hallucinationScorer, promptAlignmentScorer, urgencyScorer },
+  agents: { chat: chatAgent, code: codeAgent },
   mcpServers: { baseMcp: mcpServer },
   storage,
   logger: new PinoLogger({
