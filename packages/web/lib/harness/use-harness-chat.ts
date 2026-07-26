@@ -61,6 +61,33 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     };
   }, []);
 
+  // Hydrate the Memory panel with the facts OM has already distilled (resource-scoped,
+  // so they apply across all of this user's chats). Called on mount and after switching/
+  // resetting threads, so the panel shows learned memory on load instead of a bare empty
+  // state — the live token windows still fill in from `om_status` on the next run.
+  const refreshMemory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/harness/om', { cache: 'no-store' });
+      const data = (await res.json()) as { observations?: string | null };
+      if (!data.observations) return;
+      setTranscript((s) => ({
+        ...s,
+        memory: {
+          status: s.memory?.status ?? null,
+          activity: s.memory?.activity ?? [],
+          observations: s.memory?.observations ?? data.observations ?? null,
+        },
+      }));
+    } catch {
+      // The panel just stays in its empty state if the server is unreachable.
+    }
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only hydration
+  useEffect(() => {
+    refreshMemory();
+  }, []);
+
   const sendMessage = useCallback(
     async (
       text: string,
@@ -180,37 +207,44 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
    * restore) and seeds a fresh transcript; follow-up turns continue this thread
    * (threadRef) so the server switches to it and memory carries context.
    */
-  const openThread = useCallback(async (threadId: string) => {
-    try {
-      const res = await fetch(`/api/harness/threads/${encodeURIComponent(threadId)}/messages`, {
-        cache: 'no-store',
-      });
-      const data = (await res.json()) as {
-        messages?: Array<{
-          id: string;
-          role: string;
-          parts?: Array<{ type: string; text?: string }>;
-        }>;
-      };
-      threadRef.current = threadId;
-      setStatus('ready');
-      setTranscript({
-        ...emptyTranscript(),
-        threadId,
-        messages: uiMessagesToHarness(data.messages ?? []),
-      });
-    } catch {
-      threadRef.current = threadId;
-      setTranscript({ ...emptyTranscript(), threadId });
-    }
-  }, []);
+  const openThread = useCallback(
+    async (threadId: string) => {
+      try {
+        const res = await fetch(`/api/harness/threads/${encodeURIComponent(threadId)}/messages`, {
+          cache: 'no-store',
+        });
+        const data = (await res.json()) as {
+          messages?: Array<{
+            id: string;
+            role: string;
+            parts?: Array<{ type: string; text?: string }>;
+          }>;
+        };
+        threadRef.current = threadId;
+        setStatus('ready');
+        setTranscript({
+          ...emptyTranscript(),
+          threadId,
+          messages: uiMessagesToHarness(data.messages ?? []),
+        });
+      } catch {
+        threadRef.current = threadId;
+        setTranscript({ ...emptyTranscript(), threadId });
+      }
+      // Re-hydrate the learned OM facts (resource-scoped) onto the fresh transcript.
+      refreshMemory();
+    },
+    [refreshMemory],
+  );
 
   /** Clear the transcript and start a brand-new conversation (server mints a thread). */
   const reset = useCallback(() => {
     threadRef.current = null;
     setStatus('ready');
     setTranscript(emptyTranscript());
-  }, []);
+    // OM facts are resource-scoped, so they still apply in a brand-new chat.
+    refreshMemory();
+  }, [refreshMemory]);
 
   /** Clear the active thread's objective (the agent stops goal-driven looping). */
   const clearGoal = useCallback(async () => {

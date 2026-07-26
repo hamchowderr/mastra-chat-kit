@@ -20,21 +20,25 @@ import { cn } from '@/lib/utils';
  * they happen; `om_status` is the always-present snapshot.
  */
 export function WorkbenchMemory({ memory }: { memory: HarnessMemory | null }) {
-  if (!memory?.status) {
+  const status = memory?.status ?? null;
+  const hasContent = !!status || !!memory?.observations || (memory?.activity.length ?? 0) > 0;
+
+  // Nothing recorded yet (fresh user, no run): explain what will appear and when.
+  // (`!memory` in the guard also narrows `memory` to non-null for the render below.)
+  if (!memory || !hasContent) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
         <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <BrainIcon className="size-4.5" />
         </span>
         <p className="text-pretty text-muted-foreground text-sm">
-          Observational Memory distills durable facts from this conversation and carries them across
-          chats. Its activity appears here as the agent talks.
+          Observational Memory distills durable facts from your chats and carries them across
+          conversations. The live token windows fill in as you chat; anything it has already learned
+          shows here.
         </p>
       </div>
     );
   }
-
-  const { messages, observations, observationBuffer, reflectionBuffer } = memory.status;
 
   return (
     <div className="flex h-full flex-col gap-3 overflow-auto">
@@ -45,38 +49,45 @@ export function WorkbenchMemory({ memory }: { memory: HarnessMemory | null }) {
         <span className="font-medium text-sm">Observational Memory</span>
       </div>
 
-      {/* Token windows: progress toward the next observe / reflect. */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3">
-        <TokenWindow
-          icon={<EyeIcon className="size-3.5" />}
-          label="Messages → observation"
-          hint="Unobserved message tokens; the Observer runs at the threshold."
-          tokens={messages.tokens}
-          threshold={messages.threshold}
-          busy={observationBuffer.status !== 'idle'}
-        />
-        <TokenWindow
-          icon={<SparklesIcon className="size-3.5" />}
-          label="Observations → reflection"
-          hint="Observation tokens; the Reflector compresses at the threshold."
-          tokens={observations.tokens}
-          threshold={observations.threshold}
-          busy={reflectionBuffer.status !== 'idle'}
-        />
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <StatusPill label="Observer" status={observationBuffer.status} />
-          <StatusPill label="Reflector" status={reflectionBuffer.status} />
-          {observationBuffer.chunks > 0 && (
-            <span className="tabular-nums">{observationBuffer.chunks} buffered</span>
-          )}
+      {/* Token windows: progress toward the next observe / reflect. Present once a run has
+          emitted an om_status snapshot; hydrated views (facts-only) skip straight to them. */}
+      {status ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3">
+          <TokenWindow
+            icon={<EyeIcon className="size-3.5" />}
+            label="Messages → observation"
+            hint="Unobserved message tokens; the Observer runs at the threshold."
+            tokens={status.messages.tokens}
+            threshold={status.messages.threshold}
+            busy={status.observationBuffer.status !== 'idle'}
+          />
+          <TokenWindow
+            icon={<SparklesIcon className="size-3.5" />}
+            label="Observations → reflection"
+            hint="Observation tokens; the Reflector compresses at the threshold."
+            tokens={status.observations.tokens}
+            threshold={status.observations.threshold}
+            busy={status.reflectionBuffer.status !== 'idle'}
+          />
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <StatusPill label="Observer" status={status.observationBuffer.status} />
+            <StatusPill label="Reflector" status={status.reflectionBuffer.status} />
+            {status.observationBuffer.chunks > 0 && (
+              <span className="tabular-nums">{status.observationBuffer.chunks} buffered</span>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="text-muted-foreground text-xs italic">
+          Send a message to see live memory windows update.
+        </p>
+      )}
 
-      {/* Latest distilled observations, when the loop surfaces them. */}
+      {/* Distilled observations — the facts OM has learned (hydrated on load or streamed live). */}
       {memory.observations && (
         <div className="rounded-xl border border-border bg-card p-3">
           <p className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-            Latest observations
+            Learned facts
           </p>
           <p className="whitespace-pre-wrap text-pretty text-sm">{memory.observations}</p>
         </div>

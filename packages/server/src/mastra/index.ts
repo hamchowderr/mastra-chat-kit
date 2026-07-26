@@ -935,6 +935,27 @@ const serverConfig = {
       },
     }),
 
+    // GET the current Observational-Memory record — the facts the Observer has distilled
+    // across this resource's conversations. Lets the Memory panel show learned facts ON
+    // LOAD (before the next run's `om_status` fills the live token windows), so a returning
+    // user isn't met with an empty panel. Strips the `<thread id="…">` attribution wrappers
+    // (present in resource scope) to plain text for display.
+    registerApiRoute('/harness/om', {
+      method: 'GET',
+      handler: async (c) => {
+        const controller = await getChatHarness();
+        const session = await getChatSession();
+        const record = await controller.getObservationalMemoryRecord(session);
+        const observations =
+          record?.activeObservations?.replace(/<\/?thread[^>]*>/g, '').trim() || null;
+        return c.json({
+          observations,
+          generationCount: record?.generationCount ?? 0,
+          lastObservedAt: record?.lastObservedAt ?? null,
+        });
+      },
+    }),
+
     // Serves a generated image's bytes by id (the generateImage tool stashes them
     // so they never enter the model context). Returns { base64, mediaType }.
     registerApiRoute('/images/:id', {

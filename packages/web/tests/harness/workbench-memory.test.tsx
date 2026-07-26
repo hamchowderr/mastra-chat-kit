@@ -11,6 +11,21 @@ describe('WorkbenchMemory — observational-memory panel', () => {
     expect(screen.getByText(/Observational Memory distills/i)).toBeInTheDocument();
   });
 
+  it('renders hydrated learned facts even before a run (no status yet)', () => {
+    // Facts hydrated from /api/harness/om on mount: observations present, status still null.
+    const memory: HarnessMemory = {
+      status: null,
+      activity: [],
+      observations: 'User runs a coffee roastery named Ember; prefers concise answers.',
+    };
+    render(<WorkbenchMemory memory={memory} />);
+    // NOT the empty state — the learned facts show...
+    expect(screen.getByText('Learned facts')).toBeInTheDocument();
+    expect(screen.getByText(/coffee roastery named Ember/)).toBeInTheDocument();
+    // ...with a hint that live windows fill in on the next message.
+    expect(screen.getByText(/Send a message to see live memory windows/i)).toBeInTheDocument();
+  });
+
   it('renders the token windows with tabular counts and the observations text', () => {
     const memory: HarnessMemory = {
       status: {
