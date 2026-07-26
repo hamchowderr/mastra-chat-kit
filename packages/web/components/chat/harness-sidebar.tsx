@@ -11,7 +11,7 @@ import {
   Trash2Icon,
   XIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -213,7 +213,9 @@ export function HarnessSidebar({
     <aside
       className={cn(
         'shrink-0 overflow-hidden bg-sidebar transition-[width] duration-200 ease-out',
-        collapsed ? 'w-0' : 'w-72 border-sidebar-border border-r',
+        // Floating rounded panel (Foreman-style): inset with a margin + rounded corners +
+        // border + soft shadow so the rail reads as separate from the chat canvas.
+        collapsed ? 'w-0' : 'm-1.5 w-72 rounded-xl border border-sidebar-border shadow-sm',
       )}
     >
       <div className="flex h-full w-72 flex-col">
@@ -406,6 +408,7 @@ function ChatRow({
 }) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(thread.title);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const startRename = () => {
     setDraft(thread.title);
@@ -416,16 +419,22 @@ function ChatRow({
     onRename(draft);
   };
 
+  // Focus + select-all ONCE when rename mode opens — not on every keystroke. (A ref
+  // callback re-runs each render, which re-selected the text after every letter, so
+  // typing replaced the whole selection. This effect keys off `renaming` only.)
+  useEffect(() => {
+    if (renaming) {
+      const el = inputRef.current;
+      el?.focus();
+      el?.select();
+    }
+  }, [renaming]);
+
   if (renaming) {
     return (
       <div className="flex items-center rounded-lg bg-accent/60 px-2">
         <input
-          ref={(el) => {
-            if (el) {
-              el.focus();
-              el.select();
-            }
-          }}
+          ref={inputRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
