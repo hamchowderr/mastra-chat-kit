@@ -93,6 +93,29 @@ export type SubagentRun = {
   status: 'running' | 'done';
 };
 
+/**
+ * Goal-run state, folded from `goal_evaluation` events (and seeded optimistically by a
+ * `setGoal` POST). Drives the goal card: the objective, iteration progress against the
+ * run budget, whether the judge has passed it, its status, and the latest judge reason.
+ * `null` when no objective is set on the active thread.
+ */
+export type HarnessGoal = {
+  objective: string;
+  /** Evaluations consumed so far (runsUsed after the latest evaluation). */
+  iteration?: number;
+  /** Max evaluations before the goal stops. */
+  maxRuns?: number;
+  /** Whether the judge has ruled the objective complete. */
+  passed?: boolean;
+  status?: 'active' | 'paused' | 'done';
+  /** Judge feedback / stop reason. */
+  reason?: string;
+  /** Judge wants user input before continuing (loop paused, record still active). */
+  waitingForUser?: boolean;
+  /** The run budget (maxRuns) was reached without passing. */
+  maxRunsReached?: boolean;
+};
+
 /** What the SSE consumer folds events into and the view renders. */
 export type HarnessTranscript = {
   threadId: string | null;
@@ -110,6 +133,8 @@ export type HarnessTranscript = {
   subagents: SubagentRun[];
   /** Active controller mode id, reflected from `mode_changed` (→ the mode switcher). */
   activeMode: string | null;
+  /** Current goal-run state, folded from `goal_evaluation` (→ the goal card). */
+  goal: HarnessGoal | null;
   error: string | null;
   done: boolean;
 };
@@ -126,6 +151,7 @@ export const emptyTranscript = (): HarnessTranscript => ({
   info: null,
   subagents: [],
   activeMode: null,
+  goal: null,
   error: null,
   done: false,
 });
@@ -341,6 +367,37 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
     // the mode switcher highlights the current mode mid-run.
     case 'mode_changed':
       return typeof event.modeId === 'string' ? { ...state, activeMode: event.modeId } : state;
+    // The native goal loop judged the objective after a turn. Fold the payload into the
+    // goal card — objective, iteration vs budget, pass/status, and the judge's reason —
+    // merging onto any goal seeded optimistically by setGoal.
+    case 'goal_evaluation': {
+      const p = (event.payload ?? {}) as {
+        objective?: string;
+        iteration?: number;
+        maxRuns?: number;
+        passed?: boolean;
+        status?: HarnessGoal['status'];
+        reason?: string;
+        waitingForUser?: boolean;
+        maxRunsReached?: boolean;
+      };
+      return {
+        ...state,
+        goal: {
+          objective:
+            typeof p.objective === 'string' && p.objective
+              ? p.objective
+              : (state.goal?.objective ?? ''),
+          iteration: p.iteration,
+          maxRuns: p.maxRuns ?? state.goal?.maxRuns,
+          passed: p.passed,
+          status: p.status,
+          reason: p.reason,
+          waitingForUser: p.waitingForUser,
+          maxRunsReached: p.maxRunsReached,
+        },
+      };
+    }
     // Subagents (6 events, keyed by the parent `subagent` tool-call id) → the Agent
     // element renders inline where the parent's `subagent` tool call appears.
     case 'subagent_start':

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   emptyTranscript,
+  type HarnessGoal,
   type HarnessTranscript,
   reduceHarnessEvent,
   uiMessagesToHarness,
@@ -45,6 +46,42 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
         }
       } catch {
         // No modes surfaced if the server is unreachable — the switcher just hides.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load any objective already set on the session's active thread (durable across a
+  // reload within the server's lifetime). Live updates then arrive as `goal_evaluation`
+  // over the SSE and fold onto this via the reducer.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/harness/goal', { cache: 'no-store' });
+        const data = (await res.json()) as {
+          objective?: {
+            objective?: string;
+            maxRuns?: number;
+            runsUsed?: number;
+            status?: HarnessGoal['status'];
+          } | null;
+        };
+        if (cancelled || !data.objective?.objective) return;
+        const o = data.objective;
+        setTranscript((s) => ({
+          ...s,
+          goal: s.goal ?? {
+            objective: o.objective as string,
+            maxRuns: o.maxRuns,
+            iteration: o.runsUsed,
+            status: o.status,
+          },
+        }));
+      } catch {
+        // No goal surfaced if the server is unreachable — the card just stays hidden.
       }
     })();
     return () => {
@@ -206,6 +243,48 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     }
   }, []);
 
+  /**
+   * Set a goal (objective) on the active thread. The next run(s) iterate toward it —
+   * a judge scores each turn and the agent loops until it passes or the run budget is
+   * hit. Optimistic (shows the card at once); adopts the server's thread id so the
+   * follow-up run continues the SAME thread the objective was written to.
+   */
+  const setGoal = useCallback(
+    async (objective: string, opts?: { maxRuns?: number; judgeModelId?: string }) => {
+      if (!objective.trim()) return;
+      setTranscript((s) => ({
+        ...s,
+        goal: { objective: objective.trim(), maxRuns: opts?.maxRuns, status: 'active' },
+      }));
+      try {
+        const res = await fetch('/api/harness/goal', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            objective: objective.trim(),
+            maxRuns: opts?.maxRuns,
+            judgeModelId: opts?.judgeModelId,
+          }),
+        });
+        const data = (await res.json()) as { threadId?: string };
+        if (typeof data.threadId === 'string') threadRef.current = data.threadId;
+      } catch {
+        // Keep the optimistic goal; the next run's goal_evaluation reconciles it.
+      }
+    },
+    [],
+  );
+
+  /** Clear the active thread's objective (the agent stops goal-driven looping). */
+  const clearGoal = useCallback(async () => {
+    setTranscript((s) => ({ ...s, goal: null }));
+    try {
+      await fetch('/api/harness/goal', { method: 'DELETE' });
+    } catch {
+      // The optimistic clear stands even if the server call fails.
+    }
+  }, []);
+
   return {
     transcript,
     status,
@@ -220,6 +299,12 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     switchMode,
     /** The active mode id (null until the catalog loads / first switch). */
     activeMode: transcript.activeMode,
+    /** The current goal-run state (null when no objective is set). */
+    goal: transcript.goal,
+    /** Set an objective the agent iterates toward. */
+    setGoal,
+    /** Clear the active objective. */
+    clearGoal,
     /** The active conversation id (null before the first turn / after reset). */
     activeThreadId: transcript.threadId,
     /** Increments when a turn completes — drives the sidebar refetch. */

@@ -165,6 +165,15 @@ export const chatAgent = new Agent({
       ? BASE_INSTRUCTIONS + WEB_SEARCH_INSTRUCTIONS
       : BASE_INSTRUCTIONS,
   model: env.CHAT_MODEL,
+  // Native goal mechanism (flagship harness demo). Configuring `goal` auto-registers
+  // the goal signal provider + the in-loop goal step: an objective set via
+  // `agent.setObjective({ threadId })` is judged after each turn by this judge model,
+  // and the agent keeps working until the judge passes it or the run budget (maxRuns)
+  // is hit — emitting `goal_evaluation` events the web folds into a goal card. Inert
+  // until an objective is set, so ordinary chats are unaffected. The judge defaults to
+  // the chat model; the /harness/goal route overrides per-objective (judgeModelId /
+  // maxRuns). Requires memory (below) + a thread/resource, which the harness supplies.
+  goal: { judge: env.CHAT_MODEL },
   tools: { getWeather, searchKnowledge, generateImage },
   // Default execution options applied to EVERY run (chatRoute + Harness): enable
   // Anthropic extended thinking so the model emits real `reasoning` parts (→ the

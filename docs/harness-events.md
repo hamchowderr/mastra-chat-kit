@@ -10,15 +10,15 @@ stream can't carry: sessions/threads, modes, model switching, tool-approval gate
 subagents, tasks, goals, observational memory, and a canonical display state.
 
 `session.subscribe()` forwards **all 50** event types unfiltered over the server's
-`POST /harness/stream` SSE. The web reducer currently **consumes 22 and drops 28**. This file is the
+`POST /harness/stream` SSE. The web reducer currently **consumes 23 and drops 27**. This file is the
 source of truth for what each event means and where it should render.
 
-> **The 28 "dropped" are not 28 bugs.** Of them, only **8 fire in this kit's current config** and are
-> worth wiring now (live tool streaming + `model_changed`/`agent_start`); **18 are gated on a feature
-> that isn't enabled** (observational memory, extra threads, goals, tool suspend — each owned by a
+> **The 27 "dropped" are not 27 bugs.** Of them, only **8 fire in this kit's current config** and are
+> worth wiring now (live tool streaming + `model_changed`/`agent_start`); **17 are gated on a feature
+> that isn't enabled** (observational memory, extra threads, tool suspend — each owned by a
 > `698.x` issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
-> (`698.27`) and modes (`mode_changed`, `698.28`) have graduated to *consumed*. See the grouped
-> roadmap below.
+> (`698.27`), modes (`mode_changed`, `698.28`), and goals (`goal_evaluation`, `698.29`) have graduated
+> to *consumed*. See the grouped roadmap below.
 
 > ✅ **`mastra-chat-kit-vud` (fixed 2026-07-25):** the harness tool flow works with OpenAI. An earlier
 > "hangs on every tool call (`generationCount:0`)" symptom was **not** upstream — it was `TokenLimiter`
@@ -83,7 +83,7 @@ source of truth for what each event means and where it should render.
 | 46 | `subagent_end` | `toolCallId`, `agentType`, `result`, `isError`, `durationMs` | Subagent finished | ✅ consumed | `Agent` (result) |
 | 47 | `subagent_model_changed` | `modelId`, `scope`, `agentType?` | Subagent model changed | ✅ consumed | `Agent` header |
 | 48 | `task_updated` | `tasks: TaskItemSnapshot[]` | Structured task list replaced | ✅ consumed | `Task` |
-| 49 | `goal_evaluation` | `payload` (`objective`, `iteration`, `maxRuns`, `passed`, `status`, `results[]`, …) | Goal scored by the judge | ⛔ dropped | `Plan` / goal card |
+| 49 | `goal_evaluation` | `payload` (`objective`, `iteration`, `maxRuns`, `passed`, `status`, `results[]`, …) | Goal scored by the judge | ✅ consumed | `GoalCard` |
 | 50 | `display_state_changed` | `displayState` (aggregate; `Map` fields → `{}` in JSON) | Canonical display-state snapshot | ⛔ dropped | *(intentionally unused over the wire — see note)* |
 
 ### Transport sentinels (not part of the union, but the reducer handles them)
@@ -95,17 +95,19 @@ Its richest fields (`activeTools`, `toolInputBuffers`, `activeSubagents`, `pendi
 `modifiedFiles`) are JS `Map`s, which serialize to `{}` over JSON. The UI is therefore driven off the
 **granular plain-object events** (rows 1–49) instead of the aggregate snapshot.
 
-## Consumed (22)
+## Consumed (23)
 `agent_end`, `message_start`, `message_update`, `message_end`, `tool_approval_required`, `tool_end`,
 `shell_output`, `usage_update`, `error`, `follow_up_queued`, `task_updated`,
 `workspace_ready`, `workspace_status_changed`, `workspace_error`, `info`, `mode_changed`,
 `subagent_start`, `subagent_text_delta`, `subagent_tool_start`, `subagent_tool_end`, `subagent_end`,
-`subagent_model_changed`
+`subagent_model_changed`, `goal_evaluation`
 _(`workspace_*` + `info` in `698.24`; `subagent_*` in `698.27` — verified end-to-end by an AIMock
 integration test (the fixture calls the `subagent` tool, the spawned subagent responds);
-`mode_changed` in `698.28` — Chat/Plan switcher, verified `listModes`+`switch` emit it.)_
+`mode_changed` in `698.28` — Chat/Plan switcher, verified `listModes`+`switch` emit it;
+`goal_evaluation` in `698.29` — native `setObjective` → judge loop → `GoalCard`, verified by a
+deterministic set→read→clear integration test on the controller's thread-state store.)_
 
-## Dropped (28) — grouped by whether they can fire in this kit
+## Dropped (27) — grouped by whether they can fire in this kit
 
 ### A. Fires now — worth wiring (8)
 - **Live tool streaming (6):** `tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`,
@@ -116,14 +118,13 @@ integration test (the fixture calls the `subagent` tool, the spawned subagent re
   Deferred: the composer's own selector already shows the active model, so this only adds a server echo.
 - **`agent_start` (1):** run began → a `Shimmer`. Deferred: redundant with the existing streaming indicator.
 
-### B. Gated on a feature that isn't enabled yet (18)
+### B. Gated on a feature that isn't enabled yet (17)
 These never fire in the current no-OM config — wiring them now is dead code. Each is owned by the
-issue that would turn the feature on. _(Subagents graduated out of this bucket in `698.27`, and
-`mode_changed` in `698.28` — both are wired above.)_
+issue that would turn the feature on. _(Subagents graduated out of this bucket in `698.27`,
+`mode_changed` in `698.28`, and `goal_evaluation` in `698.29` — all wired above.)_
 - **Observational memory (13):** `om_status` + all `om_*` → a Memory panel + `Context`. Gated on **`698.20`**.
 - **Threads/sessions (3):** `thread_changed/_created/_deleted` → conversation sidebar. Gated on
   persistence + **`698.16`/`698.17`**. (`om_thread_title_updated` counts under OM above.)
-- **`goal_evaluation` (1):** no goals configured → `Plan`/goal card once goals exist.
 - **`tool_suspended` (1):** no suspending tool (`ask_user`) configured → `Confirmation` prompt when one is.
 
 ### C. Intentionally off (2)

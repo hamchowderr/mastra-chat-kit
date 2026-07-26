@@ -1,5 +1,6 @@
 'use client';
 
+import { CheckIcon, TargetIcon, XIcon } from 'lucide-react';
 import { type ComponentProps, useEffect, useState } from 'react';
 import {
   ChainOfThought,
@@ -36,6 +37,8 @@ import {
   TerminalHeader,
   TerminalTitle,
 } from '@/components/ai-elements/terminal';
+import type { HarnessGoal } from '@/lib/harness/events';
+import { cn } from '@/lib/utils';
 
 /**
  * Shared renderers that turn real agent TOOL output into the matching AI Elements,
@@ -149,6 +152,108 @@ export function PlanCard({ title, plan }: { title?: string; plan: string }) {
         <MessageResponse>{plan}</MessageResponse>
       </PlanContent>
     </Plan>
+  );
+}
+
+/**
+ * Goal-run card: the objective the agent is iterating toward, its progress against the
+ * run budget, the judge's verdict, and the latest judge reason. Driven by `goal_evaluation`
+ * events (see reduceHarnessEvent); seeded optimistically by setGoal. `onClear` renders a
+ * clear control. States: passed (judge complete) / paused (waiting for the user) / working.
+ */
+export function GoalCard({ goal, onClear }: { goal: HarnessGoal; onClear?: () => void }) {
+  const passed = goal.passed === true || goal.status === 'done';
+  const waiting = goal.waitingForUser === true;
+  const paused = !passed && (waiting || goal.status === 'paused' || goal.maxRunsReached === true);
+  const working = !passed && !paused;
+  const iteration = goal.iteration ?? 0;
+  const maxRuns = goal.maxRuns;
+  const pct =
+    maxRuns && maxRuns > 0 ? Math.min(100, Math.round((iteration / maxRuns) * 100)) : null;
+
+  const statusLabel = passed
+    ? 'Passed'
+    : waiting
+      ? 'Waiting for you'
+      : goal.maxRunsReached
+        ? 'Budget reached'
+        : goal.status === 'paused'
+          ? 'Paused'
+          : 'Working…';
+
+  return (
+    // Outer radius rounded-xl (12px); the icon chip is rounded-lg (8px) and the progress
+    // track rounded-full — concentric, so nested corners never fight.
+    <div className="my-3 rounded-xl border border-border bg-card p-4 text-pretty shadow-[var(--shadow-float)]">
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            'flex size-8 shrink-0 items-center justify-center rounded-lg',
+            passed
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              : paused
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                : 'bg-primary/10 text-primary',
+          )}
+        >
+          {passed ? <CheckIcon className="size-4" /> : <TargetIcon className="size-4" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+              Goal
+            </p>
+            <span
+              className={cn(
+                'shrink-0 rounded-full px-2 py-0.5 font-medium text-[11px]',
+                passed
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : paused
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    : 'animate-pulse bg-muted text-muted-foreground',
+              )}
+            >
+              {statusLabel}
+            </span>
+          </div>
+          <p className="mt-1 text-pretty text-sm">{goal.objective}</p>
+        </div>
+        {onClear && (
+          // 40×40 hit area via padding around a size-4 glyph; scale-on-press feedback.
+          <button
+            type="button"
+            onClick={onClear}
+            aria-label="Clear goal"
+            className="-m-2 flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
+          >
+            <XIcon className="size-4" />
+          </button>
+        )}
+      </div>
+
+      {(pct !== null || iteration > 0) && (
+        <div className="mt-3 flex items-center gap-2">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                'h-full rounded-full transition-[width] duration-500',
+                passed ? 'bg-emerald-500' : paused ? 'bg-amber-500' : 'bg-primary',
+              )}
+              style={{ width: `${pct ?? (working ? 100 : 0)}%` }}
+            />
+          </div>
+          {/* Dynamically updating counter → tabular-nums so the bar never shifts. */}
+          <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+            {iteration}
+            {maxRuns ? ` / ${maxRuns}` : ''}
+          </span>
+        </div>
+      )}
+
+      {goal.reason && (
+        <p className="mt-2 text-pretty text-muted-foreground text-xs">{goal.reason}</p>
+      )}
+    </div>
   );
 }
 

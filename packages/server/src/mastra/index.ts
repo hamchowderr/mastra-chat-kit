@@ -30,7 +30,13 @@ import {
 } from 'ai';
 import { chatAgent } from './agents/chat';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
-import { getChatBrowser, getChatHarness, getChatSession, WORKSPACE_ROOT } from './lib/harness';
+import {
+  CHAT_RESOURCE_ID,
+  getChatBrowser,
+  getChatHarness,
+  getChatSession,
+  WORKSPACE_ROOT,
+} from './lib/harness';
 import { getImage } from './lib/image-store';
 import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
@@ -894,6 +900,78 @@ const serverConfig = {
         const session = await getChatSession();
         await session.mode.switch({ modeId });
         return c.json({ ok: true, current: session.mode.get() });
+      },
+    }),
+
+    // Agent Harness goals: the agent's native objective mechanism (flagship demo).
+    // Setting a goal makes subsequent runs iterate toward it — after each turn a judge
+    // scores the objective and the run loops (up to maxRuns) until it passes, emitting
+    // `goal_evaluation` events the web folds into a goal card. All three verbs drive the
+    // SAME session the /harness/stream run uses, via `controller.getCurrentAgent` (the
+    // mode-backing agent with the controller's storage propagated, so the objective it
+    // writes is the one the in-loop goal step reads back).
+
+    // GET the current objective for the session's active thread ({ objective: record|null }).
+    registerApiRoute('/harness/goal', {
+      method: 'GET',
+      handler: async (c) => {
+        const controller = await getChatHarness();
+        const session = await getChatSession();
+        const threadId = session.thread.getId();
+        if (!threadId) {
+          return c.json({ objective: null });
+        }
+        const agent = controller.getCurrentAgent(session);
+        const objective = await agent.getObjective({ threadId });
+        return c.json({ objective: objective ?? null });
+      },
+    }),
+
+    // Set an objective on the active thread (creating one if the session has none yet, so
+    // a goal can be set before the first message). Returns the thread id so the client can
+    // continue that same thread — the goal and the follow-up run must share a thread.
+    // Body: { objective: string, judgeModelId?: string, maxRuns?: number }.
+    registerApiRoute('/harness/goal', {
+      method: 'POST',
+      handler: async (c) => {
+        const { objective, judgeModelId, maxRuns } = await c.req.json<{
+          objective?: string;
+          judgeModelId?: string;
+          maxRuns?: number;
+        }>();
+        if (!objective?.trim()) {
+          return c.json({ error: 'objective is required' }, 400);
+        }
+        const controller = await getChatHarness();
+        const session = await getChatSession();
+        let threadId = session.thread.getId();
+        if (!threadId) {
+          await session.thread.create();
+          threadId = session.thread.requireId();
+        }
+        const agent = controller.getCurrentAgent(session);
+        const record = await agent.setObjective(objective.trim(), {
+          threadId,
+          resourceId: CHAT_RESOURCE_ID,
+          // Per-objective overrides; both fall back to the agent's `goal` config when unset.
+          ...(judgeModelId && MODEL_ALLOWLIST.has(judgeModelId) ? { judgeModelId } : {}),
+          ...(typeof maxRuns === 'number' && maxRuns > 0 ? { maxRuns } : {}),
+        });
+        return c.json({ ok: true, threadId, objective: record ?? null });
+      },
+    }),
+
+    // Clear the objective for the active thread (the agent stops goal-driven looping).
+    registerApiRoute('/harness/goal', {
+      method: 'DELETE',
+      handler: async (c) => {
+        const controller = await getChatHarness();
+        const session = await getChatSession();
+        const threadId = session.thread.getId();
+        if (threadId) {
+          await controller.getCurrentAgent(session).clearObjective({ threadId });
+        }
+        return c.json({ ok: true });
       },
     }),
 

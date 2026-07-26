@@ -144,6 +144,44 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     expect(session.mode.get()).toBe('plan');
     expect(events.some((e) => e.type === 'mode_changed' && e.modeId === 'plan')).toBe(true);
   });
+
+  // Goals: the agent's native objective mechanism (the /harness/goal routes drive exactly
+  // this). Set an objective on the active thread via the mode-backing agent, read it back
+  // from the durable thread-state, then clear it. Uses `controller.getCurrentAgent` — the
+  // agent with the controller's storage propagated — so the objective it writes is the one
+  // the in-loop goal step reads. Deterministic (no judge/LLM run), zero spend.
+  it('sets, reads back, and clears an objective on the active thread', async () => {
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-goals',
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-goals' });
+    await session.thread.create({ title: 'goals' });
+    const threadId = session.thread.requireId();
+
+    const agent = controller.getCurrentAgent(session);
+    const record = await agent.setObjective('Create hello.txt and prove it exists.', {
+      threadId,
+      resourceId: 'u-harness-goals',
+      maxRuns: 3,
+    });
+    // The objective persisted with our budget and an active status.
+    expect(record?.objective).toContain('hello.txt');
+    expect(record?.maxRuns).toBe(3);
+    expect(record?.status).toBe('active');
+
+    // Durable read-back through the same store the goal loop would read from.
+    const read = await agent.getObjective({ threadId });
+    expect(read?.objective).toBe(record?.objective);
+
+    // Clearing removes it (the agent stops goal-driven looping).
+    await agent.clearObjective({ threadId });
+    expect(await agent.getObjective({ threadId })).toBeFalsy();
+
+    await controller.destroy();
+  });
 });
 
 /**

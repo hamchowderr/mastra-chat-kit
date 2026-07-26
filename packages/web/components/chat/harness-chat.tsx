@@ -1,6 +1,7 @@
 'use client';
 
-import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
+import { BotIcon, CopyIcon, TargetIcon, UserIcon } from 'lucide-react';
+import { useState } from 'react';
 import { Agent, AgentContent, AgentHeader } from '@/components/ai-elements/agent';
 import {
   Confirmation,
@@ -32,6 +33,7 @@ import {
   MessageResponse,
 } from '@/components/ai-elements/message';
 import {
+  PromptInputButton,
   PromptInputSelect,
   PromptInputSelectContent,
   PromptInputSelectItem,
@@ -50,14 +52,20 @@ import {
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
 import {
   GeneratedImage,
+  GoalCard,
   type KnowledgeResult,
   KnowledgeSources,
   PlanCard,
   StepTrace,
 } from '@/components/chat/tool-views';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
 import {
   collectToolResults,
   type HarnessContentPart,
+  type HarnessGoal,
   type SubagentRun,
 } from '@/lib/harness/events';
 import type { HarnessMode, UseHarnessChat } from '@/lib/harness/use-harness-chat';
@@ -92,6 +100,7 @@ function MsgAvatar({ role }: { role: string }) {
 function ThinkingIndicator() {
   return (
     <div className="flex items-center gap-3">
+      {/* biome-ignore lint/a11y/useValidAriaRole: `role` is MsgAvatar's message-role prop, not an ARIA role */}
       <MsgAvatar role="assistant" />
       <span className="flex items-center gap-1" aria-label="Assistant is responding" role="status">
         <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
@@ -141,6 +150,117 @@ function ModeSwitcher({
 }
 
 /**
+ * "Goal" control for the composer tools row: a popover to set an objective the agent
+ * iterates toward (with an optional run budget) or clear the active one. Highlighted
+ * (default variant) while a goal is set. The goal card in the conversation shows the
+ * live judge verdict; this is just the set/clear affordance.
+ */
+function GoalSetter({
+  goal,
+  onSet,
+  onClear,
+  disabled,
+}: {
+  goal: HarnessGoal | null;
+  onSet: (objective: string, opts?: { maxRuns?: number }) => void;
+  onClear: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [objective, setObjective] = useState('');
+  const [maxRuns, setMaxRuns] = useState('');
+  const active = goal !== null;
+
+  const submit = () => {
+    const text = objective.trim();
+    if (!text) {
+      return;
+    }
+    const n = Number.parseInt(maxRuns, 10);
+    onSet(text, Number.isFinite(n) && n > 0 ? { maxRuns: n } : undefined);
+    setObjective('');
+    setMaxRuns('');
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <PromptInputButton
+          variant={active ? 'default' : 'ghost'}
+          className="h-8 gap-1 text-xs transition active:scale-[0.96]"
+          aria-label="Set a goal"
+          disabled={disabled}
+        >
+          <TargetIcon className="size-4" />
+          <span>Goal</span>
+        </PromptInputButton>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 space-y-3">
+        <div className="space-y-1">
+          <p className="font-medium text-sm">Set a goal</p>
+          <p className="text-pretty text-muted-foreground text-xs">
+            The agent iterates toward this objective — a judge scores each turn until it passes or
+            the run budget is reached.
+          </p>
+        </div>
+        <Textarea
+          value={objective}
+          onChange={(e) => setObjective(e.target.value)}
+          placeholder="e.g. Create a working TODO CLI in todo.js and prove it runs."
+          rows={3}
+          className="resize-none text-sm"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              submit();
+            }
+          }}
+        />
+        <div className="flex items-center gap-2">
+          <label className="text-muted-foreground text-xs" htmlFor="goal-max-runs">
+            Max runs
+          </label>
+          <Input
+            id="goal-max-runs"
+            type="number"
+            min={1}
+            value={maxRuns}
+            onChange={(e) => setMaxRuns(e.target.value)}
+            placeholder="default"
+            className="h-8 w-24 text-sm tabular-nums"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          {active ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="transition active:scale-[0.96]"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+            >
+              Clear goal
+            </Button>
+          ) : (
+            <span />
+          )}
+          <Button
+            size="sm"
+            className="transition active:scale-[0.96]"
+            onClick={submit}
+            disabled={!objective.trim()}
+          >
+            Set goal
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
  * Agent Harness chat — consumes the Harness SSE (`useHarnessChat`) and renders its
  * richer surface on the SAME AI Elements as the Single Agent <Chat>: text, thinking
  * → Reasoning, tool calls → Tool, search results → Sources/InlineCitation, images →
@@ -149,6 +269,7 @@ function ModeSwitcher({
  */
 export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   const { transcript, status, sendMessage, approve, modes, switchMode, activeMode } = harness;
+  const { goal, setGoal, clearGoal } = harness;
   const { messages, tasks, pendingApproval, usage, info, subagents, error } = transcript;
   const resultsById = collectToolResults(messages);
   // Subagent runs keyed by the parent `subagent` tool-call id, so a `subagent`
@@ -194,13 +315,24 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   // Controller-mode switcher (Chat / Plan …). Lives INSIDE the composer's tools
   // row (via `toolsExtra`), so mode selection sits right in the chat input. Hidden
   // until the catalog loads or when there's nothing to switch between.
-  const modeSwitcher = (
-    <ModeSwitcher
-      modes={modes}
-      activeMode={activeMode}
-      onSwitch={switchMode}
-      disabled={status === 'streaming'}
-    />
+  // Both harness-only composer controls live in the tools row (via `toolsExtra`): the
+  // mode switcher (Chat / Plan …) and the goal setter (set an objective the agent
+  // iterates toward). The Composer renders them at the START of the row.
+  const toolsExtra = (
+    <>
+      <GoalSetter
+        goal={goal}
+        onSet={setGoal}
+        onClear={clearGoal}
+        disabled={status === 'streaming'}
+      />
+      <ModeSwitcher
+        modes={modes}
+        activeMode={activeMode}
+        onSwitch={switchMode}
+        disabled={status === 'streaming'}
+      />
+    </>
   );
 
   const composer = (
@@ -209,7 +341,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
       status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
       className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
       footerExtra={contextSlot}
-      toolsExtra={modeSwitcher}
+      toolsExtra={toolsExtra}
     />
   );
 
@@ -230,6 +362,11 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
             </p>
           </div>
           <div className="w-full max-w-3xl">{composer}</div>
+          {goal && (
+            <div className="w-full max-w-3xl">
+              <GoalCard goal={goal} onClear={clearGoal} />
+            </div>
+          )}
           <div className="grid w-full max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
             {STARTERS.map((s) => (
               <button
@@ -246,6 +383,9 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
       ) : (
         <Conversation className="flex-1">
           <ConversationContent className="mx-auto w-full max-w-3xl pt-10">
+            {/* Goal card pinned above the conversation — the live judge verdict for the
+                active objective (updates as goal_evaluation events stream in). */}
+            {goal && <GoalCard goal={goal} onClear={clearGoal} />}
             {messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
               .map((m) => {
@@ -376,6 +516,7 @@ function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?:
       <AgentContent className="pt-3">
         {task && <p className="text-muted-foreground text-xs">Task: {task}</p>}
         {run?.tools.map((t, ti) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: tool list is append-only, never reordered
           <Tool key={`${t.name}-${ti}`}>
             <ToolHeader
               type={`tool-${t.name}`}

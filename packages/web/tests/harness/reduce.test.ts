@@ -231,6 +231,40 @@ describe('harness reducer', () => {
     expect(s.activeMode).toBe('plan');
   });
 
+  it('folds goal_evaluation into the goal card (objective, iteration, verdict)', () => {
+    // First evaluation: not passed yet, one iteration of three.
+    const first = reduceHarnessEvent(emptyTranscript(), {
+      type: 'goal_evaluation',
+      payload: {
+        objective: 'Create hello.txt and prove it exists.',
+        iteration: 1,
+        maxRuns: 3,
+        passed: false,
+        status: 'active',
+        reason: 'File not created yet — write it and verify.',
+      },
+    });
+    expect(first.goal).toMatchObject({
+      objective: 'Create hello.txt and prove it exists.',
+      iteration: 1,
+      maxRuns: 3,
+      passed: false,
+      status: 'active',
+    });
+    // A later evaluation replaces the verdict (passed → done) on the same goal.
+    const done = reduceHarnessEvent(first, {
+      type: 'goal_evaluation',
+      payload: {
+        objective: 'Create hello.txt and prove it exists.',
+        iteration: 2,
+        maxRuns: 3,
+        passed: true,
+        status: 'done',
+      },
+    });
+    expect(done.goal).toMatchObject({ iteration: 2, passed: true, status: 'done' });
+  });
+
   it('records the latest info status line', () => {
     const s = reduceHarnessEvents(emptyTranscript(), [
       { type: 'info', message: 'starting up' },

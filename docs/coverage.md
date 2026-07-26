@@ -1,7 +1,7 @@
 # Coverage Matrix — Mastra / Agent Harness → AI SDK → AI Elements
 
 > **Companion references (re-grounded 2026-07-25):**
-> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (15 consumed, 35 dropped; of the 35, only 8 can fire in this kit's config, 25 are gated on unshipped features, 2 are intentional).
+> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (23 consumed, 27 dropped; of the 27, only 8 can fire in this kit's config, 17 are gated on unshipped features, 2 are intentional).
 > - [ai-elements.md](./ai-elements.md) — all **48** vendored AI Elements (22 live, 26 showroom).
 >
 > **Live, browsable version:** the app serves a wiring map at **`/status`** (from
@@ -70,13 +70,14 @@ Finish-reason mapping: Mastra's extended `tripwire`/`retry` → AI SDK `other`; 
 ## 3. Mastra **Agent Harness** event → element  (the bigger surface)
 
 The Harness emits **50** `AgentControllerEvent` types + a canonical `display_state_changed` snapshot.
-The web reducer currently **consumes 15 and drops 35** — see [harness-events.md](./harness-events.md)
-for the full per-event table, payloads, and target elements. The 35 dropped are not 35 gaps: only **8
-fire in this kit's single-agent/single-mode/no-OM config** (live tool streaming + `model_changed`),
-**25 are gated on a feature that isn't enabled** (subagents, observational memory, extra threads/modes,
-goals, tool-suspend — each owned by a `698.x` issue), and **2 are intentionally off** (`state_changed`,
-`display_state_changed`). Most events do **not** fit a standard UIMessage part — they ride the Harness
-event stream (or `data-*`). Every one has a natural element target.
+The web reducer currently **consumes 23 and drops 27** — see [harness-events.md](./harness-events.md)
+for the full per-event table, payloads, and target elements. The 27 dropped are not 27 gaps: only **8
+fire in this kit's current config** (live tool streaming + `model_changed`),
+**17 are gated on a feature that isn't enabled** (observational memory, extra threads, tool-suspend —
+each owned by a `698.x` issue), and **2 are intentionally off** (`state_changed`,
+`display_state_changed`). Subagents (`698.27`), modes (`698.28`), and goals (`698.29`) have graduated to
+*consumed*. Most events do **not** fit a standard UIMessage part — they ride the Harness event stream
+(or `data-*`). Every one has a natural element target.
 
 > ✅ **`mastra-chat-kit-vud` (fixed):** the harness tool flow works with OpenAI. The earlier "hangs on
 > any tool call" symptom was `TokenLimiter` in `defaultOutputProcessors` breaking tool-call streaming
@@ -95,21 +96,24 @@ event mapped/streamed, ⛔ = not consumed yet.
 | message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ (handles the v4-nested `tool-invocation` shape core 1.52 emits — `698.26`) |
 | `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | 🟡 (via message tool_call/result; granular live-streaming deferred — `698.25`) |
 | `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny wired → `POST /harness/approve`) |
-| `tool_suspended` / `pendingSuspensions` | `Confirmation` / `Task` | ⛔ |
-| `shell_output` (stdout/stderr) | `Terminal` | ⛔ |
-| `subagent_start/_text_delta/_tool_*/_end` + `ActiveSubagentState` | `Agent` (+ nested `Tool`/`Task`) | ⛔ |
+| `tool_suspended` / `pendingSuspensions` | `Confirmation` / `Task` | ⛔ (`698.30`) |
+| `shell_output` (stdout/stderr) | `Terminal` | ✅ (`698.24`) |
+| `subagent_start/_text_delta/_tool_*/_end` + `ActiveSubagentState` | `Agent` (+ nested `Tool`) | ✅ (`SubagentCard`, `698.27`) |
 | `task_updated` (`TaskItemSnapshot[]`) | `Task` / `Plan` / `ChainOfThought` | ✅ (`Task`) |
+| `goal_evaluation` (`objective`, `iteration`, `passed`, …) | `GoalCard` | ✅ (`698.29`) |
 | `background-task-*` (started/running/progress/completed/failed) | `Task` / `Tool` (status) | ⛔ |
-| `mode_changed` | mode badge / `Toolbar` | ⛔ |
-| `model_changed` / `subagent_model_changed` | `ModelSelector` | ⛔ |
-| `usage_update` (`TokenUsage`) | `Context` | ⛔ |
-| `thread_created/_changed/_deleted` | conversation switcher (sidebar) | ⛔ |
+| `mode_changed` | `ModeSwitcher` (composer dropdown) | ✅ (`698.28`) |
+| `subagent_model_changed` | `Agent` header | ✅ |
+| `model_changed` | `ModelSelector` (reflect) | ⛔ (composer already shows the active model) |
+| `usage_update` (`TokenUsage`) | `Context` | ✅ |
+| `thread_created/_changed/_deleted` | conversation switcher (sidebar) | ⛔ (`698.16`/`698.17`) |
 | checkpoints (thread snapshots) | `Checkpoint` | ⛔ |
-| `workspace_status_changed`/`_ready`/`_error` | status badge / `Panel` | ⛔ |
-| `om_*` (observational memory: observe/reflect/buffer/activate) | `ChainOfThought` + `Context` (weakest 1:1 fit) | ⛔ |
-| `state_changed` / `state_signal` / `reactive_signal` | custom (`data-*`) | ⛔ |
-| message content `image` / `file` | `Image` / file chip | ⛔ |
-| `info` / `error` | toast (`sonner`) | ⛔ |
+| `workspace_status_changed`/`_ready`/`_error` | status dot / workbench `Panel` | ✅ (`698.24`) |
+| `om_*` (observational memory: observe/reflect/buffer/activate) | Memory panel + `Context` | ⛔ (`698.20`) |
+| `state_changed` / `state_signal` / `reactive_signal` | custom (`data-*`) | ⛔ (intentional) |
+| message content `image` / `file` | `Image` / file chip | ✅ (`image`) |
+| `info` | info status line | ✅ |
+| `error` | error line / toast (`sonner`) | ✅ |
 
 `extractV6NativeApproval()` recovers the `runId` from a v6 `approval-responded` message — the resume hook
 for HITL once `Confirmation` is wired to `addToolApprovalResponse`.
@@ -133,7 +137,8 @@ for HITL once `Confirmation` is wired to `addToolApprovalResponse`.
 - web: `useHarnessChat` SSE consumer + `reduceHarnessEvent` reducer + `HarnessChat` view + Single Agent⇄Agent Harness toggle; shared `Composer` so the input never drifts
 - ✅ HITL approval: the Harness gates tool calls by default → `Confirmation` renders → approve/deny POSTs `/harness/approve` → `session.respondToToolApproval` resumes the parked run on the still-open SSE. Verified live (approve → tool runs → completes; decline → run ends).
 - ✅ live e2e: gate→approve→tool→answer round-trip proven via curl on the running server.
-- still ⛔: subagents / shell_output / OM event rendering, and richer fixtures (multi-tool, title-gen)
+- ✅ subagents (`698.27`), modes (`698.28`), goals (`698.29`), workspace/shell (`698.24`) all wired + tested.
+- still ⛔: OM event rendering (`698.20`), `tool_suspended`/`ask_user` (`698.30`), granular live tool streaming (`698.25`), threads sidebar (`698.16`/`698.17`)
 
 **D. Server honoring PromptInput body** (beads `mhr`): `model`, `webSearch`, attachments/file parts.
 
