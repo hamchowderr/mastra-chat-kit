@@ -1,24 +1,30 @@
 'use client';
 
+import { PlayIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-type Status = 'connecting' | 'live' | 'error';
+type Status = 'idle' | 'connecting' | 'live' | 'error';
 
 /**
  * Browser tab — a live screencast of the harness agent's Chrome (the
  * `@mastra/browser-viewer` instance), streamed as base64 JPEG frames over SSE
- * from `/api/browser/screencast`. Opening this tab launches the browser; the
- * agent's browser tools drive the same window, so you watch what it does.
+ * from `/api/browser/screencast`.
  *
- * The EventSource is opened on mount (i.e. when the tab becomes active — Radix
- * unmounts inactive tab bodies) and closed on unmount, which stops the screencast.
+ * Connecting to that endpoint *launches* the browser server-side (`browser.launch()`),
+ * so we do NOT auto-connect on tab open — merely clicking the Browser tab shouldn't
+ * spin up Chrome. The view stays idle until the user explicitly starts the live view;
+ * only then do we open the EventSource (and the browser launches). Closing the tab /
+ * unmounting stops the screencast.
  */
 export function WorkbenchBrowser() {
+  const [started, setStarted] = useState(false);
   const [frame, setFrame] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
-  const [status, setStatus] = useState<Status>('connecting');
+  const [status, setStatus] = useState<Status>('idle');
 
   useEffect(() => {
+    if (!started) return;
+    setStatus('connecting');
     const es = new EventSource('/api/browser/screencast');
     es.onmessage = (e) => {
       try {
@@ -39,7 +45,27 @@ export function WorkbenchBrowser() {
     };
     es.onerror = () => setStatus((s) => (s === 'live' ? s : 'error'));
     return () => es.close();
-  }, []);
+  }, [started]);
+
+  // Idle: nothing has launched. Offer to start the live view on demand.
+  if (!started) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-muted-foreground text-sm">
+          Watch the agent browse the web here. Starting the live view launches the agent&rsquo;s
+          browser.
+        </p>
+        <button
+          type="button"
+          onClick={() => setStarted(true)}
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 font-medium text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+        >
+          <PlayIcon className="size-3.5" />
+          Start live view
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col gap-2">

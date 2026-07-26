@@ -1,7 +1,7 @@
 'use client';
 
-import { RefreshCwIcon, XIcon } from 'lucide-react';
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { XIcon } from 'lucide-react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import type { BundledLanguage } from 'shiki';
 import { CodeBlock } from '@/components/ai-elements/code-block';
 import { FileTree, FileTreeFile, FileTreeFolder } from '@/components/ai-elements/file-tree';
@@ -56,9 +56,10 @@ function collectFilePaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<
 
 /**
  * Files tab — a live view of the harness agent's workspace (`WORKSPACE_ROOT`),
- * served straight off disk by `/api/workspace/*`. Refreshes on mount, on demand,
- * and whenever a run finishes (so the agent's writes show up). Selecting a file
- * loads its text into a CodeBlock.
+ * served straight off disk by `/api/workspace/*`. It keeps itself in sync
+ * automatically — reloading on mount, polling while the agent is running (so writes
+ * appear as they happen), and once more when the run finishes — so there's no manual
+ * refresh to think about. Selecting a file loads its text into a CodeBlock.
  */
 export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
   const [tree, setTree] = useState<FileNode[]>([]);
@@ -87,13 +88,16 @@ export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
     loadTree();
   }, [loadTree]);
 
-  // Re-read the tree when a run finishes — the agent may have written files.
-  const prevStatus = useRef(harness.status);
+  // While the agent is running, poll so files it writes appear live; the effect's
+  // cleanup also fires the final reload on the streaming→ready transition, so the
+  // tree settles on the finished state. No manual refresh needed.
   useEffect(() => {
-    if (prevStatus.current === 'streaming' && harness.status === 'ready') {
+    if (harness.status !== 'streaming') return;
+    const id = setInterval(loadTree, 2000);
+    return () => {
+      clearInterval(id);
       loadTree();
-    }
-    prevStatus.current = harness.status;
+    };
   }, [harness.status, loadTree]);
 
   const selectPath = useCallback(
@@ -119,14 +123,11 @@ export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
     <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-muted-foreground text-xs">Workspace</span>
-        <button
-          type="button"
-          aria-label="Refresh files"
-          onClick={loadTree}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCwIcon className={loadingTree ? 'size-3.5 animate-spin' : 'size-3.5'} />
-        </button>
+        {loadingTree && (
+          <span className="text-[10px] text-muted-foreground/70 uppercase tracking-wide">
+            Syncing…
+          </span>
+        )}
       </div>
 
       {tree.length === 0 ? (

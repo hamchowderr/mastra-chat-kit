@@ -61,18 +61,23 @@ export function ChatSwitcher() {
       <div className="relative flex min-h-0 min-w-0 flex-1">
         <HarnessChat harness={harness} />
 
-        {/* Workbench toggle floats in the chat's empty top-right gutter. */}
-        <button
-          type="button"
-          aria-label={rightCollapsed ? 'Show workbench' : 'Hide workbench'}
-          aria-pressed={!rightCollapsed}
-          onClick={() => setRightCollapsed((v) => !v)}
-          className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96] aria-pressed:text-foreground"
-        >
-          <PanelRightIcon className="size-4" />
-        </button>
+        {/* Only when the panel is CLOSED does the toggle float in the chat's empty
+            top-right gutter — open, it would overlap the panel, so the collapse
+            control lives in the panel's own header instead. */}
+        {rightCollapsed && (
+          <button
+            type="button"
+            aria-label="Show workbench"
+            onClick={() => setRightCollapsed(false)}
+            className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
+          >
+            <PanelRightIcon className="size-4" />
+          </button>
+        )}
 
-        {!rightCollapsed && <WorkbenchPanel harness={harness} />}
+        {!rightCollapsed && (
+          <WorkbenchPanel harness={harness} onCollapse={() => setRightCollapsed(true)} />
+        )}
       </div>
     </div>
   );

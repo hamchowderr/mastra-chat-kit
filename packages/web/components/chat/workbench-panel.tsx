@@ -1,6 +1,6 @@
 'use client';
 
-import { FilesIcon, GlobeIcon, TerminalIcon } from 'lucide-react';
+import { FilesIcon, GlobeIcon, PanelRightCloseIcon, TerminalIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Terminal } from '@/components/ai-elements/terminal';
 import { WorkbenchBrowser } from '@/components/chat/workbench-browser';
@@ -19,7 +19,13 @@ import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
  * It shares the single harness session with `<HarnessChat>` (the hook is lifted to
  * the shell), so the panel reflects the same run the user is chatting with.
  */
-export function WorkbenchPanel({ harness }: { harness: UseHarnessChat }) {
+export function WorkbenchPanel({
+  harness,
+  onCollapse,
+}: {
+  harness: UseHarnessChat;
+  onCollapse?: () => void;
+}) {
   const { terminal } = harness.transcript;
 
   return (
@@ -41,6 +47,15 @@ export function WorkbenchPanel({ harness }: { harness: UseHarnessChat }) {
             <GlobeIcon />
             Browser
           </TabsTrigger>
+          {/* Collapse control lives in the panel header (not floating over it). */}
+          <button
+            type="button"
+            aria-label="Hide workbench"
+            onClick={onCollapse}
+            className="ml-auto flex size-7 shrink-0 items-center justify-center self-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+          >
+            <PanelRightCloseIcon className="size-4" />
+          </button>
         </TabsList>
 
         <TabsContent value="files" className="min-h-0 flex-1 overflow-hidden p-3">
