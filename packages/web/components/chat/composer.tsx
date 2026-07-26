@@ -91,12 +91,15 @@ export function Composer({
   status,
   className = 'm-4',
   footerExtra,
+  toolsExtra,
 }: {
   onSend: (submit: ComposerSubmit) => void;
   status?: ChatStatus;
   className?: string;
   /** Rendered in the footer, right of the tools (e.g. the live token-usage Context). */
   footerExtra?: ReactNode;
+  /** Rendered at the START of the tools row (e.g. the harness mode switcher). */
+  toolsExtra?: ReactNode;
 }) {
   const [text, setText] = useState('');
   const [model, setModel] = useState(MODELS[0].id);
@@ -141,6 +144,7 @@ export function Composer({
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
+          {toolsExtra}
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger />
             <PromptInputActionMenuContent>

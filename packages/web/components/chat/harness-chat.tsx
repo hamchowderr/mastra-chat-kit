@@ -31,6 +31,13 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
+import {
+  PromptInputSelect,
+  PromptInputSelectContent,
+  PromptInputSelectItem,
+  PromptInputSelectTrigger,
+  PromptInputSelectValue,
+} from '@/components/ai-elements/prompt-input';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task';
 import {
@@ -95,7 +102,7 @@ function ThinkingIndicator() {
   );
 }
 
-/** Segmented control for the controller mode (Chat / Plan …). Hidden with <2 modes. */
+/** Controller-mode dropdown (Chat / Plan …) for the composer tools row. Hidden with <2 modes. */
 function ModeSwitcher({
   modes,
   activeMode,
@@ -111,34 +118,22 @@ function ModeSwitcher({
     return null;
   }
   return (
-    <div
-      className="mx-auto flex w-fit items-center gap-0.5 rounded-lg border border-border bg-card p-0.5"
-      role="tablist"
-      aria-label="Agent mode"
+    <PromptInputSelect
+      value={activeMode ?? undefined}
+      onValueChange={(v) => onSwitch(v)}
+      disabled={disabled}
     >
-      {modes.map((m) => {
-        const active = m.id === activeMode;
-        return (
-          <button
-            key={m.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            disabled={disabled}
-            title={m.description}
-            onClick={() => !active && onSwitch(m.id)}
-            className={cn(
-              'rounded-md px-3 py-1 font-medium text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-              active
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-            )}
-          >
+      <PromptInputSelectTrigger className="h-8 gap-1 text-xs" aria-label="Agent mode">
+        <PromptInputSelectValue placeholder="Mode" />
+      </PromptInputSelectTrigger>
+      <PromptInputSelectContent>
+        {modes.map((m) => (
+          <PromptInputSelectItem key={m.id} value={m.id} title={m.description}>
             {m.name}
-          </button>
-        );
-      })}
-    </div>
+          </PromptInputSelectItem>
+        ))}
+      </PromptInputSelectContent>
+    </PromptInputSelect>
   );
 }
 
@@ -193,16 +188,8 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   // White composer so it pops against the zinc canvas. Rendered centered under the
   // hero on the empty state, or pinned at the bottom once the chat is going. The
   // token-usage Context rides in its footer.
-  const composer = (
-    <Composer
-      onSend={handleSend}
-      status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
-      className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
-      footerExtra={contextSlot}
-    />
-  );
-
-  // Controller-mode switcher (Chat / Plan …), pinned above the composer. Hidden
+  // Controller-mode switcher (Chat / Plan …). Lives INSIDE the composer's tools
+  // row (via `toolsExtra`), so mode selection sits right in the chat input. Hidden
   // until the catalog loads or when there's nothing to switch between.
   const modeSwitcher = (
     <ModeSwitcher
@@ -210,6 +197,16 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
       activeMode={activeMode}
       onSwitch={switchMode}
       disabled={status === 'streaming'}
+    />
+  );
+
+  const composer = (
+    <Composer
+      onSend={handleSend}
+      status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
+      className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
+      footerExtra={contextSlot}
+      toolsExtra={modeSwitcher}
     />
   );
 
@@ -229,10 +226,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
               Ask a question, run some code, or browse the web.
             </p>
           </div>
-          <div className="flex w-full max-w-3xl flex-col gap-2">
-            {modeSwitcher}
-            {composer}
-          </div>
+          <div className="w-full max-w-3xl">{composer}</div>
           <div className="grid w-full max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
             {STARTERS.map((s) => (
               <button
@@ -345,10 +339,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
       {/* Bottom composer only once a chat is going — the empty state has its own
           centered one, so it never shows twice. */}
       {!(messages.length === 0 && status !== 'streaming') && (
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
-          {modeSwitcher}
-          {composer}
-        </div>
+        <div className="mx-auto w-full max-w-3xl px-4 pb-4">{composer}</div>
       )}
     </div>
   );
