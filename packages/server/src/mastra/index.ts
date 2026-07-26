@@ -865,37 +865,10 @@ const serverConfig = {
       },
     }),
 
-    // Agent Harness modes: GET the mode catalog + the session's current mode.
-    registerApiRoute('/harness/modes', {
-      method: 'GET',
-      handler: async (c) => {
-        const controller = await getChatHarness();
-        const session = await getChatSession();
-        const modes = controller.listModes().map((m) => ({
-          id: m.id,
-          name: m.name ?? m.id,
-          description: m.description ?? '',
-        }));
-        return c.json({ modes, current: session.mode.get() });
-      },
-    }),
-
-    // Switch the session's active mode. Emits `mode_changed` (+ `model_changed`) on
-    // the session's event stream; a plan→build `transitionsTo` also fires this on
-    // submit_plan approval, which the /harness/stream reducer picks up mid-run.
-    registerApiRoute('/harness/mode', {
-      method: 'POST',
-      handler: async (c) => {
-        const { modeId } = await c.req.json<{ modeId?: string }>();
-        const controller = await getChatHarness();
-        if (typeof modeId !== 'string' || !controller.listModes().some((m) => m.id === modeId)) {
-          return c.json({ error: 'modeId must be a known mode id' }, 400);
-        }
-        const session = await getChatSession();
-        await session.mode.switch({ modeId });
-        return c.json({ ok: true, current: session.mode.get() });
-      },
-    }),
+    // NOTE: modes (Chat / Plan) stay configured on the controller (see lib/harness.ts) and
+    // are exercised by the integration test, but there's no HTTP switch route — planning is
+    // AGENT-DRIVEN (the agent calls the built-in submit_plan when a task warrants a plan), so
+    // the UI has no manual mode switcher to back.
 
     // Agent Harness goals: the agent's native objective mechanism (flagship demo). Goals
     // are AGENT-DRIVEN — the chat agent calls its own `setGoal` tool when it recognizes a

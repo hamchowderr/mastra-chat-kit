@@ -11,9 +11,6 @@ import {
 
 export type HarnessStatus = 'ready' | 'streaming' | 'error';
 
-/** One entry in the harness mode catalog (from GET /api/harness/modes). */
-export type HarnessMode = { id: string; name: string; description: string };
-
 /**
  * The Agent Harness transport, mirroring `useChat`'s shape (`{ messages,
  * sendMessage, status }`) but speaking the Harness SSE protocol instead of the
@@ -27,31 +24,6 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
   // Bumps whenever a turn completes so the conversation sidebar refetches (a new
   // thread appears / an existing one re-sorts to the top).
   const [refreshSignal, setRefreshSignal] = useState(0);
-  // The controller mode catalog (Chat / Plan / …), loaded once from the server.
-  const [modes, setModes] = useState<HarnessMode[]>([]);
-
-  // Load the mode catalog + the session's current mode on mount. The active mode
-  // rides on the transcript (also updated by `mode_changed` over the SSE, e.g. a
-  // plan→build transition), so the switcher stays correct mid-run.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/harness/modes', { cache: 'no-store' });
-        const data = (await res.json()) as { modes?: HarnessMode[]; current?: string };
-        if (cancelled) return;
-        setModes(data.modes ?? []);
-        if (typeof data.current === 'string') {
-          setTranscript((s) => ({ ...s, activeMode: s.activeMode ?? data.current ?? null }));
-        }
-      } catch {
-        // No modes surfaced if the server is unreachable — the switcher just hides.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Load any objective already set on the session's active thread (durable across a
   // reload within the server's lifetime). Live updates then arrive as `goal_evaluation`
@@ -225,24 +197,6 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     setTranscript(emptyTranscript());
   }, []);
 
-  /** Switch the session's controller mode (e.g. Chat ⇄ Plan). Optimistic + confirmed. */
-  const switchMode = useCallback(async (modeId: string) => {
-    setTranscript((s) => ({ ...s, activeMode: modeId }));
-    try {
-      const res = await fetch('/api/harness/mode', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ modeId }),
-      });
-      const data = (await res.json()) as { current?: string };
-      if (typeof data.current === 'string') {
-        setTranscript((s) => ({ ...s, activeMode: data.current ?? modeId }));
-      }
-    } catch {
-      // Leave the optimistic value; the next run's mode_changed will reconcile.
-    }
-  }, []);
-
   /** Clear the active thread's objective (the agent stops goal-driven looping). */
   const clearGoal = useCallback(async () => {
     setTranscript((s) => ({ ...s, goal: null }));
@@ -261,12 +215,6 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     clearTerminal,
     openThread,
     reset,
-    /** The controller mode catalog (Chat / Plan / …). */
-    modes,
-    /** Switch the active controller mode. */
-    switchMode,
-    /** The active mode id (null until the catalog loads / first switch). */
-    activeMode: transcript.activeMode,
     /** The current goal-run state (null when no objective is set). Set by the agent's own
      *  `setGoal` tool and updated by `goal_evaluation` events; the UI only reads it. */
     goal: transcript.goal,

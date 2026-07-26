@@ -31,14 +31,8 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
-import {
-  PromptInputSelect,
-  PromptInputSelectContent,
-  PromptInputSelectItem,
-  PromptInputSelectTrigger,
-  PromptInputSelectValue,
-} from '@/components/ai-elements/prompt-input';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
+import { Suggestion } from '@/components/ai-elements/suggestion';
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task';
 import {
   Tool,
@@ -61,15 +55,21 @@ import {
   type HarnessContentPart,
   type SubagentRun,
 } from '@/lib/harness/events';
-import type { HarnessMode, UseHarnessChat } from '@/lib/harness/use-harness-chat';
+import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
 import { cn } from '@/lib/utils';
 
-/** Empty-state suggestion chips — exercise the agent's real toolset. */
-const STARTERS = [
-  "What's the weather in Los Angeles?",
-  'Create hello.js that prints the first 10 Fibonacci numbers, then run it.',
-  'List the files in the workspace.',
-  'Search the web for the latest Mastra release notes.',
+/**
+ * Empty-state suggestion pills — a short label the user sees, and the fuller `prompt`
+ * actually sent on click (so the pills read evenly while still exercising real tools).
+ */
+const STARTERS: { label: string; prompt: string }[] = [
+  { label: 'Weather in LA', prompt: "What's the weather in Los Angeles?" },
+  {
+    label: 'Fibonacci demo',
+    prompt: 'Create hello.js that prints the first 10 Fibonacci numbers, then run it.',
+  },
+  { label: 'List workspace files', prompt: 'List the files in the workspace.' },
+  { label: 'Latest Mastra release', prompt: 'Search the web for the latest Mastra release notes.' },
 ];
 
 /** Round avatar next to each message: user (filled brand) / assistant (bot). */
@@ -104,44 +104,6 @@ function ThinkingIndicator() {
   );
 }
 
-/** Controller-mode dropdown (Chat / Plan …) for the composer tools row. Hidden with <2 modes. */
-function ModeSwitcher({
-  modes,
-  activeMode,
-  onSwitch,
-  disabled,
-}: {
-  modes: HarnessMode[];
-  activeMode: string | null;
-  onSwitch: (id: string) => void;
-  disabled?: boolean;
-}) {
-  if (modes.length < 2) {
-    return null;
-  }
-  return (
-    <PromptInputSelect
-      value={activeMode ?? undefined}
-      onValueChange={(v) => onSwitch(v)}
-      disabled={disabled}
-    >
-      <PromptInputSelectTrigger
-        className="h-8 gap-1 text-xs transition active:scale-[0.96]"
-        aria-label="Agent mode"
-      >
-        <PromptInputSelectValue placeholder="Mode" />
-      </PromptInputSelectTrigger>
-      <PromptInputSelectContent>
-        {modes.map((m) => (
-          <PromptInputSelectItem key={m.id} value={m.id} title={m.description}>
-            {m.name}
-          </PromptInputSelectItem>
-        ))}
-      </PromptInputSelectContent>
-    </PromptInputSelect>
-  );
-}
-
 /**
  * Agent Harness chat — consumes the Harness SSE (`useHarnessChat`) and renders its
  * richer surface on the SAME AI Elements as the Single Agent <Chat>: text, thinking
@@ -150,10 +112,11 @@ function ModeSwitcher({
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
 export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
-  const { transcript, status, sendMessage, approve, modes, switchMode, activeMode } = harness;
-  // Goals are agent-driven — the agent calls its own `setGoal` tool when it recognizes a
-  // standing objective, so there's no composer control to set one. `clearGoal` backs the
-  // goal card's dismiss affordance (the user can abandon an active goal).
+  const { transcript, status, sendMessage, approve } = harness;
+  // Goals AND planning are agent-driven — the agent calls its own `setGoal` tool for a
+  // standing objective and the built-in `submit_plan` for tasks that warrant a plan, so
+  // there are no manual mode/goal controls in the composer. `clearGoal` backs the goal
+  // card's dismiss affordance (the user can abandon an active goal).
   const { goal, clearGoal } = harness;
   const { messages, tasks, pendingApproval, usage, info, subagents, error } = transcript;
   const resultsById = collectToolResults(messages);
@@ -194,32 +157,32 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
     </Context>
   ) : null;
 
-  // White composer so it pops against the zinc canvas. Rendered centered under the
-  // hero on the empty state, or pinned at the bottom once the chat is going. The
-  // token-usage Context rides in its footer.
-  // Controller-mode switcher (Chat / Plan …). Lives INSIDE the composer's tools
-  // row (via `toolsExtra`), so mode selection sits right in the chat input. Hidden
-  // until the catalog loads or when there's nothing to switch between.
-  // Controller-mode switcher (Chat / Plan …) lives in the composer's tools row (via
-  // `toolsExtra`), so mode selection sits right in the chat input. Goals are NOT a
-  // control here — the agent sets them itself when it detects a standing objective.
-  const modeSwitcher = (
-    <ModeSwitcher
-      modes={modes}
-      activeMode={activeMode}
-      onSwitch={switchMode}
-      disabled={status === 'streaming'}
-    />
-  );
-
+  // White composer so it pops against the zinc canvas. Rendered under the hero on the
+  // empty state, or pinned at the bottom once the chat is going. The token-usage Context
+  // rides in its footer. No composer controls for modes/goals — those are agent-driven.
   const composer = (
     <Composer
       onSend={handleSend}
       status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
       className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
       footerExtra={contextSlot}
-      toolsExtra={modeSwitcher}
     />
+  );
+
+  // Suggestion pills → a fuller prompt on click. Reused in the empty state above the composer.
+  const starterPills = (
+    <div className="flex w-full max-w-3xl flex-wrap items-center justify-center gap-2">
+      {STARTERS.map((s) => (
+        <Suggestion
+          key={s.prompt}
+          suggestion={s.prompt}
+          onClick={(prompt) => handleSend({ text: prompt, model: '', webSearch: false })}
+          className="animate-fade-up"
+        >
+          {s.label}
+        </Suggestion>
+      ))}
+    </div>
   );
 
   return (
@@ -228,7 +191,8 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
     // row is what actually fills the column. min-h-0 lets the conversation scroll.
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
       {messages.length === 0 && status !== 'streaming' ? (
-        // Empty state: hero + white composer + suggestions, centered as one group.
+        // Empty state: hero + suggestion pills + composer, centered as one group. The pills
+        // sit ABOVE the composer so they read as prompts leading into the input.
         <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
           <div className="animate-fade-up space-y-2 text-center">
             <h1 className="text-balance font-semibold text-3xl tracking-tight sm:text-4xl">
@@ -238,24 +202,13 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
               Ask a question, run some code, or browse the web.
             </p>
           </div>
+          {starterPills}
           <div className="w-full max-w-3xl">{composer}</div>
           {goal && (
             <div className="w-full max-w-3xl">
               <GoalCard goal={goal} onClear={clearGoal} />
             </div>
           )}
-          <div className="grid w-full max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
-            {STARTERS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => handleSend({ text: s, model: '', webSearch: false })}
-                className="animate-fade-up rounded-xl border border-border bg-card px-4 py-3 text-left text-muted-foreground text-sm transition hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
         </div>
       ) : (
         <Conversation className="flex-1">

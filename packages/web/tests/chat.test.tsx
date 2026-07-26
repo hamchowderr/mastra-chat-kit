@@ -15,8 +15,9 @@ describe('Chat shell — full PromptInput surface', () => {
     expect(screen.getByPlaceholderText('Ask anything…')).toBeInTheDocument();
     // web-search toggle button from the toolbar
     expect(screen.getAllByText('Search').length).toBeGreaterThan(0);
-    // model selector renders the default value (may appear in trigger + items)
-    expect(screen.getAllByText(/Claude Sonnet/).length).toBeGreaterThan(0);
+    // model selector renders the default value (short name — no "Claude" prefix; the
+    // provider logo conveys the vendor). May appear in the trigger + the list.
+    expect(screen.getAllByText(/Sonnet 4/).length).toBeGreaterThan(0);
     // empty-state title
     expect(screen.getAllByText('mastra-chat-kit').length).toBeGreaterThan(0);
   });
