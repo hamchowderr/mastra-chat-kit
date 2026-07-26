@@ -53,7 +53,7 @@ import {
   type HarnessContentPart,
   type SubagentRun,
 } from '@/lib/harness/events';
-import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
+import type { HarnessMode, UseHarnessChat } from '@/lib/harness/use-harness-chat';
 import { cn } from '@/lib/utils';
 
 /** Empty-state suggestion chips — exercise the agent's real toolset. */
@@ -95,6 +95,53 @@ function ThinkingIndicator() {
   );
 }
 
+/** Segmented control for the controller mode (Chat / Plan …). Hidden with <2 modes. */
+function ModeSwitcher({
+  modes,
+  activeMode,
+  onSwitch,
+  disabled,
+}: {
+  modes: HarnessMode[];
+  activeMode: string | null;
+  onSwitch: (id: string) => void;
+  disabled?: boolean;
+}) {
+  if (modes.length < 2) {
+    return null;
+  }
+  return (
+    <div
+      className="mx-auto flex w-fit items-center gap-0.5 rounded-lg border border-border bg-card p-0.5"
+      role="tablist"
+      aria-label="Agent mode"
+    >
+      {modes.map((m) => {
+        const active = m.id === activeMode;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            disabled={disabled}
+            title={m.description}
+            onClick={() => !active && onSwitch(m.id)}
+            className={cn(
+              'rounded-md px-3 py-1 font-medium text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
+            {m.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Agent Harness chat — consumes the Harness SSE (`useHarnessChat`) and renders its
  * richer surface on the SAME AI Elements as the Single Agent <Chat>: text, thinking
@@ -103,7 +150,7 @@ function ThinkingIndicator() {
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
 export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
-  const { transcript, status, sendMessage, approve } = harness;
+  const { transcript, status, sendMessage, approve, modes, switchMode, activeMode } = harness;
   const { messages, tasks, pendingApproval, usage, info, subagents, error } = transcript;
   const resultsById = collectToolResults(messages);
   // Subagent runs keyed by the parent `subagent` tool-call id, so a `subagent`
@@ -155,6 +202,17 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
     />
   );
 
+  // Controller-mode switcher (Chat / Plan …), pinned above the composer. Hidden
+  // until the catalog loads or when there's nothing to switch between.
+  const modeSwitcher = (
+    <ModeSwitcher
+      modes={modes}
+      activeMode={activeMode}
+      onSwitch={switchMode}
+      disabled={status === 'streaming'}
+    />
+  );
+
   return (
     // Flat chat pane. NO h-full here — an explicit height opts the flex item out of
     // align-stretch and then collapses to content height; letting it stretch to the
@@ -171,7 +229,10 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
               Ask a question, run some code, or browse the web.
             </p>
           </div>
-          <div className="w-full max-w-3xl">{composer}</div>
+          <div className="flex w-full max-w-3xl flex-col gap-2">
+            {modeSwitcher}
+            {composer}
+          </div>
           <div className="grid w-full max-w-3xl grid-cols-1 gap-2 sm:grid-cols-2">
             {STARTERS.map((s) => (
               <button
@@ -284,7 +345,10 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
       {/* Bottom composer only once a chat is going — the empty state has its own
           centered one, so it never shows twice. */}
       {!(messages.length === 0 && status !== 'streaming') && (
-        <div className="mx-auto w-full max-w-3xl px-4 pb-4">{composer}</div>
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 pb-4">
+          {modeSwitcher}
+          {composer}
+        </div>
       )}
     </div>
   );

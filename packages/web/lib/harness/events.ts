@@ -108,6 +108,8 @@ export type HarnessTranscript = {
   info: string | null;
   /** Subagent invocations, keyed by the parent `subagent` tool-call id (→ Agent element). */
   subagents: SubagentRun[];
+  /** Active controller mode id, reflected from `mode_changed` (→ the mode switcher). */
+  activeMode: string | null;
   error: string | null;
   done: boolean;
 };
@@ -123,6 +125,7 @@ export const emptyTranscript = (): HarnessTranscript => ({
   workspace: null,
   info: null,
   subagents: [],
+  activeMode: null,
   error: null,
   done: false,
 });
@@ -334,6 +337,10 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
         ...state,
         info: typeof event.message === 'string' ? event.message : String(event.message ?? ''),
       };
+    // Active mode changed (manual switch or a plan→build transition). Reflect it so
+    // the mode switcher highlights the current mode mid-run.
+    case 'mode_changed':
+      return typeof event.modeId === 'string' ? { ...state, activeMode: event.modeId } : state;
     // Subagents (6 events, keyed by the parent `subagent` tool-call id) → the Agent
     // element renders inline where the parent's `subagent` tool call appears.
     case 'subagent_start':

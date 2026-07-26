@@ -10,15 +10,15 @@ stream can't carry: sessions/threads, modes, model switching, tool-approval gate
 subagents, tasks, goals, observational memory, and a canonical display state.
 
 `session.subscribe()` forwards **all 50** event types unfiltered over the server's
-`POST /harness/stream` SSE. The web reducer currently **consumes 21 and drops 29**. This file is the
+`POST /harness/stream` SSE. The web reducer currently **consumes 22 and drops 28**. This file is the
 source of truth for what each event means and where it should render.
 
-> **The 29 "dropped" are not 29 bugs.** Of them, only **8 fire in this kit's current config** and are
-> worth wiring now (live tool streaming + `model_changed`); **19 are gated on a feature that isn't
-> enabled** (observational memory, extra threads/modes, goals, tool suspend — each owned by a `698.x`
-> issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
-> graduated to *consumed* in `698.27` (the kit now runs one agent that spawns subagents). See the
-> grouped roadmap below.
+> **The 28 "dropped" are not 28 bugs.** Of them, only **8 fire in this kit's current config** and are
+> worth wiring now (live tool streaming + `model_changed`/`agent_start`); **18 are gated on a feature
+> that isn't enabled** (observational memory, extra threads, goals, tool suspend — each owned by a
+> `698.x` issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
+> (`698.27`) and modes (`mode_changed`, `698.28`) have graduated to *consumed*. See the grouped
+> roadmap below.
 
 > ✅ **`mastra-chat-kit-vud` (fixed 2026-07-25):** the harness tool flow works with OpenAI. An earlier
 > "hangs on every tool call (`generationCount:0`)" symptom was **not** upstream — it was `TokenLimiter`
@@ -35,7 +35,7 @@ source of truth for what each event means and where it should render.
 
 | # | event type | payload (key fields) | meaning | reducer | target element |
 |---|---|---|---|---|---|
-| 1 | `mode_changed` | `modeId`, `previousModeId` | Session switched controller mode | ⛔ dropped | mode badge / `Toolbar` |
+| 1 | `mode_changed` | `modeId`, `previousModeId` | Session switched controller mode | ✅ consumed | `ModeSwitcher` |
 | 2 | `model_changed` | `modelId`, `scope?`, `modeId?` | Active LLM changed at a scope | ⛔ dropped | `ModelSelector` (reflect) |
 | 3 | `thread_changed` | `threadId`, `previousThreadId` | Active thread switched | ⛔ dropped | conversation sidebar |
 | 4 | `thread_created` | `thread` (`id`, `title?`, …) | New thread created | ⛔ dropped | conversation sidebar |
@@ -95,17 +95,17 @@ Its richest fields (`activeTools`, `toolInputBuffers`, `activeSubagents`, `pendi
 `modifiedFiles`) are JS `Map`s, which serialize to `{}` over JSON. The UI is therefore driven off the
 **granular plain-object events** (rows 1–49) instead of the aggregate snapshot.
 
-## Consumed (21)
+## Consumed (22)
 `agent_end`, `message_start`, `message_update`, `message_end`, `tool_approval_required`, `tool_end`,
 `shell_output`, `usage_update`, `error`, `follow_up_queued`, `task_updated`,
-`workspace_ready`, `workspace_status_changed`, `workspace_error`, `info`,
+`workspace_ready`, `workspace_status_changed`, `workspace_error`, `info`, `mode_changed`,
 `subagent_start`, `subagent_text_delta`, `subagent_tool_start`, `subagent_tool_end`, `subagent_end`,
 `subagent_model_changed`
-_(`workspace_*` + `info` wired in `698.24`; `subagent_*` wired + enabled in `698.27`. **Note:** the
-subagent path is unit-tested with synthetic payloads; end-to-end firing under AIMock needs a crafted
-fixture that forces the `subagent` tool call, or a live model run.)_
+_(`workspace_*` + `info` in `698.24`; `subagent_*` in `698.27` — verified end-to-end by an AIMock
+integration test (the fixture calls the `subagent` tool, the spawned subagent responds);
+`mode_changed` in `698.28` — Chat/Plan switcher, verified `listModes`+`switch` emit it.)_
 
-## Dropped (29) — grouped by whether they can fire in this kit
+## Dropped (28) — grouped by whether they can fire in this kit
 
 ### A. Fires now — worth wiring (8)
 - **Live tool streaming (6):** `tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`,
@@ -116,14 +116,13 @@ fixture that forces the `subagent` tool call, or a live model run.)_
   Deferred: the composer's own selector already shows the active model, so this only adds a server echo.
 - **`agent_start` (1):** run began → a `Shimmer`. Deferred: redundant with the existing streaming indicator.
 
-### B. Gated on a feature that isn't enabled yet (19)
-These never fire in the current single-mode, no-OM config — wiring them now is dead code.
-Each is owned by the issue that would turn the feature on. _(Subagents graduated out of this bucket
-in `698.27` — the kit now runs ONE agent that spawns a `code` subagent, so `subagent_*` is wired above.)_
+### B. Gated on a feature that isn't enabled yet (18)
+These never fire in the current no-OM config — wiring them now is dead code. Each is owned by the
+issue that would turn the feature on. _(Subagents graduated out of this bucket in `698.27`, and
+`mode_changed` in `698.28` — both are wired above.)_
 - **Observational memory (13):** `om_status` + all `om_*` → a Memory panel + `Context`. Gated on **`698.20`**.
 - **Threads/sessions (3):** `thread_changed/_created/_deleted` → conversation sidebar. Gated on
   persistence + **`698.16`/`698.17`**. (`om_thread_title_updated` counts under OM above.)
-- **`mode_changed` (1):** single `default` mode only → needs multi-mode.
 - **`goal_evaluation` (1):** no goals configured → `Plan`/goal card once goals exist.
 - **`tool_suspended` (1):** no suspending tool (`ask_user`) configured → `Confirmation` prompt when one is.
 

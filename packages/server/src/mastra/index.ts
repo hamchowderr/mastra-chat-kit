@@ -30,7 +30,7 @@ import {
 } from 'ai';
 import { chatAgent } from './agents/chat';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
-import { getChatBrowser, getChatSession, WORKSPACE_ROOT } from './lib/harness';
+import { getChatBrowser, getChatHarness, getChatSession, WORKSPACE_ROOT } from './lib/harness';
 import { getImage } from './lib/image-store';
 import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
@@ -862,6 +862,38 @@ const serverConfig = {
         const session = await getChatSession();
         session.respondToToolApproval({ decision });
         return c.json({ ok: true });
+      },
+    }),
+
+    // Agent Harness modes: GET the mode catalog + the session's current mode.
+    registerApiRoute('/harness/modes', {
+      method: 'GET',
+      handler: async (c) => {
+        const controller = await getChatHarness();
+        const session = await getChatSession();
+        const modes = controller.listModes().map((m) => ({
+          id: m.id,
+          name: m.name ?? m.id,
+          description: m.description ?? '',
+        }));
+        return c.json({ modes, current: session.mode.get() });
+      },
+    }),
+
+    // Switch the session's active mode. Emits `mode_changed` (+ `model_changed`) on
+    // the session's event stream; a plan→build `transitionsTo` also fires this on
+    // submit_plan approval, which the /harness/stream reducer picks up mid-run.
+    registerApiRoute('/harness/mode', {
+      method: 'POST',
+      handler: async (c) => {
+        const { modeId } = await c.req.json<{ modeId?: string }>();
+        const controller = await getChatHarness();
+        if (typeof modeId !== 'string' || !controller.listModes().some((m) => m.id === modeId)) {
+          return c.json({ error: 'modeId must be a known mode id' }, 400);
+        }
+        const session = await getChatSession();
+        await session.mode.switch({ modeId });
+        return c.json({ ok: true, current: session.mode.get() });
       },
     }),
 

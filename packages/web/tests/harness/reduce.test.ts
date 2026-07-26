@@ -222,6 +222,15 @@ describe('harness reducer', () => {
     expect(s.subagents[0]).toMatchObject({ toolCallId: 'sa9', text: 'hi', status: 'running' });
   });
 
+  it('reflects the active mode from mode_changed', () => {
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'mode_changed',
+      modeId: 'plan',
+      previousModeId: 'chat',
+    });
+    expect(s.activeMode).toBe('plan');
+  });
+
   it('records the latest info status line', () => {
     const s = reduceHarnessEvents(emptyTranscript(), [
       { type: 'info', message: 'starting up' },

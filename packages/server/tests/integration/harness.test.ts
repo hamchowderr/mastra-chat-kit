@@ -113,6 +113,37 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     // (code.ts uses forked:true; a non-forked run throws "requires Mastra memory…".)
     expect(blob).not.toContain('requires Mastra memory');
   });
+
+  // Modes: the controller exposes the Chat + Plan catalog, and switching emits
+  // `mode_changed`. This is exactly what the /harness/modes + /harness/mode routes
+  // call (controller.listModes / session.mode.switch).
+  it('exposes Chat + Plan modes and switches, emitting mode_changed', async () => {
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-modes',
+      browser: null,
+    });
+    await controller.init();
+
+    const ids = controller.listModes().map((m) => m.id);
+    expect(ids).toContain('chat');
+    expect(ids).toContain('plan');
+
+    const session = await controller.createSession({ resourceId: 'u-harness-modes' });
+    // biome-ignore lint/suspicious/noExplicitAny: wide event union
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => events.push(event));
+
+    await session.thread.create({ title: 'modes' });
+    expect(session.mode.get()).toBe('chat'); // defaultModeId
+    await session.mode.switch({ modeId: 'plan' });
+
+    unsubscribe();
+    await controller.destroy();
+
+    expect(session.mode.get()).toBe('plan');
+    expect(events.some((e) => e.type === 'mode_changed' && e.modeId === 'plan')).toBe(true);
+  });
 });
 
 /**
