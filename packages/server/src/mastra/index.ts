@@ -581,7 +581,7 @@ const serverConfig = {
     // threads/messages to its own store (see lib/harness.ts), so these read the
     // live Session's thread domain directly — `session.thread.list()` /
     // `listMessages()` / `delete()` — no Memory involved. Title/search fall back
-    // to the first user message (Foreman-style) until AI titling lands (698.11).
+    // to the first user message (chat-app convention) until AI titling lands (698.11).
     // ──────────────────────────────────────────────────────────────────────
 
     // List the harness's conversations (newest first) with a display title.
@@ -760,7 +760,7 @@ const serverConfig = {
         const session = await getChatSession();
         // Resume the given thread, or start a fresh thread when none is sent. No
         // placeholder title — the sidebar derives the display title from the first
-        // user message (Foreman-style) until AI titling lands (see 698.11).
+        // user message (chat-app convention) until AI titling lands (see 698.11).
         if (threadId) {
           await session.thread.switch({ threadId });
         } else {

@@ -61,7 +61,7 @@ function groupOf(ts: number, todayStart: number): (typeof GROUP_ORDER)[number] {
 }
 
 /**
- * Agent Harness conversation history — the Foreman-style left rail wired to the
+ * Agent Harness conversation history — the conversation-history left rail wired to the
  * harness's persisted threads (`/api/harness/threads*`). New-chat, debounced
  * title/first-message search, date-grouped list, per-chat rename / archive+undo /
  * delete, and a collapsible Archived section. The shell (`ChatSwitcher`) owns the

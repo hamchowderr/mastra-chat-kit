@@ -60,7 +60,7 @@ function groupOf(ts: number, todayStart: number): (typeof GROUP_ORDER)[number] {
 }
 
 /**
- * Chat-history sidebar (Mastra threads for the single local user). Foreman-style
+ * Chat-history sidebar (Mastra threads for the single local user). A conventional
  * collapsible left rail: new-chat, debounced semantic search (fastembed →
  * PgVector), date-grouped chat list, and per-chat archive/delete. The parent
  * (`ChatApp`) owns `activeThreadId`; this component only reads/mutates the list
