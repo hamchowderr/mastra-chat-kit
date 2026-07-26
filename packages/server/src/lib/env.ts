@@ -68,6 +68,11 @@ const envSchema = z
     // real cheap model, e.g. CHAT_MODEL=openai/gpt-4.1-nano.
     CHAT_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
+    // Observational Memory: a background Observer/Reflector distills durable, cross-
+    // conversation facts (see lib/memory.ts). Adds background model calls, so it's
+    // toggleable — default ON (showcase); tests force it OFF for deterministic runs.
+    OBSERVATIONAL_MEMORY: boolish.default(true),
+
     USE_AIMOCK: boolish.default(false),
     AIMOCK_URL: z.string().url().default('http://localhost:4010'),
 

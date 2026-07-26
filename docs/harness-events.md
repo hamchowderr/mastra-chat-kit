@@ -13,10 +13,10 @@ subagents, tasks, goals, observational memory, and a canonical display state.
 `POST /harness/stream` SSE. The web reducer currently **consumes 25 and drops 25**. This file is the
 source of truth for what each event means and where it should render.
 
-> **The 25 "dropped" are not 25 bugs.** Of them, only **7 fire in this kit's current config** and are
-> worth wiring now (live tool streaming + `model_changed`/`agent_start`); **16 are gated on a feature
-> that isn't enabled** (observational memory, extra threads — each owned by a
-> `698.x` issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
+> **The 25 "dropped" are not 25 bugs.** Of them, **20 fire in this kit's current config** and are
+> worth wiring now (observational memory now that it's enabled, live tool streaming,
+> `model_changed`/`agent_start`); **3 are gated on a feature that isn't enabled** (extra threads,
+> owned by a `698.x` issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
 > (`698.27`), modes (`mode_changed`, `698.28`), goals (`goal_evaluation`, `698.29`), and the `ask_user`
 > suspend flow (`tool_suspended` + `tool_suspension_cancelled`, `698.30`) have graduated to *consumed*.
 > See the grouped roadmap below.
@@ -96,9 +96,10 @@ Its richest fields (`activeTools`, `toolInputBuffers`, `activeSubagents`, `pendi
 `modifiedFiles`) are JS `Map`s, which serialize to `{}` over JSON. The UI is therefore driven off the
 **granular plain-object events** (rows 1–49) instead of the aggregate snapshot.
 
-## Consumed (23)
+## Consumed (25)
 `agent_end`, `message_start`, `message_update`, `message_end`, `tool_approval_required`, `tool_end`,
-`shell_output`, `usage_update`, `error`, `follow_up_queued`, `task_updated`,
+`tool_suspended`, `tool_suspension_cancelled`, `shell_output`, `usage_update`, `error`,
+`follow_up_queued`, `task_updated`,
 `workspace_ready`, `workspace_status_changed`, `workspace_error`, `info`, `mode_changed`,
 `subagent_start`, `subagent_text_delta`, `subagent_tool_start`, `subagent_tool_end`, `subagent_end`,
 `subagent_model_changed`, `goal_evaluation`
@@ -106,27 +107,32 @@ _(`workspace_*` + `info` in `698.24`; `subagent_*` in `698.27` — verified end-
 integration test (the fixture calls the `subagent` tool, the spawned subagent responds);
 `mode_changed` in `698.28` — Chat/Plan switcher, verified `listModes`+`switch` emit it;
 `goal_evaluation` in `698.29` — native `setObjective` → judge loop → `GoalCard`, verified by a
-deterministic set→read→clear integration test on the controller's thread-state store.)_
+deterministic set→read→clear integration test on the controller's thread-state store;
+`tool_suspended`/`tool_suspension_cancelled` in `698.30` — agent-driven `ask_user` → `AskUserPrompt`,
+verified live vs OpenAI + a deterministic suspend→resume integration test.)_
 
-## Dropped (27) — grouped by whether they can fire in this kit
+## Dropped (25) — grouped by whether they can fire in this kit
 
-### A. Fires now — worth wiring (7)
+### A. Fires now — worth wiring (20)
+- **Observational memory (13):** `om_status` + all `om_*` → a Memory panel + `Context`. OM is now
+  ENABLED (`698.20`, env-gated, default on), so these fire (`om_status` confirmed live) — but the
+  reducer still drops them (no Memory-panel UI yet). Rendering owned by **`698.35`**. Note: the
+  Observer/Reflector run on a background loop; a persistent subscription surfaces their events.
 - **Live tool streaming (5):** `tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`,
   `tool_update` → `Tool` (`input-streaming` state + live `ToolInput`).
-  Fires on every gated tool call. Owned by **`698.25`** (needs event-order capture to avoid
-  double-rendering against the settled message-part tool_call).
+  Fires on every gated tool call. Owned by **`698.25`** (deferred — the settled message-part tool_call
+  already renders full args near-instantly).
 - **`model_changed` (1):** fires when the composer switches the run's model → reflect in `ModelSelector`.
   Deferred: the composer's own selector already shows the active model, so this only adds a server echo.
 - **`agent_start` (1):** run began → a `Shimmer`. Deferred: redundant with the existing streaming indicator.
 
-### B. Gated on a feature that isn't enabled yet (16)
-These never fire in the current no-OM config — wiring them now is dead code. Each is owned by the
-issue that would turn the feature on. _(Subagents graduated out of this bucket in `698.27`,
-`mode_changed` in `698.28`, `goal_evaluation` in `698.29`, and the `ask_user` suspend flow in `698.30` —
-all wired above.)_
-- **Observational memory (13):** `om_status` + all `om_*` → a Memory panel + `Context`. Gated on **`698.20`**.
+### B. Gated on a feature that isn't enabled yet (3)
+These never fire in the current config — wiring them now is dead code. Each is owned by the issue that
+would turn the feature on. _(Subagents graduated out of this bucket in `698.27`, `mode_changed` in
+`698.28`, `goal_evaluation` in `698.29`, the `ask_user` suspend flow in `698.30`, and observational
+memory in `698.20` — all now fire.)_
 - **Threads/sessions (3):** `thread_changed/_created/_deleted` → conversation sidebar. Gated on
-  persistence + **`698.16`/`698.17`**. (`om_thread_title_updated` counts under OM above.)
+  persistence + **`698.16`/`698.17`**.
 
 ### C. Intentionally off (2)
 - **`state_changed`** → aggregate `data-*`; redundant with the granular events.

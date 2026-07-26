@@ -17,6 +17,10 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       USE_AIMOCK: 'true',
+      // Observational Memory OFF in tests: its Observer/Reflector need real structured
+      // output AIMock can't stand in for, and it would add nondeterministic background
+      // model calls. OM is verified live against a real provider, not in the mock suite.
+      OBSERVATIONAL_MEMORY: 'false',
       AIMOCK_URL: 'http://127.0.0.1:4010',
       // Route provider SDKs at AIMock (anthropic appends /messages to this base).
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:4010/v1',

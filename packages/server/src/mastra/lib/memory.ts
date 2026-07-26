@@ -116,6 +116,30 @@ export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TE
         instructions:
           'Generate a concise 3-6 word title summarizing the user\'s request in this conversation. Output ONLY the plain title text — no markdown, no quotes, no "Title:" label.',
       },
+      // Observational Memory (harness showcase) — a background Observer distills durable
+      // facts from the conversation and a Reflector compresses them, so the agent recalls
+      // context ACROSS conversations (scope: 'resource'), not just within a thread. It runs
+      // its own model (gated on env.CHAT_MODEL rather than the default Google model, so a
+      // single provider key suffices). This adds background model calls, so it's toggleable
+      // via env.OBSERVATIONAL_MEMORY (default on) — tests set it off for deterministic,
+      // zero-spend runs (the Observer/Reflector need real structured output AIMock can't
+      // stand in for). Emits the om_* events the harness forwards (Memory-panel UI: 698.x).
+      ...(env.OBSERVATIONAL_MEMORY
+        ? {
+            observationalMemory: {
+              model: env.CHAT_MODEL,
+              scope: 'resource' as const,
+              observation: {
+                // Default is 30,000 tokens of unobserved messages before the Observer
+                // runs — far more than a demo conversation reaches, so observations would
+                // never visibly fire. Lowered so the OM loop triggers within a few
+                // exchanges (the whole point of the showcase). Raise toward the default in
+                // production to control Observer-model cost.
+                messageTokens: 3000,
+              },
+            },
+          }
+        : {}),
     },
   });
 }
