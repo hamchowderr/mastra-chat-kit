@@ -84,7 +84,6 @@ export function WorkbenchPanel({
           <WorkbenchBrowser />
         </TabsContent>
       </Tabs>
-      );
     </div>
   );
 }
