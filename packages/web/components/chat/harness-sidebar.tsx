@@ -213,9 +213,10 @@ export function HarnessSidebar({
     <aside
       className={cn(
         'shrink-0 overflow-hidden bg-sidebar transition-[width] duration-200 ease-out',
-        // Floating rounded panel (Foreman-style): inset with a margin + rounded corners +
-        // border + soft shadow so the rail reads as separate from the chat canvas.
-        collapsed ? 'w-0' : 'm-1.5 w-72 rounded-xl border border-sidebar-border shadow-sm',
+        // Flush to the window edge — the sidebar is the recessed frame; the chat floats
+        // inset as the rounded panel (see ChatSwitcher). No border: the inset chat's gap
+        // (which reveals this sidebar tone) is what separates them.
+        collapsed ? 'w-0' : 'w-72',
       )}
     >
       <div className="flex h-full w-72 flex-col">

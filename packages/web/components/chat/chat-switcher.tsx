@@ -35,7 +35,9 @@ export function ChatSwitcher() {
   };
 
   return (
-    <div className="relative flex h-dvh overflow-hidden bg-background">
+    // Recessed frame: the shell + both rails share the sidebar tone; the chat floats inset
+    // as a raised rounded panel (the "inset" layout — clean, subtle separation).
+    <div className="relative flex h-dvh overflow-hidden bg-sidebar">
       <HarnessSidebar
         activeThreadId={harness.activeThreadId}
         onSelect={harness.openThread}
@@ -59,7 +61,11 @@ export function ChatSwitcher() {
       )}
 
       <div className="relative flex min-h-0 min-w-0 flex-1">
-        <HarnessChat harness={harness} />
+        {/* The chat is the raised, floating panel: inset margin + rounded + border + soft
+            shadow, over the recessed sidebar-tone frame. */}
+        <div className="m-1.5 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+          <HarnessChat harness={harness} />
+        </div>
 
         {/* Only when the panel is CLOSED does the toggle float in the chat's empty
             top-right gutter — open, it would overlap the panel, so the collapse

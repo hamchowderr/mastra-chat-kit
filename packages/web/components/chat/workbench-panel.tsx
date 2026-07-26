@@ -31,9 +31,9 @@ export function WorkbenchPanel({
   const { terminal, workspace } = harness.transcript;
 
   return (
-    // Floating rounded panel (Foreman-style): inset + rounded + border + soft shadow, so the
-    // workbench reads as a separate rail — matching the left conversation sidebar.
-    <div className="m-1.5 flex min-h-0 w-[26rem] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-sidebar shadow-sm">
+    // Flush to the window edge — the right rail is part of the recessed frame; the chat
+    // floats inset between the two rails (see ChatSwitcher).
+    <div className="flex min-h-0 w-[26rem] shrink-0 flex-col bg-sidebar">
       <Tabs defaultValue="files" className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList
           variant="line"
