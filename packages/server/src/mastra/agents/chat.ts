@@ -130,12 +130,68 @@ export const generateImage = createTool({
   },
 });
 
+/**
+ * Lets the agent set its OWN objective when it recognizes the user wants a standing
+ * goal to work toward over several turns — the agentic-native way to start a goal-
+ * driven run (no UI button). Writes the objective to the current thread's durable
+ * state via `setObjective`; the agent's `goal` config then judges each turn and loops
+ * until it passes or the run budget is hit (emitting `goal_evaluation` → the GoalCard).
+ * Resolves the runtime agent (with the harness storage propagated) from the tool
+ * context, falling back to the module singleton.
+ */
+export const setGoal = createTool({
+  id: 'setGoal',
+  description:
+    'Set a persistent objective to work toward over multiple turns. Call this when the user asks you to keep working until something is achieved, gives you a standing goal, or wants iterative refinement ("keep going until…", "your goal is…", "don\'t stop until…", "iterate until it\'s good"). Do NOT call it for one-shot requests. After calling it, start working — a judge scores each turn and you keep going until the goal is met.',
+  inputSchema: z.object({
+    objective: z.string().describe('A crisp, verifiable restatement of the goal to work toward.'),
+    maxRuns: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe(
+        'Optional cap on judged iterations before the goal stops (defaults to the agent config).',
+      ),
+  }),
+  outputSchema: z.object({
+    ok: z.boolean(),
+    objective: z.string(),
+    status: z.string(),
+    maxRuns: z.number().optional(),
+  }),
+  execute: async ({ objective, maxRuns }, ctx) => {
+    const threadId = ctx?.agent?.threadId;
+    const resourceId = ctx?.agent?.resourceId;
+    // Resolve the RUNNING agent by id from the tool context's Mastra — its storage is the
+    // harness store the in-loop goal step reads back. Resolving by id (not by importing
+    // `chatAgent`) also avoids a tool⇄agent circular reference. `setObjective` no-ops
+    // without a memory-backed thread, so guard on threadId + a resolved agent.
+    const agent = ctx?.mastra?.getAgent(ctx?.agent?.agentId ?? 'chat');
+    if (!threadId || !agent) {
+      return { ok: false, objective, status: 'unavailable' };
+    }
+    const record = await agent.setObjective(objective, {
+      threadId,
+      ...(resourceId ? { resourceId } : {}),
+      ...(typeof maxRuns === 'number' && maxRuns > 0 ? { maxRuns } : {}),
+    });
+    return {
+      ok: true,
+      objective: record?.objective ?? objective,
+      status: record?.status ?? 'active',
+      ...(record?.maxRuns ? { maxRuns: record.maxRuns } : {}),
+    };
+  },
+});
+
 const BASE_INSTRUCTIONS = `You are a helpful, concise assistant.
 
 - When the user asks about weather, call getWeather.
 - When the user asks a factual or how-to question, call searchKnowledge and ground your answer in the results, citing the document titles.
 - When the user asks for an image, picture, drawing, or illustration, call generateImage with a vivid prompt.
 - For substantial multi-step coding or build tasks — creating/editing files, running code, running tests — delegate to the code subagent via the subagent tool (agentType: "code") rather than doing it inline. (Only available in Harness mode; handle small snippets yourself.)
+- When the user gives you a STANDING objective to work toward over multiple turns — "keep going until…", "your goal is…", "don't stop until…", "iterate until it's good" — call setGoal with a crisp, verifiable restatement, then start working. A judge scores each turn and you keep iterating until it's met. Do NOT call setGoal for ordinary one-shot requests; just answer those.
 - Keep responses tight and skimmable. Use markdown (lists, code blocks) where it helps.
 - Never fabricate tool results; only state what the tools return.`;
 
@@ -174,7 +230,7 @@ export const chatAgent = new Agent({
   // the chat model; the /harness/goal route overrides per-objective (judgeModelId /
   // maxRuns). Requires memory (below) + a thread/resource, which the harness supplies.
   goal: { judge: env.CHAT_MODEL },
-  tools: { getWeather, searchKnowledge, generateImage },
+  tools: { getWeather, searchKnowledge, generateImage, setGoal },
   // Default execution options applied to EVERY run (chatRoute + Harness): enable
   // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
   // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic

@@ -182,6 +182,48 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
 
     await controller.destroy();
   });
+
+  // Agent-driven goals: goals aren't set by a UI control — the agent recognizes a standing
+  // objective and calls its OWN `setGoal` tool, which writes the objective to thread-state.
+  // The fixture makes the model call setGoal; we assert the objective actually persisted on
+  // the thread (proving the tool's execute reaches setObjective with the run's thread id).
+  it('sets its own objective via the setGoal tool when it detects a standing goal', async () => {
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-setgoal',
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-setgoal' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: wide event union
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+      if (event.type === 'tool_approval_required') {
+        session.respondToToolApproval({ decision: 'approve' });
+      }
+    });
+
+    await session.thread.create({ title: 'setgoal' });
+    const threadId = session.thread.requireId();
+    try {
+      await session.sendMessage({
+        content: 'Your goal is to greet me warmly. Keep going until done.',
+      });
+    } catch {
+      // The goal judge runs on the mock catch-all and may error — irrelevant here; the
+      // tool wrote the objective before the judge ran, which is what we assert.
+    }
+    unsubscribe();
+
+    // The setGoal tool fired and persisted a durable objective on the active thread.
+    const objective = await controller.getCurrentAgent(session).getObjective({ threadId });
+    expect(objective?.objective).toContain('Greet');
+    expect(JSON.stringify(events)).toContain('setGoal');
+
+    await controller.destroy();
+  });
 });
 
 /**

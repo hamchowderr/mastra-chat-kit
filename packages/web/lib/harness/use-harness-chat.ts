@@ -243,38 +243,6 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     }
   }, []);
 
-  /**
-   * Set a goal (objective) on the active thread. The next run(s) iterate toward it —
-   * a judge scores each turn and the agent loops until it passes or the run budget is
-   * hit. Optimistic (shows the card at once); adopts the server's thread id so the
-   * follow-up run continues the SAME thread the objective was written to.
-   */
-  const setGoal = useCallback(
-    async (objective: string, opts?: { maxRuns?: number; judgeModelId?: string }) => {
-      if (!objective.trim()) return;
-      setTranscript((s) => ({
-        ...s,
-        goal: { objective: objective.trim(), maxRuns: opts?.maxRuns, status: 'active' },
-      }));
-      try {
-        const res = await fetch('/api/harness/goal', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            objective: objective.trim(),
-            maxRuns: opts?.maxRuns,
-            judgeModelId: opts?.judgeModelId,
-          }),
-        });
-        const data = (await res.json()) as { threadId?: string };
-        if (typeof data.threadId === 'string') threadRef.current = data.threadId;
-      } catch {
-        // Keep the optimistic goal; the next run's goal_evaluation reconciles it.
-      }
-    },
-    [],
-  );
-
   /** Clear the active thread's objective (the agent stops goal-driven looping). */
   const clearGoal = useCallback(async () => {
     setTranscript((s) => ({ ...s, goal: null }));
@@ -299,11 +267,10 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     switchMode,
     /** The active mode id (null until the catalog loads / first switch). */
     activeMode: transcript.activeMode,
-    /** The current goal-run state (null when no objective is set). */
+    /** The current goal-run state (null when no objective is set). Set by the agent's own
+     *  `setGoal` tool and updated by `goal_evaluation` events; the UI only reads it. */
     goal: transcript.goal,
-    /** Set an objective the agent iterates toward. */
-    setGoal,
-    /** Clear the active objective. */
+    /** Clear the active objective (backs the goal card's dismiss control). */
     clearGoal,
     /** The active conversation id (null before the first turn / after reset). */
     activeThreadId: transcript.threadId,
