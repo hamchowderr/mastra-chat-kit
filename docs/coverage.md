@@ -1,7 +1,7 @@
 # Coverage Matrix — Mastra / Agent Harness → AI SDK → AI Elements
 
 > **Companion references (re-grounded 2026-07-25):**
-> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (23 consumed, 27 dropped; of the 27, only 8 can fire in this kit's config, 17 are gated on unshipped features, 2 are intentional).
+> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (25 consumed, 25 dropped; of the 25, only 7 can fire in this kit's config, 16 are gated on unshipped features, 2 are intentional).
 > - [ai-elements.md](./ai-elements.md) — all **48** vendored AI Elements (22 live, 26 showroom).
 >
 > **Live, browsable version:** the app serves a wiring map at **`/status`** (from
@@ -70,13 +70,13 @@ Finish-reason mapping: Mastra's extended `tripwire`/`retry` → AI SDK `other`; 
 ## 3. Mastra **Agent Harness** event → element  (the bigger surface)
 
 The Harness emits **50** `AgentControllerEvent` types + a canonical `display_state_changed` snapshot.
-The web reducer currently **consumes 23 and drops 27** — see [harness-events.md](./harness-events.md)
-for the full per-event table, payloads, and target elements. The 27 dropped are not 27 gaps: only **8
+The web reducer currently **consumes 25 and drops 25** — see [harness-events.md](./harness-events.md)
+for the full per-event table, payloads, and target elements. The 25 dropped are not 25 gaps: only **7
 fire in this kit's current config** (live tool streaming + `model_changed`),
-**17 are gated on a feature that isn't enabled** (observational memory, extra threads, tool-suspend —
+**16 are gated on a feature that isn't enabled** (observational memory, extra threads —
 each owned by a `698.x` issue), and **2 are intentionally off** (`state_changed`,
-`display_state_changed`). Subagents (`698.27`), modes (`698.28`), and goals (`698.29`) have graduated to
-*consumed*. Most events do **not** fit a standard UIMessage part — they ride the Harness event stream
+`display_state_changed`). Subagents (`698.27`), modes (`698.28`), goals (`698.29`), and the `ask_user`
+suspend flow (`698.30`) have graduated to *consumed*. Most events do **not** fit a standard UIMessage part — they ride the Harness event stream
 (or `data-*`). Every one has a natural element target.
 
 > ✅ **`mastra-chat-kit-vud` (fixed):** the harness tool flow works with OpenAI. The earlier "hangs on
@@ -96,7 +96,7 @@ event mapped/streamed, ⛔ = not consumed yet.
 | message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ (handles the v4-nested `tool-invocation` shape core 1.52 emits — `698.26`) |
 | `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | 🟡 (via message tool_call/result; granular live-streaming deferred — `698.25`) |
 | `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny wired → `POST /harness/approve`) |
-| `tool_suspended` / `pendingSuspensions` | `Confirmation` / `Task` | ⛔ (`698.30`) |
+| `tool_suspended` + `tool_suspension_cancelled` / `pendingSuspension` | `AskUserPrompt` | ✅ (agent-driven `ask_user`; answer wired → `POST /harness/answer`, `698.30`) |
 | `shell_output` (stdout/stderr) | `Terminal` | ✅ (`698.24`) |
 | `subagent_start/_text_delta/_tool_*/_end` + `ActiveSubagentState` | `Agent` (+ nested `Tool`) | ✅ (`SubagentCard`, `698.27`) |
 | `task_updated` (`TaskItemSnapshot[]`) | `Task` / `Plan` / `ChainOfThought` | ✅ (`Task`) |
@@ -137,8 +137,9 @@ for HITL once `Confirmation` is wired to `addToolApprovalResponse`.
 - web: `useHarnessChat` SSE consumer + `reduceHarnessEvent` reducer + `HarnessChat` view + Single Agent⇄Agent Harness toggle; shared `Composer` so the input never drifts
 - ✅ HITL approval: the Harness gates tool calls by default → `Confirmation` renders → approve/deny POSTs `/harness/approve` → `session.respondToToolApproval` resumes the parked run on the still-open SSE. Verified live (approve → tool runs → completes; decline → run ends).
 - ✅ live e2e: gate→approve→tool→answer round-trip proven via curl on the running server.
-- ✅ subagents (`698.27`), modes (`698.28`), goals (`698.29`), workspace/shell (`698.24`) all wired + tested.
-- still ⛔: OM event rendering (`698.20`), `tool_suspended`/`ask_user` (`698.30`), granular live tool streaming (`698.25`), threads sidebar (`698.16`/`698.17`)
+- ✅ subagents (`698.27`), modes (`698.28`), goals (`698.29`), agent-driven `ask_user` (`698.30`), workspace/shell (`698.24`) all wired + tested.
+- ✅ agent-driven `ask_user` (`698.30`): an ambiguous request → the agent calls the built-in `ask_user` (auto-allowed, no approval gate) → the run suspends (`tool_suspended`) → `AskUserPrompt` renders the question/options → the answer POSTs `/harness/answer` → `session.respondToToolSuspension` resumes the parked run on the still-open SSE. Verified live vs OpenAI (agent asked "which environment?" with 3 option chips; answering resumed the run to completion).
+- still ⛔: OM event rendering (`698.20`), granular live tool streaming (`698.25`), threads sidebar (`698.16`/`698.17`)
 
 **D. Server honoring PromptInput body** (beads `mhr`): `model`, `webSearch`, attachments/file parts.
 

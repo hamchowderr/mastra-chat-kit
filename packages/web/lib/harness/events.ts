@@ -40,6 +40,23 @@ export type HarnessTaskItem = {
 
 export type PendingApproval = { toolCallId: string; toolName: string; args: unknown };
 
+/** One selectable choice on an `ask_user` prompt (label is the answer value). */
+export type SuspensionOption = { label: string; description?: string };
+
+/**
+ * A parked tool suspension awaiting the user's answer — the agent-driven `ask_user`
+ * flow. Folded from `tool_suspended`; its `suspendPayload` carries the question and,
+ * optionally, choices. Free-text / single-select resume with a string; multi-select
+ * resumes with the array of chosen labels. `null` when nothing is waiting.
+ */
+export type PendingSuspension = {
+  toolCallId: string;
+  toolName: string;
+  question: string;
+  options?: SuspensionOption[];
+  selectionMode?: 'single_select' | 'multi_select';
+};
+
 /** Token usage from the Harness `usage_update` event (→ the Context element). */
 export type HarnessUsage = {
   promptTokens?: number;
@@ -122,6 +139,8 @@ export type HarnessTranscript = {
   messages: HarnessMessage[];
   tasks: HarnessTaskItem[];
   pendingApproval: PendingApproval | null;
+  /** A parked `ask_user` suspension awaiting the user's answer (→ the AskUserPrompt). */
+  pendingSuspension: PendingSuspension | null;
   usage: HarnessUsage | null;
   queuedFollowUps: number;
   terminal: HarnessTerminal;
@@ -144,6 +163,7 @@ export const emptyTranscript = (): HarnessTranscript => ({
   messages: [],
   tasks: [],
   pendingApproval: null,
+  pendingSuspension: null,
   usage: null,
   queuedFollowUps: 0,
   terminal: { output: '', running: false },
@@ -303,6 +323,7 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
         ...state,
         done: true,
         pendingApproval: null,
+        pendingSuspension: null,
         terminal: { ...state.terminal, running: false },
       };
     // The sandbox streams command stdout/stderr as it runs — accumulate it into
@@ -315,9 +336,20 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
     // Once the gate resolves (approved → tool runs, or declined → run ends), the
     // approval is no longer pending. Clear it on any of these resolution events.
     // These also settle a running command, so drop the Terminal's streaming caret.
+    // A `tool_end` also RESOLVES a matching `ask_user` suspension — the suspended
+    // tool re-ran with the answer and returned — so clear pendingSuspension only when
+    // this end is that tool (agent_end carries no toolCallId, so a live prompt stays).
     case 'tool_end':
     case 'agent_end':
-      return { ...state, pendingApproval: null, terminal: { ...state.terminal, running: false } };
+      return {
+        ...state,
+        pendingApproval: null,
+        pendingSuspension:
+          event.toolCallId && state.pendingSuspension?.toolCallId === event.toolCallId
+            ? null
+            : state.pendingSuspension,
+        terminal: { ...state.terminal, running: false },
+      };
     case 'message_start':
     case 'message_update':
     case 'message_end':
@@ -480,6 +512,37 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
           args: event.args,
         },
       };
+    // The agent called `ask_user` (or another suspending builtin) and the run parked
+    // awaiting an answer. Lift the question out of the suspend payload so the UI can
+    // render the prompt; the run resumes when the user answers (POST /harness/answer).
+    case 'tool_suspended': {
+      const p = (event.suspendPayload ?? {}) as {
+        question?: string;
+        options?: SuspensionOption[];
+        selectionMode?: 'single_select' | 'multi_select';
+      };
+      // Only surface a prompt we can render — an ask_user-shaped payload with a
+      // question. Other suspending tools without one pass through untouched.
+      if (typeof p.question !== 'string' || !p.question) {
+        return state;
+      }
+      return {
+        ...state,
+        pendingSuspension: {
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          question: p.question,
+          ...(Array.isArray(p.options) ? { options: p.options } : {}),
+          ...(p.selectionMode ? { selectionMode: p.selectionMode } : {}),
+        },
+      };
+    }
+    // The suspension was cancelled server-side (e.g. the run failed before it could be
+    // resumed) — drop the matching prompt so the user isn't left answering a dead one.
+    case 'tool_suspension_cancelled':
+      return state.pendingSuspension?.toolCallId === event.toolCallId
+        ? { ...state, pendingSuspension: null }
+        : state;
     case 'error':
       return {
         ...state,

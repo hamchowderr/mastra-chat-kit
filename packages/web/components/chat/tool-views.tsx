@@ -1,7 +1,7 @@
 'use client';
 
-import { CheckIcon, TargetIcon, XIcon } from 'lucide-react';
-import { type ComponentProps, useEffect, useState } from 'react';
+import { CheckIcon, MessageCircleQuestionMarkIcon, TargetIcon, XIcon } from 'lucide-react';
+import { type ComponentProps, useEffect, useRef, useState } from 'react';
 import {
   ChainOfThought,
   ChainOfThoughtContent,
@@ -37,7 +37,7 @@ import {
   TerminalHeader,
   TerminalTitle,
 } from '@/components/ai-elements/terminal';
-import type { HarnessGoal } from '@/lib/harness/events';
+import type { HarnessGoal, PendingSuspension } from '@/lib/harness/events';
 import { cn } from '@/lib/utils';
 
 /**
@@ -253,6 +253,142 @@ export function GoalCard({ goal, onClear }: { goal: HarnessGoal; onClear?: () =>
       {goal.reason && (
         <p className="mt-2 text-pretty text-muted-foreground text-xs">{goal.reason}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * `ask_user` prompt: the agent paused to ask a clarifying question and the run is
+ * suspended awaiting the answer (see the `tool_suspended` reducer). Renders one of
+ * three shapes from the suspend payload — free-text (a textarea), single-select
+ * (choice buttons that answer on click), or multi-select (toggle chips + Send). The
+ * answer resumes the suspended tool (POST /api/harness/answer) and the run continues
+ * on the still-open SSE. Focuses the input on mount so answering is immediate.
+ */
+export function AskUserPrompt({
+  suspension,
+  onAnswer,
+}: {
+  suspension: PendingSuspension;
+  onAnswer: (answer: string | string[], toolCallId?: string) => void;
+}) {
+  const { question, options, selectionMode, toolCallId } = suspension;
+  const hasOptions = Array.isArray(options) && options.length > 0;
+  const isMulti = selectionMode === 'multi_select';
+  const [text, setText] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus the free-text input once when the prompt appears (ref+effect, not
+  // autoFocus, so it's a one-shot and doesn't fight re-renders).
+  useEffect(() => {
+    if (!hasOptions) inputRef.current?.focus();
+  }, [hasOptions]);
+
+  const submitText = () => {
+    const v = text.trim();
+    if (v) onAnswer(v, toolCallId);
+  };
+  const toggle = (label: string) =>
+    setPicked((cur) => (cur.includes(label) ? cur.filter((l) => l !== label) : [...cur, label]));
+
+  return (
+    // Concentric radii: outer rounded-xl (12px), inner controls rounded-lg (8px) — matches GoalCard.
+    <div className="my-3 rounded-xl border border-border bg-card p-4 text-pretty shadow-[var(--shadow-float)]">
+      <div className="flex items-start gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <MessageCircleQuestionMarkIcon className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+            Question
+          </p>
+          <p className="mt-1 text-pretty text-sm">{question}</p>
+        </div>
+      </div>
+
+      {/* Answer controls, indented under the question text (32px chip + 12px gap). */}
+      <div className="mt-3 pl-11">
+        {hasOptions ? (
+          isMulti ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                {options.map((o) => {
+                  const on = picked.includes(o.label);
+                  return (
+                    <button
+                      key={o.label}
+                      type="button"
+                      onClick={() => toggle(o.label)}
+                      title={o.description}
+                      aria-pressed={on}
+                      className={cn(
+                        'rounded-lg border px-3 py-1.5 text-sm transition-[background-color,border-color,color,scale] active:scale-[0.96]',
+                        on
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border bg-background text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => picked.length && onAnswer(picked, toolCallId)}
+                  disabled={picked.length === 0}
+                  className="rounded-lg bg-primary px-3 py-1.5 font-medium text-primary-foreground text-sm transition-[opacity,scale] active:scale-[0.96] disabled:opacity-50"
+                >
+                  Send{picked.length ? ` (${picked.length})` : ''}
+                </button>
+              </div>
+            </div>
+          ) : (
+            // single-select: clicking a choice answers immediately.
+            <div className="flex flex-wrap gap-2">
+              {options.map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  onClick={() => onAnswer(o.label, toolCallId)}
+                  title={o.description}
+                  className="rounded-lg border border-border bg-background px-3 py-1.5 text-foreground text-sm transition-[background-color,border-color,scale] hover:border-primary hover:bg-primary/5 active:scale-[0.96]"
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )
+        ) : (
+          // free-text: Enter sends, Shift+Enter for a newline.
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  submitText();
+                }
+              }}
+              rows={1}
+              placeholder="Type your answer…"
+              className="min-h-9 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={submitText}
+              disabled={!text.trim()}
+              className="shrink-0 rounded-lg bg-primary px-3 py-2 font-medium text-primary-foreground text-sm transition-[opacity,scale] active:scale-[0.96] disabled:opacity-50"
+            >
+              Send
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

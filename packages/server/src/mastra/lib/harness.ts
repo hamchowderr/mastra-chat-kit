@@ -182,5 +182,12 @@ export async function getChatBrowser(): Promise<BrowserViewer> {
 export async function getChatSession(): Promise<Session> {
   const controller = await getChatHarness();
   const existing = await controller.getSessionByResource(CHAT_RESOURCE_ID);
-  return existing ?? (await controller.createSession({ resourceId: CHAT_RESOURCE_ID }));
+  const session = existing ?? (await controller.createSession({ resourceId: CHAT_RESOURCE_ID }));
+  // A clarifying question never needs an approval gate — the answer prompt IS the
+  // interaction. Without this, `ask_user` (approval-gated like every other tool)
+  // would first raise a redundant "Run ask_user?" approval showing the question as
+  // raw args, THEN the real prompt. Auto-allowing it sends the run straight to
+  // suspend → the AskUserPrompt. In-memory + idempotent, so re-granting each call is free.
+  session.grantTool('ask_user');
+  return session;
 }

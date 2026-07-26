@@ -10,15 +10,16 @@ stream can't carry: sessions/threads, modes, model switching, tool-approval gate
 subagents, tasks, goals, observational memory, and a canonical display state.
 
 `session.subscribe()` forwards **all 50** event types unfiltered over the server's
-`POST /harness/stream` SSE. The web reducer currently **consumes 23 and drops 27**. This file is the
+`POST /harness/stream` SSE. The web reducer currently **consumes 25 and drops 25**. This file is the
 source of truth for what each event means and where it should render.
 
-> **The 27 "dropped" are not 27 bugs.** Of them, only **8 fire in this kit's current config** and are
-> worth wiring now (live tool streaming + `model_changed`/`agent_start`); **17 are gated on a feature
-> that isn't enabled** (observational memory, extra threads, tool suspend — each owned by a
+> **The 25 "dropped" are not 25 bugs.** Of them, only **7 fire in this kit's current config** and are
+> worth wiring now (live tool streaming + `model_changed`/`agent_start`); **16 are gated on a feature
+> that isn't enabled** (observational memory, extra threads — each owned by a
 > `698.x` issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
-> (`698.27`), modes (`mode_changed`, `698.28`), and goals (`goal_evaluation`, `698.29`) have graduated
-> to *consumed*. See the grouped roadmap below.
+> (`698.27`), modes (`mode_changed`, `698.28`), goals (`goal_evaluation`, `698.29`), and the `ask_user`
+> suspend flow (`tool_suspended` + `tool_suspension_cancelled`, `698.30`) have graduated to *consumed*.
+> See the grouped roadmap below.
 
 > ✅ **`mastra-chat-kit-vud` (fixed 2026-07-25):** the harness tool flow works with OpenAI. An earlier
 > "hangs on every tool call (`generationCount:0`)" symptom was **not** upstream — it was `TokenLimiter`
@@ -48,8 +49,8 @@ source of truth for what each event means and where it should render.
 | 11 | `message_end` | `message` | Message finished (final form) | ✅ consumed | `Message` |
 | 12 | `tool_start` | `toolCallId`, `toolName`, `args` | Tool call started | ⛔ dropped | `Tool` (`input-available`) |
 | 13 | `tool_approval_required` | `toolCallId`, `toolName`, `args` | Tool gated, awaiting approval | ✅ consumed | `Confirmation` |
-| 14 | `tool_suspended` | `toolCallId`, `toolName`, `args`, `suspendPayload`, `resumeSchema?` | Tool `suspend()`ed (e.g. `ask_user`) | ⛔ dropped | `Confirmation` / prompt |
-| 15 | `tool_suspension_cancelled` | `toolCallId`, `toolName`, `reason` | Parked suspension cancelled | ⛔ dropped | `Tool` status |
+| 14 | `tool_suspended` | `toolCallId`, `toolName`, `args`, `suspendPayload`, `resumeSchema?` | Tool `suspend()`ed (e.g. `ask_user`) | ✅ consumed (`698.30`) | `AskUserPrompt` (→ `POST /harness/answer`) |
+| 15 | `tool_suspension_cancelled` | `toolCallId`, `toolName`, `reason` | Parked suspension cancelled | ✅ consumed (`698.30`) | clears `AskUserPrompt` |
 | 16 | `tool_update` | `toolCallId`, `partialResult` | Incremental tool result | ⛔ dropped | `Tool` (`ToolOutput` streaming) |
 | 17 | `tool_end` | `toolCallId`, `result`, `isError`, `providerMetadata?` | Tool completed | ✅ consumed | `Tool` (`ToolOutput`) |
 | 18 | `tool_input_start` | `toolCallId`, `toolName` | Model began streaming tool args | ⛔ dropped | `Tool` (`input-streaming`) |
@@ -109,23 +110,23 @@ deterministic set→read→clear integration test on the controller's thread-sta
 
 ## Dropped (27) — grouped by whether they can fire in this kit
 
-### A. Fires now — worth wiring (8)
-- **Live tool streaming (6):** `tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`,
-  `tool_update`, `tool_suspension_cancelled` → `Tool` (`input-streaming` state + live `ToolInput`).
+### A. Fires now — worth wiring (7)
+- **Live tool streaming (5):** `tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`,
+  `tool_update` → `Tool` (`input-streaming` state + live `ToolInput`).
   Fires on every gated tool call. Owned by **`698.25`** (needs event-order capture to avoid
   double-rendering against the settled message-part tool_call).
 - **`model_changed` (1):** fires when the composer switches the run's model → reflect in `ModelSelector`.
   Deferred: the composer's own selector already shows the active model, so this only adds a server echo.
 - **`agent_start` (1):** run began → a `Shimmer`. Deferred: redundant with the existing streaming indicator.
 
-### B. Gated on a feature that isn't enabled yet (17)
+### B. Gated on a feature that isn't enabled yet (16)
 These never fire in the current no-OM config — wiring them now is dead code. Each is owned by the
 issue that would turn the feature on. _(Subagents graduated out of this bucket in `698.27`,
-`mode_changed` in `698.28`, and `goal_evaluation` in `698.29` — all wired above.)_
+`mode_changed` in `698.28`, `goal_evaluation` in `698.29`, and the `ask_user` suspend flow in `698.30` —
+all wired above.)_
 - **Observational memory (13):** `om_status` + all `om_*` → a Memory panel + `Context`. Gated on **`698.20`**.
 - **Threads/sessions (3):** `thread_changed/_created/_deleted` → conversation sidebar. Gated on
   persistence + **`698.16`/`698.17`**. (`om_thread_title_updated` counts under OM above.)
-- **`tool_suspended` (1):** no suspending tool (`ask_user`) configured → `Confirmation` prompt when one is.
 
 ### C. Intentionally off (2)
 - **`state_changed`** → aggregate `data-*`; redundant with the granular events.

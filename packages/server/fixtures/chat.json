@@ -104,6 +104,27 @@
     },
 
     {
+      "_comment": "Agent-driven ask_user (698.30). The request is ambiguous (which environment?), so the agent calls the built-in ask_user tool, which SUSPENDS the run (emitting tool_suspended with the question). turn 0 = the ask_user call; after the user answers, the tool re-runs with the answer and turn 1 gives the final text. Proves the suspend→resume round-trip end-to-end.",
+      "match": { "userMessage": "Deploy the app for me.", "turnIndex": 0 },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "ask_user",
+            "arguments": {
+              "question": "Which environment should I deploy to?",
+              "options": [{ "label": "staging" }, { "label": "production" }],
+              "selectionMode": "single_select"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Deploy the app for me.", "turnIndex": 1 },
+      "response": { "content": "Deploying to the selected environment now." }
+    },
+
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat (Single Agent AND Agent Harness) always responds deterministically instead of 404 'No fixture matched'. The harness sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated harness tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {

@@ -43,6 +43,7 @@ import {
 } from '@/components/ai-elements/tool';
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
 import {
+  AskUserPrompt,
   GeneratedImage,
   GoalCard,
   type KnowledgeResult,
@@ -112,13 +113,14 @@ function ThinkingIndicator() {
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
 export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
-  const { transcript, status, sendMessage, approve } = harness;
+  const { transcript, status, sendMessage, approve, answerQuestion } = harness;
   // Goals AND planning are agent-driven — the agent calls its own `setGoal` tool for a
   // standing objective and the built-in `submit_plan` for tasks that warrant a plan, so
   // there are no manual mode/goal controls in the composer. `clearGoal` backs the goal
   // card's dismiss affordance (the user can abandon an active goal).
   const { goal, clearGoal } = harness;
-  const { messages, tasks, pendingApproval, usage, info, subagents, error } = transcript;
+  const { messages, tasks, pendingApproval, pendingSuspension, usage, info, subagents, error } =
+    transcript;
   const resultsById = collectToolResults(messages);
   // Subagent runs keyed by the parent `subagent` tool-call id, so a `subagent`
   // tool call in the transcript renders as the nested <Agent> card.
@@ -294,6 +296,12 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
               </Confirmation>
             )}
 
+            {/* Agent-driven ask_user: the run is suspended awaiting the user's answer
+                to a clarifying question. Answering resumes it on the open SSE. */}
+            {pendingSuspension && (
+              <AskUserPrompt suspension={pendingSuspension} onAnswer={answerQuestion} />
+            )}
+
             {/* Bot avatar + typing dots while the run is in flight and the assistant
               hasn't started its reply yet (otherwise the reply itself is the signal). */}
             {status === 'streaming' &&
@@ -403,6 +411,11 @@ function renderContent(
     // The agent's `setGoal` tool has no inline rendering — the GoalCard (pinned above
     // the conversation, driven by goal_evaluation) is its surface, so suppress the raw call.
     if (call.name === 'setGoal') {
+      return null;
+    }
+    // `ask_user` renders as the live AskUserPrompt (driven by tool_suspended), not a raw
+    // tool card — suppress the call so the clarifying question isn't shown twice.
+    if (call.name === 'ask_user') {
       return null;
     }
     // The built-in `subagent` tool → the nested <Agent> card, driven by the

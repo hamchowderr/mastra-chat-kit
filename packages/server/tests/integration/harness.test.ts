@@ -183,6 +183,65 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     await controller.destroy();
   });
 
+  // Agent-driven ask_user (698.30): when a request is ambiguous the agent calls the
+  // built-in `ask_user` tool, which SUSPENDS the run (emitting `tool_suspended` with the
+  // question in its payload) until the user answers. This proves the full round-trip the
+  // /harness/answer route drives: the run parks on the question, we answer via
+  // `respondToToolSuspension`, and the suspended tool resumes with the answer.
+  it('suspends on ask_user for an ambiguous request, then resumes when answered', async () => {
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-askuser',
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-askuser' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: wide event union
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+      // Approve any OTHER gated tool; ask_user is granted below so it never gates.
+      if (event.type === 'tool_approval_required' && event.toolName !== 'ask_user') {
+        session.respondToToolApproval({ decision: 'approve' });
+      }
+    });
+
+    // Mirror the web path (getChatSession): a clarifying question isn't approval-gated —
+    // the answer prompt IS the interaction — so ask_user is auto-allowed.
+    session.grantTool('ask_user');
+
+    await session.thread.create({ title: 'askuser' });
+
+    // sendMessage stays pending while the run is SUSPENDED on ask_user — don't await yet.
+    const done = session.sendMessage({ content: 'Deploy the app for me.' });
+
+    // The run suspends on ask_user, carrying the question in the suspend payload.
+    await waitFor(() => events.some((e) => e.type === 'tool_suspended'), 20_000);
+    const suspend = events.find((e) => e.type === 'tool_suspended');
+    expect(suspend.toolName).toBe('ask_user');
+    expect((suspend.suspendPayload as { question?: string }).question).toContain('environment');
+    // The grant worked: ask_user reached suspend WITHOUT a redundant approval gate.
+    expect(
+      events.some((e) => e.type === 'tool_approval_required' && e.toolName === 'ask_user'),
+    ).toBe(false);
+
+    // Answer → the suspended tool resumes with the answer (the /harness/answer path).
+    // The mock continuation after resume may not stream cleanly (AIMock-only), so tolerate
+    // a hang/error on the run's completion — the resume itself is what we assert.
+    const resumed = session.respondToToolSuspension({ resumeData: 'production' });
+    await resumed.catch(() => {});
+    await done.catch(() => {});
+
+    unsubscribe();
+    await controller.destroy();
+
+    // The ask_user tool fired and (post-resume) resolved on this run.
+    const blob = JSON.stringify(events);
+    expect(blob).toContain('ask_user');
+    expect(events.some((e) => e.type === 'tool_end')).toBe(true);
+  });
+
   // Agent-driven goals: goals aren't set by a UI control — the agent recognizes a standing
   // objective and calls its OWN `setGoal` tool, which writes the objective to thread-state.
   // The fixture makes the model call setGoal; we assert the objective actually persisted on

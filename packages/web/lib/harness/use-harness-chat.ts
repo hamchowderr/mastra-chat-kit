@@ -155,6 +155,21 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     });
   }, []);
 
+  /**
+   * Answer a parked `ask_user` suspension. Optimistically clear the prompt so it
+   * closes at once; the continuation events arrive on the still-open SSE from the
+   * original sendMessage (same pattern as `approve`). `answer` is a string (free-text
+   * / single choice) or a string[] of chosen labels (multi-select).
+   */
+  const answerQuestion = useCallback(async (answer: string | string[], toolCallId?: string) => {
+    setTranscript((s) => ({ ...s, pendingSuspension: null }));
+    await fetch('/api/harness/answer', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ answer, ...(toolCallId ? { toolCallId } : {}) }),
+    });
+  }, []);
+
   /** Clear the workbench Terminal scrollback (the shell buffer is cumulative). */
   const clearTerminal = useCallback(() => {
     setTranscript((s) => ({ ...s, terminal: { ...s.terminal, output: '' } }));
@@ -212,6 +227,10 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     status,
     sendMessage,
     approve,
+    /** Answer a parked `ask_user` prompt (string, or string[] for multi-select). */
+    answerQuestion,
+    /** The current `ask_user` prompt awaiting an answer (null when none). */
+    pendingSuspension: transcript.pendingSuspension,
     clearTerminal,
     openThread,
     reset,

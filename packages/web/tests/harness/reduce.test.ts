@@ -65,6 +65,101 @@ describe('harness reducer', () => {
     expect(finished.done).toBe(true);
   });
 
+  it('folds tool_suspended (ask_user) into a pending suspension with question + options', () => {
+    const armed = reduceHarnessEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 's1',
+      toolName: 'ask_user',
+      args: {},
+      suspendPayload: {
+        question: 'Which environment should I deploy to?',
+        options: [{ label: 'staging' }, { label: 'production' }],
+        selectionMode: 'single_select',
+      },
+    });
+    expect(armed.pendingSuspension).toMatchObject({
+      toolCallId: 's1',
+      toolName: 'ask_user',
+      question: 'Which environment should I deploy to?',
+      selectionMode: 'single_select',
+    });
+    expect(armed.pendingSuspension?.options).toHaveLength(2);
+  });
+
+  it('folds a free-text ask_user suspension (no options)', () => {
+    const armed = reduceHarnessEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 's2',
+      toolName: 'ask_user',
+      args: {},
+      suspendPayload: { question: 'What should I name the file?' },
+    });
+    expect(armed.pendingSuspension).toMatchObject({ question: 'What should I name the file?' });
+    expect(armed.pendingSuspension?.options).toBeUndefined();
+  });
+
+  it('ignores a suspend payload with no question (nothing to render)', () => {
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 's3',
+      toolName: 'request_access',
+      args: {},
+      suspendPayload: { resource: 'db' },
+    });
+    expect(s.pendingSuspension).toBeNull();
+  });
+
+  it('clears the suspension when its tool resolves (matching tool_end) or the run ends', () => {
+    const armed = reduceHarnessEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 's1',
+      toolName: 'ask_user',
+      args: {},
+      suspendPayload: { question: 'Which one?' },
+    });
+    expect(armed.pendingSuspension).not.toBeNull();
+    // a tool_end for a DIFFERENT tool leaves the prompt up
+    expect(
+      reduceHarnessEvent(armed, { type: 'tool_end', toolCallId: 'other' }).pendingSuspension,
+    ).not.toBeNull();
+    // the matching tool_end (answer resumed, tool returned) clears it
+    expect(
+      reduceHarnessEvent(armed, { type: 'tool_end', toolCallId: 's1' }).pendingSuspension,
+    ).toBeNull();
+    // agent_end carries no toolCallId, so a live prompt survives it
+    expect(reduceHarnessEvent(armed, { type: 'agent_end' }).pendingSuspension).not.toBeNull();
+    // a finished run always clears it
+    expect(reduceHarnessEvent(armed, { type: '__done__' }).pendingSuspension).toBeNull();
+  });
+
+  it('drops the suspension when the server cancels it', () => {
+    const armed = reduceHarnessEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 's1',
+      toolName: 'ask_user',
+      args: {},
+      suspendPayload: { question: 'Which one?' },
+    });
+    // a cancel for a different id is a no-op…
+    expect(
+      reduceHarnessEvent(armed, {
+        type: 'tool_suspension_cancelled',
+        toolCallId: 'other',
+        toolName: 'ask_user',
+        reason: 'x',
+      }).pendingSuspension,
+    ).not.toBeNull();
+    // …the matching cancel clears it
+    expect(
+      reduceHarnessEvent(armed, {
+        type: 'tool_suspension_cancelled',
+        toolCallId: 's1',
+        toolName: 'ask_user',
+        reason: 'run failed',
+      }).pendingSuspension,
+    ).toBeNull();
+  });
+
   it('accumulates shell_output into the terminal buffer and toggles running', () => {
     const streaming = reduceHarnessEvents(emptyTranscript(), [
       { type: 'shell_output', toolCallId: 'c1', output: 'line 1\n', stream: 'stdout' },

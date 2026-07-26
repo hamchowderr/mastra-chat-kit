@@ -865,6 +865,33 @@ const serverConfig = {
       },
     }),
 
+    // Agent Harness HITL: POST /harness/answer resolves a parked tool SUSPENSION —
+    // the agent-driven `ask_user` flow. When a request is ambiguous the agent calls
+    // the built-in `ask_user`, which suspends the run (emitting `tool_suspended` with
+    // the question); the matching /harness/stream call is parked awaiting the answer.
+    // Posting the answer here resumes the SAME suspended tool and the continuation
+    // events flow on the still-open SSE. `answer` is a string (free-text / single
+    // choice) or string[] (multi-select labels); `toolCallId` selects which prompt to
+    // resolve when several are pending (optional when only one is).
+    registerApiRoute('/harness/answer', {
+      method: 'POST',
+      handler: async (c) => {
+        const { answer, toolCallId } = await c.req.json<{
+          answer?: string | string[];
+          toolCallId?: string;
+        }>();
+        if (typeof answer !== 'string' && !Array.isArray(answer)) {
+          return c.json({ error: 'answer must be a string or string[]' }, 400);
+        }
+        const session = await getChatSession();
+        await session.respondToToolSuspension({
+          resumeData: answer,
+          ...(toolCallId ? { toolCallId } : {}),
+        });
+        return c.json({ ok: true });
+      },
+    }),
+
     // NOTE: modes (Chat / Plan) stay configured on the controller (see lib/harness.ts) and
     // are exercised by the integration test, but there's no HTTP switch route — planning is
     // AGENT-DRIVEN (the agent calls the built-in submit_plan when a task warrants a plan), so
