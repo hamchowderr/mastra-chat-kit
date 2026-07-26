@@ -51,7 +51,7 @@ export function threadTitle(thread: any, firstUserMessage?: string): string {
   return 'New chat';
 }
 
-/** A v6 UIMessage (text-only) for restoring a thread into the chat UI. */
+/** A text-only UIMessage (AI SDK v7 parts shape) for restoring a thread into the chat UI. */
 // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
 export function toUIMessage(m: any): {
   id: string;

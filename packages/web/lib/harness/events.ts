@@ -687,7 +687,7 @@ export function reduceHarnessEvents(
 }
 
 /**
- * Convert restored v6 UIMessages (text-only, from `/harness/threads/:id/messages`)
+ * Convert restored text-only UIMessages (AI SDK v7 parts shape, from `/harness/threads/:id/messages`)
  * into transcript messages, so reopening a past conversation shows its history.
  * Only text is restored here; richer parts (tools, thinking) rehydrate on the live
  * stream when the conversation continues — same trade-off the Single Agent path makes.
