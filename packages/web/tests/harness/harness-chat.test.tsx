@@ -23,6 +23,7 @@ describe('HarnessChat — Agent Harness view', () => {
     );
     expect(screen.getByPlaceholderText('Ask anything…')).toBeInTheDocument();
     expect(screen.getAllByText('Search').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('mastra-chat-kit').length).toBeGreaterThan(0);
+    // Harness empty-state hero (distinct from the Single Agent view's title).
+    expect(screen.getByText(/on your mind today/)).toBeInTheDocument();
   });
 });

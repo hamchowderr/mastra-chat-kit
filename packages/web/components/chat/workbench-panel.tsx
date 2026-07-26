@@ -6,7 +6,9 @@ import { Terminal } from '@/components/ai-elements/terminal';
 import { WorkbenchBrowser } from '@/components/chat/workbench-browser';
 import { WorkbenchFiles } from '@/components/chat/workbench-files';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { HarnessWorkspace } from '@/lib/harness/events';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
+import { cn } from '@/lib/utils';
 
 /**
  * The agent workbench — a collapsible right panel that surfaces what the harness
@@ -26,7 +28,7 @@ export function WorkbenchPanel({
   harness: UseHarnessChat;
   onCollapse?: () => void;
 }) {
-  const { terminal } = harness.transcript;
+  const { terminal, workspace } = harness.transcript;
 
   return (
     <div className="flex min-h-0 w-[26rem] shrink-0 flex-col border-border border-l bg-background">
@@ -47,12 +49,14 @@ export function WorkbenchPanel({
             <GlobeIcon />
             Browser
           </TabsTrigger>
+          {/* Workspace status dot — reflects the harness workspace lifecycle. */}
+          <WorkspaceStatus workspace={workspace} className="ml-auto self-center" />
           {/* Collapse control lives in the panel header (not floating over it). */}
           <button
             type="button"
             aria-label="Hide workbench"
             onClick={onCollapse}
-            className="ml-auto flex size-7 shrink-0 items-center justify-center self-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+            className="flex size-7 shrink-0 items-center justify-center self-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
           >
             <PanelRightCloseIcon className="size-4" />
           </button>
@@ -79,6 +83,40 @@ export function WorkbenchPanel({
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/**
+ * A compact status dot + label for the workspace lifecycle. Green when the
+ * agent's workspace is live, red on error, amber (pulsing) while it initializes.
+ * Renders nothing until the workspace first reports in, so an idle panel stays quiet.
+ */
+function WorkspaceStatus({
+  workspace,
+  className,
+}: {
+  workspace: HarnessWorkspace | null;
+  className?: string;
+}) {
+  if (!workspace) {
+    return null;
+  }
+  const isReady = workspace.status === 'ready';
+  const isError = workspace.status === 'error';
+  const dot = isReady
+    ? 'bg-emerald-500'
+    : isError
+      ? 'bg-destructive'
+      : 'bg-amber-500 animate-pulse';
+  const label = isReady ? 'Ready' : isError ? 'Error' : workspace.status;
+  return (
+    <span
+      className={cn('flex items-center gap-1.5 text-muted-foreground text-xs', className)}
+      title={workspace.error ?? `Workspace ${workspace.status}`}
+    >
+      <span className={cn('size-1.5 rounded-full', dot)} />
+      <span className="capitalize">{label}</span>
+    </span>
   );
 }
 

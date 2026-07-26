@@ -57,6 +57,42 @@ export type HarnessUsage = {
  */
 export type HarnessTerminal = { output: string; running: boolean };
 
+/**
+ * Workspace lifecycle, folded from `workspace_ready` / `workspace_status_changed`
+ * / `workspace_error`. Drives the workbench status dot so the panel reflects
+ * whether the agent's filesystem/sandbox/browser is initializing, live, or failed.
+ */
+export type HarnessWorkspace = { status: string; name?: string; error?: string };
+
+/** One nested tool call a subagent made (subagent_tool_start → _tool_end). */
+export type SubagentToolCall = {
+  name: string;
+  args?: unknown;
+  result?: unknown;
+  isError?: boolean;
+};
+
+/**
+ * A single subagent invocation, keyed by the parent's `subagent` tool-call id.
+ * Folded from the six `subagent_*` events into a live view the `Agent` element
+ * renders inline where the parent's `subagent` tool call appears.
+ */
+export type SubagentRun = {
+  toolCallId: string;
+  agentType: string;
+  task?: string;
+  modelId?: string;
+  forked?: boolean;
+  /** Streamed assistant text from the subagent (subagent_text_delta). */
+  text: string;
+  /** Nested tool calls the subagent made. */
+  tools: SubagentToolCall[];
+  result?: unknown;
+  isError?: boolean;
+  durationMs?: number;
+  status: 'running' | 'done';
+};
+
 /** What the SSE consumer folds events into and the view renders. */
 export type HarnessTranscript = {
   threadId: string | null;
@@ -66,6 +102,12 @@ export type HarnessTranscript = {
   usage: HarnessUsage | null;
   queuedFollowUps: number;
   terminal: HarnessTerminal;
+  /** Latest workspace lifecycle snapshot (null before the workspace reports in). */
+  workspace: HarnessWorkspace | null;
+  /** Latest `info` status message from the run (a transient status line). */
+  info: string | null;
+  /** Subagent invocations, keyed by the parent `subagent` tool-call id (→ Agent element). */
+  subagents: SubagentRun[];
   error: string | null;
   done: boolean;
 };
@@ -78,6 +120,9 @@ export const emptyTranscript = (): HarnessTranscript => ({
   usage: null,
   queuedFollowUps: 0,
   terminal: { output: '', running: false },
+  workspace: null,
+  info: null,
+  subagents: [],
   error: null,
   done: false,
 });
@@ -86,13 +131,21 @@ export const emptyTranscript = (): HarnessTranscript => ({
 type AnyEvent = { type: string; [k: string]: any };
 
 /**
- * Map one Mastra "format 2" UI part (core ≥1.52) to a transcript part.
+ * Map one Mastra "format 2" UI part (core ≥1.52) to one or more transcript parts.
  * Assistant text arrives as `{type:'text',text}`; the user's own turn arrives as
  * a `data-user-message` part with the text on `data.contents`; reasoning and tool
  * parts map to thinking / tool_call / tool_result.
+ *
+ * Tool parts come in TWO shapes and we handle both:
+ *  - **v4-nested** `{type:'tool-invocation', toolInvocation:{state,toolCallId,toolName,args,result}}`
+ *    — the shape Mastra core ≥1.52 actually emits. A `state:'result'` invocation
+ *    expands to a `tool_call` + a paired `tool_result` (so the renderer, which
+ *    pairs results to calls by id, shows args AND output).
+ *  - **v5-flat** `tool-<name>` / `dynamic-tool` — kept for forward-compat.
+ * Returns a single part, an array (call+result), or null.
  */
 // biome-ignore lint/suspicious/noExplicitAny: format-2 UI parts are a heterogeneous union
-function mapFormat2Part(p: any): HarnessContentPart | null {
+function mapFormat2Part(p: any): HarnessContentPart | HarnessContentPart[] | null {
   if (!p || typeof p !== 'object') return null;
   const t = p.type as string | undefined;
   if (t === 'text') {
@@ -103,6 +156,18 @@ function mapFormat2Part(p: any): HarnessContentPart | null {
   }
   if (t === 'reasoning' && typeof p.text === 'string') {
     return { type: 'thinking', thinking: p.text };
+  }
+  // v4-nested tool part — check BEFORE the flat `tool-` branch (its type also
+  // starts with `tool-`, but its data lives under `toolInvocation`, not on `p`).
+  if (t === 'tool-invocation' && p.toolInvocation && typeof p.toolInvocation === 'object') {
+    const ti = p.toolInvocation;
+    const id = ti.toolCallId ?? '';
+    const name = ti.toolName ?? 'tool';
+    const call: HarnessContentPart = { type: 'tool_call', id, name, args: ti.args };
+    if (ti.state === 'result') {
+      return [call, { type: 'tool_result', id, name, result: ti.result, isError: !!ti.isError }];
+    }
+    return call;
   }
   if (typeof t === 'string' && (t.startsWith('tool-') || t === 'dynamic-tool')) {
     const name = t === 'dynamic-tool' ? (p.toolName ?? 'tool') : t.replace('tool-', '');
@@ -131,7 +196,12 @@ function normalizeContent(content: unknown): HarnessContentPart[] {
   if (typeof content === 'string' && content.length > 0) return [{ type: 'text', text: content }];
   const parts = (content as { parts?: unknown } | null)?.parts;
   if (Array.isArray(parts)) {
-    return parts.map(mapFormat2Part).filter((p): p is HarnessContentPart => p !== null);
+    // flatMap: a v4-nested tool part expands to a tool_call + tool_result pair.
+    return parts.flatMap((p) => {
+      const mapped = mapFormat2Part(p);
+      if (mapped === null) return [];
+      return Array.isArray(mapped) ? mapped : [mapped];
+    });
   }
   return [];
 }
@@ -165,6 +235,28 @@ function upsertMessage(messages: HarnessMessage[], msg: HarnessMessage): Harness
   }
   const next = messages.slice();
   next[idx] = m;
+  return next;
+}
+
+/**
+ * Upsert a subagent run by `toolCallId`, applying `patch` (a partial merge, or a
+ * function of the current run). Creates a stub `running` run if none exists yet,
+ * so out-of-order events (e.g. a delta before start) never drop.
+ */
+function upsertSubagent(
+  runs: SubagentRun[],
+  toolCallId: string,
+  patch: Partial<SubagentRun> | ((r: SubagentRun) => SubagentRun),
+): SubagentRun[] {
+  const idx = runs.findIndex((r) => r.toolCallId === toolCallId);
+  const base: SubagentRun =
+    idx === -1
+      ? { toolCallId, agentType: 'subagent', text: '', tools: [], status: 'running' }
+      : runs[idx];
+  const nextRun = typeof patch === 'function' ? patch(base) : { ...base, ...patch };
+  const next = runs.slice();
+  if (idx === -1) next.push(nextRun);
+  else next[idx] = nextRun;
   return next;
 }
 
@@ -209,6 +301,112 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
       return { ...state, usage: (event.usage as HarnessUsage) ?? state.usage };
     case 'follow_up_queued':
       return { ...state, queuedFollowUps: Number(event.count ?? 0) };
+    // Workspace lifecycle → the workbench status dot. `workspace_ready` names the
+    // live workspace; `workspace_status_changed` reports a lifecycle transition
+    // (pending…destroyed); `workspace_error` surfaces a failure.
+    case 'workspace_ready':
+      return {
+        ...state,
+        workspace: {
+          status: 'ready',
+          ...(typeof event.workspaceName === 'string' ? { name: event.workspaceName } : {}),
+        },
+      };
+    case 'workspace_status_changed':
+      return {
+        ...state,
+        workspace: {
+          status: String(event.status ?? 'unknown'),
+          ...(event.error ? { error: String(event.error) } : {}),
+        },
+      };
+    case 'workspace_error':
+      return {
+        ...state,
+        workspace: {
+          status: 'error',
+          error: typeof event.error === 'string' ? event.error : JSON.stringify(event.error),
+        },
+      };
+    // Informational status line (transient — latest wins).
+    case 'info':
+      return {
+        ...state,
+        info: typeof event.message === 'string' ? event.message : String(event.message ?? ''),
+      };
+    // Subagents (6 events, keyed by the parent `subagent` tool-call id) → the Agent
+    // element renders inline where the parent's `subagent` tool call appears.
+    case 'subagent_start':
+      return {
+        ...state,
+        subagents: upsertSubagent(state.subagents, event.toolCallId, {
+          agentType: String(event.agentType ?? 'subagent'),
+          task: typeof event.task === 'string' ? event.task : undefined,
+          modelId: typeof event.modelId === 'string' ? event.modelId : undefined,
+          forked: event.forked === true,
+          status: 'running',
+        }),
+      };
+    case 'subagent_text_delta':
+      return {
+        ...state,
+        subagents: upsertSubagent(state.subagents, event.toolCallId, (r) => ({
+          ...r,
+          text: r.text + String(event.textDelta ?? ''),
+        })),
+      };
+    case 'subagent_tool_start':
+      return {
+        ...state,
+        subagents: upsertSubagent(state.subagents, event.toolCallId, (r) => ({
+          ...r,
+          tools: [
+            ...r.tools,
+            { name: String(event.subToolName ?? 'tool'), args: event.subToolArgs },
+          ],
+        })),
+      };
+    case 'subagent_tool_end':
+      return {
+        ...state,
+        subagents: upsertSubagent(state.subagents, event.toolCallId, (r) => {
+          // Settle the last unresolved call with this name (falls back to the last one).
+          const name = String(event.subToolName ?? 'tool');
+          const tools = r.tools.slice();
+          let i = tools.map((t) => t.name).lastIndexOf(name);
+          if (i === -1) i = tools.length - 1;
+          if (i >= 0) {
+            tools[i] = {
+              ...tools[i],
+              result: event.subToolResult,
+              isError: event.isError === true,
+            };
+          }
+          return { ...r, tools };
+        }),
+      };
+    case 'subagent_end':
+      return {
+        ...state,
+        subagents: upsertSubagent(state.subagents, event.toolCallId, {
+          result: event.result,
+          isError: event.isError === true,
+          durationMs: typeof event.durationMs === 'number' ? event.durationMs : undefined,
+          status: 'done',
+        }),
+      };
+    case 'subagent_model_changed':
+      // The subagent's backing model changed — reflect it on running runs of that type.
+      return typeof event.agentType === 'string'
+        ? {
+            ...state,
+            subagents: state.subagents.map((r) =>
+              r.agentType === event.agentType && r.status === 'running'
+                ? { ...r, modelId: String(event.modelId ?? r.modelId) }
+                : r,
+            ),
+          }
+        : state;
     case 'tool_approval_required':
       return {
         ...state,

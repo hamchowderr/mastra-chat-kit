@@ -78,6 +78,158 @@ describe('harness reducer', () => {
     expect(settled.terminal.output).toBe('line 1\nline 2\n');
   });
 
+  it('maps the v4-nested tool-invocation shape to a paired tool_call + tool_result', () => {
+    // The exact shape Mastra core ≥1.52 emits on message_end (captured from the
+    // real AIMock stream): a `tool-invocation` part with data under `toolInvocation`.
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'message_end',
+      message: {
+        id: 'm1',
+        role: 'assistant',
+        content: {
+          format: 2,
+          parts: [
+            {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'result',
+                toolCallId: 'call_K7',
+                toolName: 'getWeather',
+                args: { location: 'Los Angeles' },
+                result: { location: 'Los Angeles', temperatureC: 27, condition: 'Rainy' },
+                isError: false,
+              },
+            },
+            { type: 'text', text: 'The weather in Los Angeles looks clear right now.' },
+          ],
+        },
+      },
+    });
+    const parts = s.messages[0].content;
+    const call = parts.find((p) => p.type === 'tool_call') as
+      | { name: string; id: string; args: { location: string } }
+      | undefined;
+    const result = parts.find((p) => p.type === 'tool_result') as
+      | { name: string; id: string; result: { temperatureC: number } }
+      | undefined;
+    // NOT the "invocation" bug — real tool name, args, and a paired result by id.
+    expect(call).toMatchObject({
+      name: 'getWeather',
+      id: 'call_K7',
+      args: { location: 'Los Angeles' },
+    });
+    expect(result).toMatchObject({ name: 'getWeather', id: 'call_K7' });
+    expect(result?.result.temperatureC).toBe(27);
+    // collectToolResults pairs the result to the call by id (what the view uses).
+    expect(collectToolResults(s.messages).get('call_K7')).toMatchObject({ type: 'tool_result' });
+  });
+
+  it('maps a still-running tool-invocation (no result yet) to a bare tool_call', () => {
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'message_update',
+      message: {
+        id: 'm1',
+        role: 'assistant',
+        content: {
+          format: 2,
+          parts: [
+            {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'call',
+                toolCallId: 'call_K7',
+                toolName: 'getWeather',
+                args: { location: 'LA' },
+              },
+            },
+          ],
+        },
+      },
+    });
+    expect(s.messages[0].content).toHaveLength(1);
+    expect(s.messages[0].content[0]).toMatchObject({ type: 'tool_call', name: 'getWeather' });
+  });
+
+  it('folds workspace lifecycle into the status snapshot', () => {
+    const ready = reduceHarnessEvent(emptyTranscript(), {
+      type: 'workspace_ready',
+      workspaceId: 'w1',
+      workspaceName: 'chat-workspace',
+    });
+    expect(ready.workspace).toMatchObject({ status: 'ready', name: 'chat-workspace' });
+    // a later status transition replaces the snapshot
+    const pending = reduceHarnessEvent(ready, {
+      type: 'workspace_status_changed',
+      status: 'pending',
+    });
+    expect(pending.workspace).toMatchObject({ status: 'pending' });
+    // an error carries its message
+    const failed = reduceHarnessEvent(pending, { type: 'workspace_error', error: 'sandbox down' });
+    expect(failed.workspace).toMatchObject({ status: 'error', error: 'sandbox down' });
+  });
+
+  it('folds a full subagent lifecycle into one run, keyed by toolCallId', () => {
+    const s = reduceHarnessEvents(emptyTranscript(), [
+      {
+        type: 'subagent_start',
+        toolCallId: 'sa1',
+        agentType: 'code',
+        task: 'write hello.js',
+        modelId: 'anthropic/claude-sonnet-4-6',
+        forked: false,
+      },
+      { type: 'subagent_text_delta', toolCallId: 'sa1', textDelta: 'Creating ' },
+      { type: 'subagent_text_delta', toolCallId: 'sa1', textDelta: 'the file.' },
+      {
+        type: 'subagent_tool_start',
+        toolCallId: 'sa1',
+        subToolName: 'write_file',
+        subToolArgs: { path: 'hello.js' },
+      },
+      {
+        type: 'subagent_tool_end',
+        toolCallId: 'sa1',
+        subToolName: 'write_file',
+        subToolResult: { ok: true },
+        isError: false,
+      },
+      { type: 'subagent_end', toolCallId: 'sa1', result: 'done', isError: false, durationMs: 1234 },
+    ]);
+    expect(s.subagents).toHaveLength(1);
+    const run = s.subagents[0];
+    expect(run).toMatchObject({
+      toolCallId: 'sa1',
+      agentType: 'code',
+      task: 'write hello.js',
+      text: 'Creating the file.',
+      status: 'done',
+      durationMs: 1234,
+    });
+    expect(run.tools).toHaveLength(1);
+    expect(run.tools[0]).toMatchObject({
+      name: 'write_file',
+      result: { ok: true },
+      isError: false,
+    });
+  });
+
+  it('creates a subagent stub if a delta arrives before start (out-of-order safe)', () => {
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'subagent_text_delta',
+      toolCallId: 'sa9',
+      textDelta: 'hi',
+    });
+    expect(s.subagents[0]).toMatchObject({ toolCallId: 'sa9', text: 'hi', status: 'running' });
+  });
+
+  it('records the latest info status line', () => {
+    const s = reduceHarnessEvents(emptyTranscript(), [
+      { type: 'info', message: 'starting up' },
+      { type: 'info', message: 'thinking…' },
+    ]);
+    expect(s.info).toBe('thinking…');
+  });
+
   it('passes unknown events through untouched', () => {
     const before = emptyTranscript();
     const after = reduceHarnessEvent(before, { type: 'om_status', windows: {} });

@@ -1,6 +1,7 @@
 'use client';
 
 import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
+import { Agent, AgentContent, AgentHeader } from '@/components/ai-elements/agent';
 import {
   Confirmation,
   ConfirmationAction,
@@ -47,7 +48,11 @@ import {
   PlanCard,
   StepTrace,
 } from '@/components/chat/tool-views';
-import { collectToolResults, type HarnessContentPart } from '@/lib/harness/events';
+import {
+  collectToolResults,
+  type HarnessContentPart,
+  type SubagentRun,
+} from '@/lib/harness/events';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
 import { cn } from '@/lib/utils';
 
@@ -99,8 +104,11 @@ function ThinkingIndicator() {
  */
 export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   const { transcript, status, sendMessage, approve } = harness;
-  const { messages, tasks, pendingApproval, usage, error } = transcript;
+  const { messages, tasks, pendingApproval, usage, info, subagents, error } = transcript;
   const resultsById = collectToolResults(messages);
+  // Subagent runs keyed by the parent `subagent` tool-call id, so a `subagent`
+  // tool call in the transcript renders as the nested <Agent> card.
+  const subagentsById = new Map(subagents.map((r) => [r.toolCallId, r]));
 
   const handleSend = ({ text, model, webSearch, files }: ComposerSubmit) =>
     sendMessage(text, {
@@ -202,7 +210,9 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
                     <Message from={m.role} className="min-w-0 max-w-[85%] flex-1">
                       <MessageContent>
                         {steps.length > 0 && <StepTrace steps={steps} />}
-                        {m.content.map((part, i) => renderContent(part, i, resultsById))}
+                        {m.content.map((part, i) =>
+                          renderContent(part, i, resultsById, subagentsById),
+                        )}
                       </MessageContent>
                       {m.role === 'assistant' && (
                         <MessageActions>
@@ -262,6 +272,9 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
               messages.filter((m) => m.role === 'user' || m.role === 'assistant').at(-1)?.role !==
                 'assistant' && <ThinkingIndicator />}
 
+            {/* Transient run status (harness `info` events). */}
+            {info && !error && <p className="px-2 text-muted-foreground text-xs italic">{info}</p>}
+
             {error && <p className="px-2 text-destructive text-sm">Harness error: {error}</p>}
           </ConversationContent>
           <ConversationScrollButton />
@@ -286,10 +299,61 @@ function copyHarnessMessage(content: HarnessContentPart[]) {
   navigator.clipboard?.writeText(text);
 }
 
+/**
+ * A subagent invocation → the <Agent> card: header (type + model + forked badge),
+ * the delegated task, the subagent's nested tool calls, its streamed text, and a
+ * live/`done`/error footer. Driven by the accumulated `subagent_*` events; falls
+ * back to the parent tool-call `task` before any subagent event arrives.
+ */
+function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?: string }) {
+  const agentType = run?.agentType ?? 'subagent';
+  const task = run?.task ?? fallbackTask;
+  const running = run?.status !== 'done';
+  return (
+    <Agent className="my-2">
+      <AgentHeader
+        name={`Subagent · ${agentType}${run?.forked ? ' (forked)' : ''}`}
+        model={run?.modelId}
+      />
+      <AgentContent className="pt-3">
+        {task && <p className="text-muted-foreground text-xs">Task: {task}</p>}
+        {run?.tools.map((t, ti) => (
+          <Tool key={`${t.name}-${ti}`}>
+            <ToolHeader
+              type={`tool-${t.name}`}
+              state={t.result !== undefined ? 'output-available' : 'input-available'}
+            />
+            <ToolContent>
+              <ToolInput input={t.args} />
+              {t.result !== undefined && (
+                <ToolOutput
+                  output={
+                    <pre className="overflow-x-auto text-xs">
+                      {JSON.stringify(t.result, null, 2)}
+                    </pre>
+                  }
+                  errorText={t.isError ? 'Tool reported an error' : undefined}
+                />
+              )}
+            </ToolContent>
+          </Tool>
+        ))}
+        {run?.text && <MessageResponse>{run.text}</MessageResponse>}
+        {running ? (
+          <p className="text-muted-foreground text-xs italic">Working…</p>
+        ) : run?.isError ? (
+          <p className="text-destructive text-xs">Subagent reported an error.</p>
+        ) : null}
+      </AgentContent>
+    </Agent>
+  );
+}
+
 function renderContent(
   part: HarnessContentPart,
   i: number,
   resultsById: Map<string, HarnessContentPart>,
+  subagentsById: Map<string, SubagentRun>,
 ) {
   if (part.type === 'text') {
     return <MessageResponse key={i}>{(part as { text: string }).text}</MessageResponse>;
@@ -307,6 +371,13 @@ function renderContent(
     const result = resultsById.get(call.id) as { result?: unknown; isError?: boolean } | undefined;
     const output = result?.result;
 
+    // The built-in `subagent` tool → the nested <Agent> card, driven by the
+    // subagent_* events accumulated for this tool-call id.
+    if (call.name === 'subagent') {
+      const run = subagentsById.get(call.id);
+      const task = (call.args as { task?: string } | undefined)?.task;
+      return <SubagentCard key={i} run={run} fallbackTask={task} />;
+    }
     // submit_plan → the <Plan> element.
     if (call.name === 'submit_plan') {
       const a = call.args as { title?: string; plan?: string };
