@@ -144,8 +144,7 @@ Stop and confirm with the user before making these changes:
 - Changing the boot order in `src/mastra/index.ts`
 - Removing or renaming a scorer that's referenced in a dataset JSON
 - Downgrading a Mastra package version
-- Adding a new `domain` to the composite store
-- Any Supabase schema migrations
+- Switching the storage backend (libSQL ⇄ Postgres — see `docs/postgres.md`)
 
 ---
 
@@ -155,7 +154,6 @@ Stop and confirm with the user before making these changes:
 npm run dev          # Start Studio at localhost:4111
 npm run typecheck    # Verify types before running
 npm run eval         # Run all eval cases; exits 0 on pass, 1 on fail
-npx supabase start   # Start local Supabase (Docker required)
 ```
 
 Eval runs with `USE_AIMOCK=false` hit the real Anthropic API and incur cost. Use `USE_AIMOCK=true` with AIMock running for free deterministic runs during development.

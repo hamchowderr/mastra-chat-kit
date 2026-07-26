@@ -60,9 +60,6 @@ importers:
       '@mastra/observability':
         specifier: ^1.16.2
         version: 1.16.2(@mastra/core@1.52.1(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(zod@4.4.3)
-      '@supabase/supabase-js':
-        specifier: ^2.105.1
-        version: 2.108.2
       ai:
         specifier: ^7.0.37
         version: 7.0.37(zod@4.4.3)
@@ -88,9 +85,6 @@ importers:
       playwright-core:
         specifier: 1.61.1
         version: 1.61.1
-      supabase:
-        specifier: ^2.98.0
-        version: 2.107.0
       tsx:
         specifier: ^4.21.0
         version: 4.22.4
@@ -2771,73 +2765,6 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@supabase/auth-js@2.108.2':
-    resolution: {integrity: sha512-tNaQmBgodDZwgB40mRwVbxFy8IDYwjdpcZ0BYrWiwlULCSQoJj4QoG4zgJT7QRPXcqipefNOzvO/qAu4dF98ag==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/cli-darwin-arm64@2.107.0':
-    resolution: {integrity: sha512-930MojHei14+PrGNF0QzlPJAjOYilCofgO9aTtKiQ6x36ZUI7dc4ujl5VzccC/19ex/f4ird0lH1d2U92MwDqQ==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@supabase/cli-darwin-x64@2.107.0':
-    resolution: {integrity: sha512-qcnichkHiCCNybtCqoeqYO6q8WuTxilaah18QilZskEM+zCSdV5rOXXfeF1BPexRxsvGYbghZ+fEQfWp7+lOUQ==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@supabase/cli-linux-arm64-musl@2.107.0':
-    resolution: {integrity: sha512-5se1bYRIzivL+ehImnwFjBpzKZ+AwLS6/cBg6lvJOJdWatuaK9Edu6wOZAmPjVMy4vZRJ27tdL+3F7N+Vk64AA==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@supabase/cli-linux-arm64@2.107.0':
-    resolution: {integrity: sha512-an0dsOhPcLQXZ0sFEBm6NU1HFUjXCStHxetfJvgt4u7SiH/EyDMLfDvV7W9ef56bgG+3hoWHtih2Kplj3cecQA==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@supabase/cli-linux-x64-musl@2.107.0':
-    resolution: {integrity: sha512-gXDzvDsmmJw9HbeVRFD6xboGwbu/cpBp84ZESEcXKyB8Onvs3igWKwoXMofx+ppFM1EaZb/flTwJ77b19EMD1A==}
-    cpu: [x64]
-    os: [linux]
-
-  '@supabase/cli-linux-x64@2.107.0':
-    resolution: {integrity: sha512-8ttnpfBFEXk0JFmH6gw8ZCVcMa/UNH1sD6iG9PQLbK2eXdZ6kDIzGs5g+CEvxZ3j6HxEIYn9h9rfxoqGoBUgwA==}
-    cpu: [x64]
-    os: [linux]
-
-  '@supabase/cli-windows-arm64@2.107.0':
-    resolution: {integrity: sha512-V/4q5dbDgBQXhDAJaHamTm9u/kY2UJ4nNibVKOYMaLh9q7H74b8unteJ+rYHSwWZy0EIT8DTDryGP6xatKQicw==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@supabase/cli-windows-x64@2.107.0':
-    resolution: {integrity: sha512-ciDDFUGHt6bFjtVD00cojFhB5oscZAyjPo2vg94RGUeKHXx1zo/UzfMvUlCA32y5b5KONZ4TKStCHhlFK7Clrw==}
-    cpu: [x64]
-    os: [win32]
-
-  '@supabase/functions-js@2.108.2':
-    resolution: {integrity: sha512-RNUX8EiBy3iLwAX19jtRzLyePnl11/fHcgwDHLnpKcDSXt/5qBnh3LUwAtIjT21Q66QsmNUR2esrHziLCpNubw==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/phoenix@0.4.4':
-    resolution: {integrity: sha512-Gt0pqoXuIqX/8dvG0OKp/wMCobXNH3klNbUPBNyOfN0YA1IswrM3HyWFMOPk1Jy+BRaIyDPcFx4jLBwHNmlyfQ==}
-
-  '@supabase/postgrest-js@2.108.2':
-    resolution: {integrity: sha512-GQ28/Y8hk3CFmkb3kXH1h/AQx6JIYSQfO0CJMRVBcEKZoNy6C45cXAZ4fcJvRC5Id0cs6xnkUV0+c0rIocigsw==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/realtime-js@2.108.2':
-    resolution: {integrity: sha512-aAGxCSUemZvQIibnCdvNvgaKib28I4rfrNjKbQ9cG1uBLwUsI7hVpGXgEbypCCDhLjQlDTAiJlu7rgljYUT73g==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/storage-js@2.108.2':
-    resolution: {integrity: sha512-TVZPQxXGxY2+A6yTtm77zUHsh70lBhYUEaJL8RQC+BghcX/ygiMG/rmXrNVBce30/WAeNPa8FiG8HbqlGeV05g==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/supabase-js@2.108.2':
-    resolution: {integrity: sha512-hFhnPveb5JQg4a0QYicM0swT253YHMdfeRAl2BKHOlI5VAzuHxUGSr8RbwNLYNPauWOgQMS1H8sz8bvYlgwUfQ==}
-    engines: {node: '>=20.0.0'}
-
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
@@ -4487,10 +4414,6 @@ packages:
   human-signals@8.0.1:
     resolution: {integrity: sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==}
     engines: {node: '>=18.18.0'}
-
-  iceberg-js@0.8.1:
-    resolution: {integrity: sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA==}
-    engines: {node: '>=20.0.0'}
 
   iconv-lite@0.4.24:
     resolution: {integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==}
@@ -6200,10 +6123,6 @@ packages:
 
   suffix-thumb@5.0.2:
     resolution: {integrity: sha512-I5PWXAFKx3FYnI9a+dQMWNqTxoRt6vdBdb0O+BJ1sxXCWtSoQCusc13E58f+9p4MYx/qCnEMkD5jac6K2j3dgA==}
-
-  supabase@2.107.0:
-    resolution: {integrity: sha512-qYAbm3D//buhnY5v4L//IrBQhowN2Jd2kx16hNyOfu0+TVuWVIR1L5WsS/YOk+UJh3Ch5ABmqKebWpwn1p0ysg==}
-    hasBin: true
 
   supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
@@ -9245,62 +9164,6 @@ snapshots:
       mermaid: 11.15.0
       react: 19.2.4
 
-  '@supabase/auth-js@2.108.2':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/cli-darwin-arm64@2.107.0':
-    optional: true
-
-  '@supabase/cli-darwin-x64@2.107.0':
-    optional: true
-
-  '@supabase/cli-linux-arm64-musl@2.107.0':
-    optional: true
-
-  '@supabase/cli-linux-arm64@2.107.0':
-    optional: true
-
-  '@supabase/cli-linux-x64-musl@2.107.0':
-    optional: true
-
-  '@supabase/cli-linux-x64@2.107.0':
-    optional: true
-
-  '@supabase/cli-windows-arm64@2.107.0':
-    optional: true
-
-  '@supabase/cli-windows-x64@2.107.0':
-    optional: true
-
-  '@supabase/functions-js@2.108.2':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/phoenix@0.4.4': {}
-
-  '@supabase/postgrest-js@2.108.2':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/realtime-js@2.108.2':
-    dependencies:
-      '@supabase/phoenix': 0.4.4
-      tslib: 2.8.1
-
-  '@supabase/storage-js@2.108.2':
-    dependencies:
-      iceberg-js: 0.8.1
-      tslib: 2.8.1
-
-  '@supabase/supabase-js@2.108.2':
-    dependencies:
-      '@supabase/auth-js': 2.108.2
-      '@supabase/functions-js': 2.108.2
-      '@supabase/postgrest-js': 2.108.2
-      '@supabase/realtime-js': 2.108.2
-      '@supabase/storage-js': 2.108.2
-
   '@swc/helpers@0.5.15':
     dependencies:
       tslib: 2.8.1
@@ -11046,8 +10909,6 @@ snapshots:
   human-signals@2.1.0: {}
 
   human-signals@8.0.1: {}
-
-  iceberg-js@0.8.1: {}
 
   iconv-lite@0.4.24:
     dependencies:
@@ -13200,17 +13061,6 @@ snapshots:
   stylis@4.4.0: {}
 
   suffix-thumb@5.0.2: {}
-
-  supabase@2.107.0:
-    optionalDependencies:
-      '@supabase/cli-darwin-arm64': 2.107.0
-      '@supabase/cli-darwin-x64': 2.107.0
-      '@supabase/cli-linux-arm64': 2.107.0
-      '@supabase/cli-linux-arm64-musl': 2.107.0
-      '@supabase/cli-linux-x64': 2.107.0
-      '@supabase/cli-linux-x64-musl': 2.107.0
-      '@supabase/cli-windows-arm64': 2.107.0
-      '@supabase/cli-windows-x64': 2.107.0
 
   supports-color@7.2.0:
     dependencies:

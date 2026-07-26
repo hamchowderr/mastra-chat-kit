@@ -38,7 +38,6 @@
     "@mastra/mcp": "^1.15.0",
     "@mastra/memory": "^1.23.1",
     "@mastra/observability": "^1.16.2",
-    "@supabase/supabase-js": "^2.105.1",
     "ai": "^7.0.37",
     "mysql2": "^3.22.3",
     "zod": "^4.4.2"
@@ -49,7 +48,6 @@
     "@vitest/ui": "^4.1.9",
     "mastra": "^1.20.1",
     "playwright-core": "1.61.1",
-    "supabase": "^2.98.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

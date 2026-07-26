@@ -6,7 +6,8 @@ A production-ready Mastra agent starter. One example agent, full eval pipeline, 
 
 ## Quickstart (5 minutes)
 
-**Prerequisites**: Node 22+, Docker Desktop, a Supabase project, an Anthropic API key.
+**Prerequisites**: Node 22+, an Anthropic API key. Storage runs on a local libSQL
+file (`./mastra.db`) — no database server, no Docker needed for dev.
 
 ```bash
 # 1. Clone and install
@@ -15,12 +16,9 @@ npm install
 
 # 2. Configure environment
 cp .env.example .env
-# Fill in: APP_SECRET, SUPABASE_*, ANTHROPIC_API_KEY
+# Fill in: APP_SECRET, ANTHROPIC_API_KEY (storage defaults to a local libSQL file)
 
-# 3. Start local Supabase (first time only)
-npx supabase start
-
-# 4. Run
+# 3. Run
 npm run dev
 # → Mastra Studio at http://localhost:4111
 ```
@@ -62,7 +60,7 @@ curl -X POST http://localhost:4111/api/agents/leadIntake/generate \
   }'
 ```
 
-Without `memory.resource`, working memory falls back to thread-only (no cross-conversation persistence). Semantic recall is intentionally off. Storage uses the Mastra instance's Postgres (Supabase), which supports the `mastra_resources` table resource-scoping needs — no extra setup.
+Without `memory.resource`, working memory falls back to thread-only (no cross-conversation persistence). Semantic recall is intentionally off. Storage uses the Mastra instance's `LibSQLStore`, which supports the `mastra_resources` table resource-scoping needs — no extra setup.
 
 ### A2A (Agent-to-Agent Protocol)
 
@@ -126,8 +124,7 @@ template-mastra-base/
 │       ├── agents/
 │       │   └── _example.ts         # leadIntake agent — copy this for new agents
 │       ├── lib/
-│       │   ├── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
-│       │   └── supabase.ts         # Supabase client factory (anon / service / user-scoped)
+│       │   └── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
 │       ├── scorers/
 │       │   ├── _example.scorers.ts # hallucination + completeness + urgency scorers
 │       │   └── datasets/
@@ -204,23 +201,22 @@ docker compose up -d
 curl http://localhost:4111/health
 ```
 
-> **Local Supabase note**: Docker containers can't reach `127.0.0.1` on the host. Set `SUPABASE_DB_URL` to use `host.docker.internal` instead when running via Docker Desktop locally.
+The compose stack keeps the libSQL DB on the `libsqldata` volume, so no host
+database is involved. Prefer Postgres for storage instead? See `docs/postgres.md`.
 
 ---
 
 ## Deployment Notes
 
-### Docker image size
+### Docker image
 
-The production image is ~676MB. This is larger than typical Node.js Docker images because:
+The image is based on `node:22-slim` (Debian). Storage + vectors + observability
+all run on libSQL, which has no native-module glibc constraint, so `node:22-alpine`
+also works if you want a smaller image (see the note in `Dockerfile`). There's no
+DuckDB or Postgres in the runtime.
 
-- The base is `node:22-slim` (Debian, glibc) instead of `node:22-alpine` (musl)
-- DuckDB ships native binaries that segfault on musl libc, even with `gcompat`
-- DuckDB is required by `@mastra/observability` for trace storage
-
-If you need a smaller image, the path is to swap DuckDB for `LibSQLStore` in the observability domain (see `src/mastra/index.ts`). Trade-off: slower trace queries in Mastra Studio, especially under load.
-
-For typical VPS deployments (Hetzner, DigitalOcean, etc.) the 676MB size is not a problem — pulls take seconds and storage is cheap. Only optimize if you're targeting Lambda, Cloud Run cold starts, or memory-constrained environments under 1GB.
+For typical VPS deployments (DigitalOcean, Hostinger, etc.) the image size is not a
+concern — pulls take seconds and storage is cheap.
 
 ---
 
@@ -229,13 +225,11 @@ For typical VPS deployments (Hetzner, DigitalOcean, etc.) the 676MB size is not 
 | Symptom | Cause | Fix |
 |---|---|---|
 | `Invalid environment variables` on boot | Missing or malformed `.env` | Check each var listed in the error against `.env.example` |
-| `ECONNREFUSED 127.0.0.1:54322` | Local Supabase not running | `npx supabase start` |
-| Docker container crashes (SIGSEGV) | DuckDB requires glibc, not musl | Use `node:22-slim`, not `node:22-alpine` — see Deployment Notes |
-| `ECONNREFUSED` inside Docker | `127.0.0.1` in DB URL | Replace with `host.docker.internal` |
+| Threads/messages split or empty reads under `mastra dev` | A relative `file:` libSQL URL resolves against a shifting cwd | Use an absolute `TURSO_DATABASE_URL` (env.ts absolutizes `file:` URLs at load) |
 | Agent not listed in Studio | Not registered in `mastra.agents` | Add to `src/mastra/index.ts` |
-| Storage init error about missing `id` | `PostgresStore`/`LibSQLStore` requires `id` field | Pass `id: 'mastra-storage'` to the constructor |
+| Storage init error about missing `id` | `LibSQLStore`/`LibSQLVector` requires an `id` field | Pass `id: 'mastra-storage'` to the constructor |
 | PostHog telemetry noise in restricted networks | Mastra runtime phones home on startup | Set `MASTRA_TELEMETRY_DISABLED=1` in `.env` |
-| DB connection errors at scale | Direct Supabase connection has limited slots | Use the **session pooler** URL from Supabase dashboard (Project Settings → Database → Connection string → Session pooler) |
+| Prod libSQL auth errors | Turso needs a token | Set `TURSO_AUTH_TOKEN` alongside a `libsql://` `TURSO_DATABASE_URL` |
 | Pino transport error in Docker | `pino-pretty` missing from production deps | Ensure it's in `dependencies`, not `devDependencies`, in any packages you add |
 | Browser panel blank / screencast emits no frames | Chromium not installed, or `BROWSER_EXECUTABLE_PATH` points at a system Chrome (its launcher forks/detaches — `playwright-core` can't drive it headless) | Run `npm run setup:browser` once; leave `BROWSER_EXECUTABLE_PATH` **unset** so browser-viewer uses its bundled Chromium |
 
@@ -246,7 +240,7 @@ For typical VPS deployments (Hetzner, DigitalOcean, etc.) the 676MB size is not 
 See `.env.example` for the full list with comments. Minimum required:
 
 - `APP_SECRET` — min 32 chars, generate with `openssl rand -hex 32`
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`
+- `TURSO_DATABASE_URL` — storage; defaults to `file:./mastra.db` for local dev (set a `libsql://` URL + `TURSO_AUTH_TOKEN` for Turso in prod)
 - At least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`
 
 ---
