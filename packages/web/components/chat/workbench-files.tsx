@@ -6,6 +6,7 @@ import type { BundledLanguage } from 'shiki';
 import { CodeBlock } from '@/components/ai-elements/code-block';
 import { FileTree, FileTreeFile, FileTreeFolder } from '@/components/ai-elements/file-tree';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
+import { cn } from '@/lib/utils';
 
 type FileNode = {
   name: string;
@@ -135,7 +136,9 @@ export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
           The workspace is empty — files the agent creates appear here.
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        // When a file is open, cap the tree to a small slice (scrolls if long) so the file
+        // viewer below gets the majority of the height; otherwise the tree fills the panel.
+        <div className={cn('overflow-auto', selected ? 'max-h-[32%] shrink-0' : 'min-h-0 flex-1')}>
           <FileTree
             defaultExpanded={new Set(tree.filter((n) => n.type === 'dir').map((n) => n.path))}
             selectedPath={selected ?? undefined}
@@ -165,7 +168,15 @@ export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
             {loadingFile ? (
               <p className="text-muted-foreground text-xs">Loading…</p>
             ) : content !== null ? (
-              <CodeBlock code={content} language={langFor(selected)} showLineNumbers />
+              // Soft-wrap long lines so prose/long code flows DOWN instead of scrolling
+              // sideways off the narrow panel. Targets the inner <pre> so the shared
+              // CodeBlock used elsewhere keeps its default (horizontal-scroll) behavior.
+              <CodeBlock
+                code={content}
+                language={langFor(selected)}
+                showLineNumbers
+                className="[&_pre]:whitespace-pre-wrap [&_pre]:break-words"
+              />
             ) : (
               <p className="text-destructive text-xs">Could not read this file.</p>
             )}
