@@ -1,6 +1,6 @@
 'use client';
 
-import { CopyIcon, SparklesIcon, UserIcon } from 'lucide-react';
+import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
 import {
   Confirmation,
   ConfirmationAction,
@@ -71,7 +71,7 @@ function MsgAvatar({ role }: { role: string }) {
           : 'border border-border bg-card text-muted-foreground',
       )}
     >
-      {isUser ? <UserIcon className="size-3.5" /> : <SparklesIcon className="size-3.5" />}
+      {isUser ? <UserIcon className="size-3.5" /> : <BotIcon className="size-3.5" />}
     </div>
   );
 }
@@ -179,7 +179,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
         </div>
       ) : (
         <Conversation className="flex-1">
-          <ConversationContent className="mx-auto w-full max-w-3xl">
+          <ConversationContent className="mx-auto w-full max-w-3xl pt-10">
             {messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
               .map((m) => {
