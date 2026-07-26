@@ -214,3 +214,17 @@
 .typing-dot:nth-child(3) {
   animation-delay: 0.3s;
 }
+
+/* Hide the native scrollbar on a scroll container while keeping it scrollable.
+   Used for the chat conversation (StickToBottom's scroll element) so the reading
+   column stays clean. With a zero-width scrollbar, `scrollbar-gutter: stable`
+   reserves no space either, so content keeps the full width. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox + Chrome 121+ */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* Chrome/Safari fallback */
+}
