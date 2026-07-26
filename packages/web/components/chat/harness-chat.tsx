@@ -123,7 +123,10 @@ function ModeSwitcher({
       onValueChange={(v) => onSwitch(v)}
       disabled={disabled}
     >
-      <PromptInputSelectTrigger className="h-8 gap-1 text-xs" aria-label="Agent mode">
+      <PromptInputSelectTrigger
+        className="h-8 gap-1 text-xs transition active:scale-[0.96]"
+        aria-label="Agent mode"
+      >
         <PromptInputSelectValue placeholder="Mode" />
       </PromptInputSelectTrigger>
       <PromptInputSelectContent>
@@ -219,7 +222,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
         // Empty state: hero + white composer + suggestions, centered as one group.
         <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
           <div className="animate-fade-up space-y-2 text-center">
-            <h1 className="font-semibold text-3xl tracking-tight sm:text-4xl">
+            <h1 className="text-balance font-semibold text-3xl tracking-tight sm:text-4xl">
               What&rsquo;s on your mind today?
             </h1>
             <p className="text-base text-muted-foreground">
@@ -233,7 +236,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
                 key={s}
                 type="button"
                 onClick={() => handleSend({ text: s, model: '', webSearch: false })}
-                className="animate-fade-up rounded-xl border border-border bg-card px-4 py-3 text-left text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="animate-fade-up rounded-xl border border-border bg-card px-4 py-3 text-left text-muted-foreground text-sm transition hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
               >
                 {s}
               </button>
@@ -365,7 +368,7 @@ function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?:
   const task = run?.task ?? fallbackTask;
   const running = run?.status !== 'done';
   return (
-    <Agent className="my-2">
+    <Agent className="my-2 rounded-lg">
       <AgentHeader
         name={`Subagent · ${agentType}${run?.forked ? ' (forked)' : ''}`}
         model={run?.modelId}
@@ -395,7 +398,7 @@ function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?:
         ))}
         {run?.text && <MessageResponse>{run.text}</MessageResponse>}
         {running ? (
-          <p className="text-muted-foreground text-xs italic">Working…</p>
+          <p className="animate-pulse text-muted-foreground text-xs italic">Working…</p>
         ) : run?.isError ? (
           <p className="text-destructive text-xs">Subagent reported an error.</p>
         ) : null}
