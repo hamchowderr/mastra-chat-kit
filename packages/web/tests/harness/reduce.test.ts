@@ -360,6 +360,71 @@ describe('harness reducer', () => {
     expect(done.goal).toMatchObject({ iteration: 2, passed: true, status: 'done' });
   });
 
+  it('folds om_status into the memory token windows + buffer state', () => {
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'om_status',
+      windows: {
+        active: {
+          messages: { tokens: 6226, threshold: 3000 },
+          observations: { tokens: 120, threshold: 40000 },
+        },
+        buffered: {
+          observations: { status: 'idle', chunks: 2 },
+          reflection: { status: 'running' },
+        },
+      },
+      recordId: 'r1',
+      threadId: 't1',
+    });
+    expect(s.memory?.status).toMatchObject({
+      messages: { tokens: 6226, threshold: 3000 },
+      observations: { tokens: 120, threshold: 40000 },
+      observationBuffer: { status: 'idle', chunks: 2 },
+      reflectionBuffer: { status: 'running' },
+    });
+  });
+
+  it('accumulates om lifecycle events into the memory activity log (bounded, newest last)', () => {
+    const s = reduceHarnessEvents(emptyTranscript(), [
+      {
+        type: 'om_observation_start',
+        cycleId: 'c1',
+        operationType: 'observation',
+        tokensToObserve: 3200,
+      },
+      {
+        type: 'om_observation_end',
+        cycleId: 'c1',
+        durationMs: 812,
+        tokensObserved: 3200,
+        observationTokens: 90,
+        observations: 'User runs a coffee roastery named Ember; prefers concise answers.',
+      },
+      {
+        type: 'om_activation',
+        cycleId: 'c1',
+        operationType: 'observation',
+        chunksActivated: 1,
+        tokensActivated: 90,
+      },
+    ]);
+    expect(s.memory?.activity).toHaveLength(3);
+    expect(s.memory?.activity[0]).toMatchObject({ kind: 'observe' });
+    expect(s.memory?.activity.at(-1)).toMatchObject({ kind: 'activate' });
+    // the distilled observations text surfaced from observation_end
+    expect(s.memory?.observations).toContain('Ember');
+  });
+
+  it('surfaces a failed observation on the activity log', () => {
+    const s = reduceHarnessEvent(emptyTranscript(), {
+      type: 'om_observation_failed',
+      cycleId: 'c1',
+      error: 'model timeout',
+      durationMs: 5,
+    });
+    expect(s.memory?.activity[0]).toMatchObject({ kind: 'observe', failed: true });
+  });
+
   it('records the latest info status line', () => {
     const s = reduceHarnessEvents(emptyTranscript(), [
       { type: 'info', message: 'starting up' },
@@ -370,7 +435,8 @@ describe('harness reducer', () => {
 
   it('passes unknown events through untouched', () => {
     const before = emptyTranscript();
-    const after = reduceHarnessEvent(before, { type: 'om_status', windows: {} });
+    // A genuinely unhandled event (om_status is now consumed → the Memory panel).
+    const after = reduceHarnessEvent(before, { type: 'some_future_event', foo: 1 });
     expect(after).toEqual(before);
   });
 

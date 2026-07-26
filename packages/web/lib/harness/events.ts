@@ -133,6 +133,27 @@ export type HarnessGoal = {
   maxRunsReached?: boolean;
 };
 
+/**
+ * Observational-Memory state, folded from the `om_*` events. `om_status` (the primary,
+ * fires per run) carries the token windows: how many message tokens have accumulated
+ * toward the observation threshold, and how many observation tokens toward reflection —
+ * plus the observe/reflect buffer status. The lifecycle events (observation/reflection
+ * start/end, activation) accumulate into a bounded activity log. Drives the Memory panel.
+ */
+export type HarnessMemory = {
+  /** Latest `om_status` window snapshot — null before OM first reports in. */
+  status: {
+    messages: { tokens: number; threshold: number };
+    observations: { tokens: number; threshold: number };
+    observationBuffer: { status: string; chunks: number };
+    reflectionBuffer: { status: string };
+  } | null;
+  /** Rolling log of OM lifecycle activity (newest last), bounded. */
+  activity: { kind: 'observe' | 'reflect' | 'activate'; detail: string; failed?: boolean }[];
+  /** The most recently distilled observations text, when the Observer/Reflector surfaces one. */
+  observations: string | null;
+};
+
 /** What the SSE consumer folds events into and the view renders. */
 export type HarnessTranscript = {
   threadId: string | null;
@@ -154,6 +175,8 @@ export type HarnessTranscript = {
   activeMode: string | null;
   /** Current goal-run state, folded from `goal_evaluation` (→ the goal card). */
   goal: HarnessGoal | null;
+  /** Observational-Memory state, folded from `om_*` (→ the workbench Memory panel). */
+  memory: HarnessMemory | null;
   error: string | null;
   done: boolean;
 };
@@ -172,6 +195,7 @@ export const emptyTranscript = (): HarnessTranscript => ({
   subagents: [],
   activeMode: null,
   goal: null,
+  memory: null,
   error: null,
   done: false,
 });
@@ -310,6 +334,28 @@ function upsertSubagent(
 }
 
 /**
+ * Append one OM lifecycle entry to the memory activity log (bounded to the last 30,
+ * newest last) and optionally update the distilled observations text. Seeds an empty
+ * memory shell if none exists yet (an activity event can arrive before the first
+ * `om_status`), so nothing drops.
+ */
+function foldMemoryActivity(
+  state: HarnessTranscript,
+  entry: HarnessMemory['activity'][number],
+  observations?: string,
+): HarnessTranscript {
+  const base: HarnessMemory = state.memory ?? { status: null, activity: [], observations: null };
+  return {
+    ...state,
+    memory: {
+      ...base,
+      activity: [...base.activity, entry].slice(-30),
+      observations: observations ?? base.observations,
+    },
+  };
+}
+
+/**
  * Pure reducer: fold one HarnessEvent (or a transport sentinel) into the
  * transcript. Keeping this pure makes the whole transport testable without a
  * network or React.
@@ -430,6 +476,85 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
         },
       };
     }
+    // Observational Memory (698.35) → the workbench Memory panel. `om_status` (per run)
+    // carries the token windows + buffer state; the lifecycle events accumulate into a
+    // bounded activity log. `observations` holds the latest distilled facts when surfaced.
+    case 'om_status': {
+      const w = (event.windows ?? {}) as {
+        active?: {
+          messages?: { tokens?: number; threshold?: number };
+          observations?: { tokens?: number; threshold?: number };
+        };
+        buffered?: {
+          observations?: { status?: string; chunks?: number };
+          reflection?: { status?: string };
+        };
+      };
+      return {
+        ...state,
+        memory: {
+          status: {
+            messages: {
+              tokens: Number(w.active?.messages?.tokens ?? 0),
+              threshold: Number(w.active?.messages?.threshold ?? 0),
+            },
+            observations: {
+              tokens: Number(w.active?.observations?.tokens ?? 0),
+              threshold: Number(w.active?.observations?.threshold ?? 0),
+            },
+            observationBuffer: {
+              status: String(w.buffered?.observations?.status ?? 'idle'),
+              chunks: Number(w.buffered?.observations?.chunks ?? 0),
+            },
+            reflectionBuffer: { status: String(w.buffered?.reflection?.status ?? 'idle') },
+          },
+          activity: state.memory?.activity ?? [],
+          observations: state.memory?.observations ?? null,
+        },
+      };
+    }
+    case 'om_observation_start':
+      return foldMemoryActivity(state, {
+        kind: 'observe',
+        detail: `Observing ${Number(event.tokensToObserve ?? 0)} tokens…`,
+      });
+    case 'om_observation_end':
+      return foldMemoryActivity(
+        state,
+        { kind: 'observe', detail: `Observed in ${Number(event.durationMs ?? 0)}ms` },
+        typeof event.observations === 'string' ? event.observations : undefined,
+      );
+    case 'om_observation_failed':
+      return foldMemoryActivity(state, {
+        kind: 'observe',
+        detail: `Observation failed: ${String(event.error ?? 'unknown')}`,
+        failed: true,
+      });
+    case 'om_reflection_start':
+      return foldMemoryActivity(state, {
+        kind: 'reflect',
+        detail: `Reflecting on ${Number(event.tokensToReflect ?? 0)} tokens…`,
+      });
+    case 'om_reflection_end':
+      return foldMemoryActivity(
+        state,
+        {
+          kind: 'reflect',
+          detail: `Compressed to ${Number(event.compressedTokens ?? 0)} tokens in ${Number(event.durationMs ?? 0)}ms`,
+        },
+        typeof event.observations === 'string' ? event.observations : undefined,
+      );
+    case 'om_reflection_failed':
+      return foldMemoryActivity(state, {
+        kind: 'reflect',
+        detail: `Reflection failed: ${String(event.error ?? 'unknown')}`,
+        failed: true,
+      });
+    case 'om_activation':
+      return foldMemoryActivity(state, {
+        kind: 'activate',
+        detail: `Activated ${Number(event.chunksActivated ?? 0)} chunk(s) (${Number(event.tokensActivated ?? 0)} tokens)`,
+      });
     // Subagents (6 events, keyed by the parent `subagent` tool-call id) → the Agent
     // element renders inline where the parent's `subagent` tool call appears.
     case 'subagent_start':

@@ -239,6 +239,8 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     goal: transcript.goal,
     /** Clear the active objective (backs the goal card's dismiss control). */
     clearGoal,
+    /** Observational-Memory state (token windows + activity), folded from `om_*`. */
+    memory: transcript.memory,
     /** The active conversation id (null before the first turn / after reset). */
     activeThreadId: transcript.threadId,
     /** Increments when a turn completes — drives the sidebar refetch. */

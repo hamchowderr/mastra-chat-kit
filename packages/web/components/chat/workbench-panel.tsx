@@ -1,10 +1,11 @@
 'use client';
 
-import { FilesIcon, GlobeIcon, PanelRightCloseIcon, TerminalIcon } from 'lucide-react';
+import { BrainIcon, FilesIcon, GlobeIcon, PanelRightCloseIcon, TerminalIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Terminal } from '@/components/ai-elements/terminal';
 import { WorkbenchBrowser } from '@/components/chat/workbench-browser';
 import { WorkbenchFiles } from '@/components/chat/workbench-files';
+import { WorkbenchMemory } from '@/components/chat/workbench-memory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { HarnessWorkspace } from '@/lib/harness/events';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
@@ -28,7 +29,7 @@ export function WorkbenchPanel({
   harness: UseHarnessChat;
   onCollapse?: () => void;
 }) {
-  const { terminal, workspace } = harness.transcript;
+  const { terminal, workspace, memory } = harness.transcript;
 
   return (
     // Flush to the window edge — the right rail is part of the recessed frame; the chat
@@ -50,6 +51,10 @@ export function WorkbenchPanel({
           <TabsTrigger value="browser">
             <GlobeIcon />
             Browser
+          </TabsTrigger>
+          <TabsTrigger value="memory">
+            <BrainIcon />
+            Memory
           </TabsTrigger>
           {/* Workspace status dot — reflects the harness workspace lifecycle. */}
           <WorkspaceStatus workspace={workspace} className="ml-auto self-center" />
@@ -82,6 +87,9 @@ export function WorkbenchPanel({
         </TabsContent>
         <TabsContent value="browser" className="min-h-0 flex-1 overflow-hidden p-3">
           <WorkbenchBrowser />
+        </TabsContent>
+        <TabsContent value="memory" className="min-h-0 flex-1 overflow-hidden p-3">
+          <WorkbenchMemory memory={memory} />
         </TabsContent>
       </Tabs>
     </div>
