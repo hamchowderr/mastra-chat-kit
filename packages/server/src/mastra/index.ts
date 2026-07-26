@@ -14,11 +14,13 @@ import { MastraJwtAuth } from '@mastra/auth';
 import { Mastra } from '@mastra/core/mastra';
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
+import { MastraCompositeStore } from '@mastra/core/storage';
+import { DuckDBStore } from '@mastra/duckdb';
 import { MastraEditor } from '@mastra/editor';
 import { fastembed } from '@mastra/fastembed';
 import { PinoLogger } from '@mastra/loggers';
 import { MCPServer } from '@mastra/mcp';
-import { DefaultExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
+import { MastraStorageExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
 import {
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -58,14 +60,25 @@ const mcpServer = new MCPServer({
   agents: { leadIntake: leadIntakeAgent },
 });
 
-// One libSQL/Turso store serves every Mastra domain (default, editor, and
-// observability). Local dev uses a file: DB — no server, no Docker; prod points
-// TURSO_DATABASE_URL at a libsql:// Turso URL with TURSO_AUTH_TOKEN. libSQL has
-// native vector search, so there's no DuckDB (observability) or pgvector to run.
-// To switch the whole kit to Postgres instead, see docs/postgres.md.
+// libSQL is the primary store (default/editor/memory domains + vectors). Local dev
+// uses a file: DB — no server, no Docker; prod points TURSO_DATABASE_URL at a
+// libsql:// Turso URL with TURSO_AUTH_TOKEN. libSQL has native vector search (no
+// pgvector); only the observability OLAP domain uses DuckDB (see the composite
+// store below). To switch the whole kit to Postgres instead, see docs/postgres.md.
 // The ONE shared libSQL store — same instance the agents' Memory and the harness
 // AgentController use, so threads/messages never split across DB files.
-const storage = getSharedStore();
+// libSQL serves the default/editor/memory domains + vectors; DuckDB serves ONLY
+// the observability (OLAP) domain that Studio's Metrics/Logs query — libSQL can't
+// back those views on core 1.52, so they'd read "not available". Memory + the
+// harness use the same LibSQLStore (getSharedStore) directly, and the composite's
+// `default` IS that instance, so threads/messages stay on one libSQL DB.
+const storage = new MastraCompositeStore({
+  id: 'composite-storage',
+  default: getSharedStore(),
+  domains: {
+    observability: await new DuckDBStore().getStore('observability'),
+  },
+});
 
 // Models the Single Agent route will accept from body.model (the composer's model
 // picker). Keep in sync with web `MODELS` in components/chat/composer.tsx. The
@@ -990,7 +1003,7 @@ export const mastra = new Mastra({
     configs: {
       default: {
         serviceName: 'mastra',
-        exporters: [new DefaultExporter()],
+        exporters: [new MastraStorageExporter()],
         spanOutputProcessors: [new SensitiveDataFilter()],
       },
     },

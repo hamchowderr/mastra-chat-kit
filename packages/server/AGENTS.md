@@ -96,10 +96,10 @@ Note: `createPromptAlignmentScorerLLM` with `evaluationMode: 'system'` requires 
 
 ## Storage
 
-The Mastra instance runs on **libSQL/Turso**. A single `LibSQLStore` serves every
-domain (default, editor, observability), and `LibSQLVector` (see
-`src/mastra/lib/memory.ts`) backs semantic recall. libSQL has native vector
-search, so there's no separate DuckDB or pgvector.
+The Mastra instance runs on **libSQL/Turso**. A `LibSQLStore` serves the
+default/editor/memory domains, and `LibSQLVector` (see `src/mastra/lib/memory.ts`)
+backs semantic recall (native vector search, no pgvector). Observability alone uses
+DuckDB (OLAP) via a `MastraCompositeStore` — Studio's Metrics/Logs need it.
 
 ```typescript
 new LibSQLStore({ id: 'mastra-storage', url: env.TURSO_DATABASE_URL })

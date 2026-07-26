@@ -210,10 +210,9 @@ database is involved. Prefer Postgres for storage instead? See `docs/postgres.md
 
 ### Docker image
 
-The image is based on `node:22-slim` (Debian). Storage + vectors + observability
-all run on libSQL, which has no native-module glibc constraint, so `node:22-alpine`
-also works if you want a smaller image (see the note in `Dockerfile`). There's no
-DuckDB or Postgres in the runtime.
+The image is based on `node:22-slim` (Debian). Storage + vectors run on libSQL;
+observability uses DuckDB, whose native binaries need glibc — so `node:22-slim` is
+required (do not switch to `node:22-alpine`). No Postgres in the runtime.
 
 For typical VPS deployments (DigitalOcean, Hostinger, etc.) the image size is not a
 concern — pulls take seconds and storage is cheap.

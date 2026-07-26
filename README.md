@@ -182,7 +182,7 @@ Open the web app at `http://localhost:3000` (chat) and `/showcase` (every elemen
 
 ## 🗄️ Storage — libSQL / Turso by default
 
-Everything Mastra persists — memory, threads, observability traces, and the vector index for semantic recall — lives in **one libSQL database**. libSQL has native vector search, so there's no separate vector service, no pgvector, and no DuckDB.
+Memory, threads, and the vector index for semantic recall live in **libSQL** (native vector search — no separate vector service, no pgvector). Observability traces use **DuckDB** (an embedded OLAP store) via a composite store, since Studio's Metrics/Logs need OLAP queries libSQL can't serve.
 
 | Environment | `TURSO_DATABASE_URL` | Needs |
 |---|---|---|

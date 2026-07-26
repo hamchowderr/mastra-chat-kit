@@ -30,6 +30,7 @@
     "@mastra/auth": "^1.1.2",
     "@mastra/browser-viewer": "0.2.1",
     "@mastra/core": "^1.52.1",
+    "@mastra/duckdb": "^1.5.1",
     "@mastra/editor": "^0.13.8",
     "@mastra/evals": "^1.6.0",
     "@mastra/fastembed": "^1.2.0",

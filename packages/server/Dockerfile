@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# Storage runs on libSQL/Turso (no DuckDB, no Postgres), so this image has no
-# native-module glibc constraint. node:22-slim (Debian) is used for broad
-# compatibility; node:22-alpine also works if you want a smaller image.
+# Storage runs on libSQL/Turso; observability uses DuckDB, whose native binaries
+# need glibc (they segfault on musl). So node:22-slim (Debian, glibc) is required
+# here — do NOT switch to node:22-alpine.
 # ─── Stage 1: build ───────────────────────────────────────────────
 FROM node:22-slim AS build
 WORKDIR /app
