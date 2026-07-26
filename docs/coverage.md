@@ -1,7 +1,7 @@
 # Coverage Matrix — Mastra / Agent Harness → AI SDK → AI Elements
 
 > **Companion references (re-grounded 2026-07-25):**
-> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (11 consumed, 39 dropped).
+> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (15 consumed, 35 dropped; of the 35, only 8 can fire in this kit's config, 25 are gated on unshipped features, 2 are intentional).
 > - [ai-elements.md](./ai-elements.md) — all **48** vendored AI Elements (22 live, 26 showroom).
 >
 > **Live, browsable version:** the app serves a wiring map at **`/status`** (from
@@ -70,9 +70,13 @@ Finish-reason mapping: Mastra's extended `tripwire`/`retry` → AI SDK `other`; 
 ## 3. Mastra **Agent Harness** event → element  (the bigger surface)
 
 The Harness emits **50** `AgentControllerEvent` types + a canonical `display_state_changed` snapshot.
-The web reducer currently **consumes 11 and drops 39** — see [harness-events.md](./harness-events.md)
-for the full per-event table, payloads, and target elements. Most events do **not** fit a standard
-UIMessage part — they ride the Harness event stream (or `data-*`). Every one has a natural element target.
+The web reducer currently **consumes 15 and drops 35** — see [harness-events.md](./harness-events.md)
+for the full per-event table, payloads, and target elements. The 35 dropped are not 35 gaps: only **8
+fire in this kit's single-agent/single-mode/no-OM config** (live tool streaming + `model_changed`),
+**25 are gated on a feature that isn't enabled** (subagents, observational memory, extra threads/modes,
+goals, tool-suspend — each owned by a `698.x` issue), and **2 are intentionally off** (`state_changed`,
+`display_state_changed`). Most events do **not** fit a standard UIMessage part — they ride the Harness
+event stream (or `data-*`). Every one has a natural element target.
 
 > ✅ **`mastra-chat-kit-vud` (fixed):** the harness tool flow works with OpenAI. The earlier "hangs on
 > any tool call" symptom was `TokenLimiter` in `defaultOutputProcessors` breaking tool-call streaming
@@ -88,8 +92,8 @@ event mapped/streamed, ⛔ = not consumed yet.
 | Harness event / display-state | Element target | Wired |
 |---|---|---|
 | `message_start/_update/_end` (`HarnessMessage`) | `Message` / `MessageResponse` | ✅ |
-| message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ |
-| `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | 🟡 (via message tool_call/result) |
+| message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ (handles the v4-nested `tool-invocation` shape core 1.52 emits — `698.26`) |
+| `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | 🟡 (via message tool_call/result; granular live-streaming deferred — `698.25`) |
 | `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny wired → `POST /harness/approve`) |
 | `tool_suspended` / `pendingSuspensions` | `Confirmation` / `Task` | ⛔ |
 | `shell_output` (stdout/stderr) | `Terminal` | ⛔ |
