@@ -4,6 +4,15 @@ This file is for AI coding agents (Claude Code, Cursor, Copilot, etc.) working o
 
 ---
 
+## CRITICAL: Load the `mastra` skill first
+
+Load the `mastra` skill **before any Mastra work** on this codebase. Never rely on
+cached knowledge — Mastra APIs change between versions, and this kit pins exact
+`@mastra/*` versions. If the skill isn't available, consult the current docs at
+<https://mastra.ai/llms.txt> instead of guessing from memory.
+
+---
+
 ## Boot Order (critical)
 
 `src/mastra/index.ts` must initialize in this exact order:
