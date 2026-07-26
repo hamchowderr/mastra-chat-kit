@@ -7,6 +7,7 @@ import { env } from '../../lib/env';
 import { putImage } from '../lib/image-store';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
+import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
 /**
  * # Chat Assistant (mastra-chat-kit reference agent)
@@ -196,6 +197,7 @@ const BASE_INSTRUCTIONS = `You are a helpful, concise assistant.
 - For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, then call submit_plan with a short, ordered plan and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly. (submit_plan is only available in Harness mode.)
 - When you need something from the user that you don't have and can't sensibly assume — a genuinely ambiguous request (which of several things they mean) OR a required detail that's missing (a name, value, or choice you can't default) — ALWAYS ask through the ask_user tool, NEVER in plain prose. (A plain-text question just stalls the turn; ask_user gives the user a real prompt that resumes the run with their answer.) Call ask_user with ONE clear, specific question, and pass \`options\` (2–4 concise labels) when the likely answers are known so the user can pick instead of typing. Ask once, then continue with the answer. Don't use it for things you can reasonably infer or default — for trivial gaps, act on a sensible assumption and say what you assumed. (ask_user is only available in Harness mode.)
 - For a task with several distinct steps, track it with the task tools: call task_write once to lay out the steps up front, then task_update / task_complete as you finish each one, so the user can watch progress. Skip this for single-step or trivial requests — don't narrate a one-liner as a task list.
+- When the user wants something to happen repeatedly on a timer — "every morning…", "remind me every hour…", "run X daily…" — call start_schedule with a cron expression and the prompt to run; it returns a schedule id and fires into this conversation. To stop or cancel one, call stop_schedule with its id (use list_schedules first if you don't have it). Use these only for genuinely recurring requests, not one-off "do this now" tasks. (Scheduling is only available in Harness mode.)
 - Keep responses tight and skimmable. Use markdown (lists, code blocks) where it helps.
 - Never fabricate tool results; only state what the tools return.`;
 
@@ -241,7 +243,15 @@ export const chatAgent = new Agent({
   // task tools via the controller; the agent's provider is the canonical source and
   // dedupes by tool id). Needs memory + a thread, which both paths supply.
   signals: [new TaskSignalProvider()],
-  tools: { getWeather, searchKnowledge, generateImage, setGoal },
+  tools: {
+    getWeather,
+    searchKnowledge,
+    generateImage,
+    setGoal,
+    startSchedule,
+    stopSchedule,
+    listSchedules,
+  },
   // Default execution options applied to EVERY run (chatRoute + Harness): enable
   // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
   // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic

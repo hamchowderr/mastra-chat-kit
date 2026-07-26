@@ -189,9 +189,20 @@ export async function getChatSession(): Promise<Session> {
   //    first approve "Run ask_user?" (showing the question as raw args), THEN the prompt.
   //  - task_write/update/complete/check — pure progress tracking that drives the <Task>
   //    element; gating them makes the user approve "task_write" before seeing a to-do list.
-  // Everything with a real side effect (fs writes, shell, browser, subagents) stays gated.
-  // In-memory + idempotent, so re-granting each call is free.
-  for (const tool of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check']) {
+  //  - list_schedules — read-only view of existing schedules (the schedules panel + the
+  //    agent answering "what's scheduled?"). Its mutating siblings start_schedule /
+  //    stop_schedule stay GATED: creating a recurring background run is a real side effect,
+  //    so it flows through the approval gate (an intentional HITL demo).
+  // Everything with a real side effect (fs writes, shell, browser, subagents, start/stop
+  // schedule) stays gated. In-memory + idempotent, so re-granting each call is free.
+  for (const tool of [
+    'ask_user',
+    'task_write',
+    'task_update',
+    'task_complete',
+    'task_check',
+    'list_schedules',
+  ]) {
     session.grantTool(tool);
   }
   return session;

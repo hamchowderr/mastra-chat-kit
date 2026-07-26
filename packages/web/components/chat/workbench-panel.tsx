@@ -1,11 +1,19 @@
 'use client';
 
-import { BrainIcon, FilesIcon, GlobeIcon, PanelRightCloseIcon, TerminalIcon } from 'lucide-react';
+import {
+  BrainIcon,
+  CalendarClockIcon,
+  FilesIcon,
+  GlobeIcon,
+  PanelRightCloseIcon,
+  TerminalIcon,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Terminal } from '@/components/ai-elements/terminal';
 import { WorkbenchBrowser } from '@/components/chat/workbench-browser';
 import { WorkbenchFiles } from '@/components/chat/workbench-files';
 import { WorkbenchMemory } from '@/components/chat/workbench-memory';
+import { WorkbenchSchedules } from '@/components/chat/workbench-schedules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { HarnessWorkspace } from '@/lib/harness/events';
 import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
@@ -30,6 +38,7 @@ export function WorkbenchPanel({
   onCollapse?: () => void;
 }) {
   const { terminal, workspace, memory } = harness.transcript;
+  const { schedules } = harness;
 
   return (
     // Flush to the window edge — the right rail is part of the recessed frame; the chat
@@ -55,6 +64,10 @@ export function WorkbenchPanel({
           <TabsTrigger value="memory">
             <BrainIcon />
             Memory
+          </TabsTrigger>
+          <TabsTrigger value="schedules">
+            <CalendarClockIcon />
+            Schedules
           </TabsTrigger>
           {/* Workspace status dot — reflects the harness workspace lifecycle. */}
           <WorkspaceStatus workspace={workspace} className="ml-auto self-center" />
@@ -90,6 +103,9 @@ export function WorkbenchPanel({
         </TabsContent>
         <TabsContent value="memory" className="min-h-0 flex-1 overflow-hidden p-3">
           <WorkbenchMemory memory={memory} />
+        </TabsContent>
+        <TabsContent value="schedules" className="min-h-0 flex-1 overflow-hidden p-3">
+          <WorkbenchSchedules schedules={schedules} />
         </TabsContent>
       </Tabs>
     </div>

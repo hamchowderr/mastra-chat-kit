@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   emptyTranscript,
   type HarnessGoal,
+  type HarnessSchedule,
   type HarnessTranscript,
   reduceHarnessEvent,
   uiMessagesToHarness,
@@ -20,6 +21,10 @@ export type HarnessStatus = 'ready' | 'streaming' | 'error';
 export function useHarnessChat(endpoint = '/api/harness/stream') {
   const [transcript, setTranscript] = useState<HarnessTranscript>(emptyTranscript);
   const [status, setStatus] = useState<HarnessStatus>('ready');
+  // Recurring schedules the agent has set up (fetched, not folded from events —
+  // schedule CRUD goes through the start/stop_schedule tools, so the panel refetches
+  // when a run settles). Read-only in the UI.
+  const [schedules, setSchedules] = useState<HarnessSchedule[]>([]);
   const threadRef = useRef<string | null>(null);
   // Bumps whenever a turn completes so the conversation sidebar refetches (a new
   // thread appears / an existing one re-sorts to the top).
@@ -86,6 +91,23 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only hydration
   useEffect(() => {
     refreshMemory();
+  }, []);
+
+  // Load the agent's recurring schedules (the Schedules panel). Called on mount and
+  // after each run settles, so a schedule the agent just created/paused shows up.
+  const refreshSchedules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/harness/schedules', { cache: 'no-store' });
+      const data = (await res.json()) as { schedules?: HarnessSchedule[] };
+      setSchedules(Array.isArray(data.schedules) ? data.schedules : []);
+    } catch {
+      // The panel just shows its empty state if the server is unreachable.
+    }
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only hydration
+  useEffect(() => {
+    refreshSchedules();
   }, []);
 
   const sendMessage = useCallback(
@@ -159,6 +181,8 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
         // A completed turn may have created a new thread (or bumped an existing
         // one) — nudge the sidebar to refetch.
         setRefreshSignal((n) => n + 1);
+        // The turn may also have created or paused a schedule — refresh the panel.
+        refreshSchedules();
       } catch (err) {
         setTranscript((s) => ({
           ...s,
@@ -167,7 +191,7 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
         setStatus('error');
       }
     },
-    [endpoint],
+    [endpoint, refreshSchedules],
   );
 
   /**
@@ -275,6 +299,10 @@ export function useHarnessChat(endpoint = '/api/harness/stream') {
     clearGoal,
     /** Observational-Memory state (token windows + activity), folded from `om_*`. */
     memory: transcript.memory,
+    /** The agent's recurring schedules (read-only; refetched when a run settles). */
+    schedules,
+    /** Force a refetch of the schedules list (e.g. after the schedules tab opens). */
+    refreshSchedules,
     /** The active conversation id (null before the first turn / after reset). */
     activeThreadId: transcript.threadId,
     /** Increments when a turn completes — drives the sidebar refetch. */

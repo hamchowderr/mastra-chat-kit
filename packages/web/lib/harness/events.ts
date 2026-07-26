@@ -154,6 +154,24 @@ export type HarnessMemory = {
   observations: string | null;
 };
 
+/**
+ * One recurring schedule the harness agent has set up (native `mastra.schedules`).
+ * Fetched from `/api/harness/schedules` (not folded from events) since schedule
+ * CRUD happens through the agent's start_schedule / stop_schedule tools, then the
+ * panel refetches when a run settles. Read-only in the UI (agent-driven).
+ */
+export type HarnessSchedule = {
+  id: string;
+  cron: string;
+  prompt: string;
+  status: 'active' | 'paused';
+  /** Epoch ms of the next planned fire (0 when paused/unknown). */
+  nextFireAt: number;
+  /** Epoch ms of the last fire, or null if it hasn't fired yet. */
+  lastFireAt?: number | null;
+  name?: string;
+};
+
 /** What the SSE consumer folds events into and the view renders. */
 export type HarnessTranscript = {
   threadId: string | null;

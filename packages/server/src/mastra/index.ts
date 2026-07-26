@@ -956,6 +956,33 @@ const serverConfig = {
       },
     }),
 
+    // List the recurring schedules the harness agent has set up (the Schedules
+    // panel). Reads the native `mastra.schedules` service directly — the same
+    // service the agent's start_schedule / stop_schedule tools write to — and
+    // returns flat agent-schedule views. Read-only: creating/pausing is
+    // AGENT-DRIVEN (the user asks the agent), so there's no mutate route here.
+    registerApiRoute('/harness/schedules', {
+      method: 'GET',
+      handler: async (c) => {
+        const rows = await mastra.schedules.list({ agentId: 'chat' });
+        const schedules = rows
+          // biome-ignore lint/suspicious/noExplicitAny: AnySchedule union — agent schedules carry agentId
+          .filter((s: any) => s?.agentId)
+          // biome-ignore lint/suspicious/noExplicitAny: flat AgentSchedule view
+          .map((s: any) => ({
+            id: String(s.id),
+            cron: String(s.cron ?? ''),
+            prompt: String(s.prompt ?? ''),
+            status: s.status === 'paused' ? 'paused' : 'active',
+            nextFireAt: typeof s.nextFireAt === 'number' ? s.nextFireAt : 0,
+            lastFireAt: typeof s.lastFireAt === 'number' ? s.lastFireAt : null,
+            ...(s.name ? { name: String(s.name) } : {}),
+          }))
+          .sort((a, b) => a.nextFireAt - b.nextFireAt);
+        return c.json({ schedules });
+      },
+    }),
+
     // Serves a generated image's bytes by id (the generateImage tool stashes them
     // so they never enter the model context). Returns { base64, mediaType }.
     registerApiRoute('/images/:id', {
