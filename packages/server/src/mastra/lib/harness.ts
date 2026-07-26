@@ -183,11 +183,16 @@ export async function getChatSession(): Promise<Session> {
   const controller = await getChatHarness();
   const existing = await controller.getSessionByResource(CHAT_RESOURCE_ID);
   const session = existing ?? (await controller.createSession({ resourceId: CHAT_RESOURCE_ID }));
-  // A clarifying question never needs an approval gate — the answer prompt IS the
-  // interaction. Without this, `ask_user` (approval-gated like every other tool)
-  // would first raise a redundant "Run ask_user?" approval showing the question as
-  // raw args, THEN the real prompt. Auto-allowing it sends the run straight to
-  // suspend → the AskUserPrompt. In-memory + idempotent, so re-granting each call is free.
-  session.grantTool('ask_user');
+  // Auto-allow the harness's informational, side-effect-free interaction tools so they
+  // never raise a (redundant, confusing) approval gate:
+  //  - ask_user — the answer prompt IS the interaction; without this the user would
+  //    first approve "Run ask_user?" (showing the question as raw args), THEN the prompt.
+  //  - task_write/update/complete/check — pure progress tracking that drives the <Task>
+  //    element; gating them makes the user approve "task_write" before seeing a to-do list.
+  // Everything with a real side effect (fs writes, shell, browser, subagents) stays gated.
+  // In-memory + idempotent, so re-granting each call is free.
+  for (const tool of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check']) {
+    session.grantTool(tool);
+  }
   return session;
 }

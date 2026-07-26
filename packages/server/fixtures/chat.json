@@ -125,6 +125,42 @@
     },
 
     {
+      "_comment": "Native task tracking (698.19). A multi-step request → the agent calls the built-in task_write (from TaskSignalProvider) to lay out the steps; the TaskStateProcessor projects the list onto the state-signal lane → the harness emits task_updated → the <Task> element. turn 0 = task_write; turn 1 = the final text.",
+      "match": {
+        "userMessage": "Build a small counter script: create it, then run it.",
+        "turnIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "task_write",
+            "arguments": {
+              "tasks": [
+                {
+                  "content": "Create counter.js",
+                  "status": "in_progress",
+                  "activeForm": "Creating counter.js"
+                },
+                {
+                  "content": "Run it and verify the output",
+                  "status": "pending",
+                  "activeForm": "Running counter.js"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Build a small counter script: create it, then run it.",
+        "turnIndex": 1
+      },
+      "response": { "content": "Done — counter.js created and verified." }
+    },
+
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat (Single Agent AND Agent Harness) always responds deterministically instead of 404 'No fixture matched'. The harness sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated harness tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {

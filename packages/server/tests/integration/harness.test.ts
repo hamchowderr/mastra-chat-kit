@@ -183,6 +183,53 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     await controller.destroy();
   });
 
+  // Native task tracking (698.19): the chat agent registers `TaskSignalProvider`, which
+  // bundles the task tools + the TaskStateProcessor. A multi-step request makes the agent
+  // call task_write; the processor projects the list onto the state-signal lane and the
+  // harness emits `task_updated` → the <Task> element. Proves native tasks flow end-to-end.
+  it('tracks a multi-step task via the task tools, emitting task_updated', async () => {
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-tasks',
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-tasks' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: wide event union
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+      // Approve any OTHER gated tool; the task tools are granted below so they never gate.
+      if (event.type === 'tool_approval_required' && !event.toolName?.startsWith('task_')) {
+        session.respondToToolApproval({ decision: 'approve' });
+      }
+    });
+
+    // Mirror the web path (getChatSession): task tracking is informational, not a side
+    // effect, so the task tools are auto-allowed — no "Approve task_write?" gate.
+    for (const tool of ['task_write', 'task_update', 'task_complete', 'task_check']) {
+      session.grantTool(tool);
+    }
+
+    await session.thread.create({ title: 'tasks' });
+    await session.sendMessage({ content: 'Build a small counter script: create it, then run it.' });
+    unsubscribe();
+    await controller.destroy();
+
+    const taskUpdates = events.filter((e) => e.type === 'task_updated');
+    // The processor emitted the task list to the UI...
+    expect(taskUpdates.length).toBeGreaterThan(0);
+    const lastTasks = taskUpdates.at(-1)?.tasks as Array<{ content?: string }> | undefined;
+    expect(lastTasks?.length ?? 0).toBeGreaterThanOrEqual(2);
+    // ...and the tools the agent actually called include task_write.
+    expect(JSON.stringify(events)).toContain('task_write');
+    // The grant worked: task_write reached the processor WITHOUT an approval gate.
+    expect(
+      events.some((e) => e.type === 'tool_approval_required' && e.toolName === 'task_write'),
+    ).toBe(false);
+  });
+
   // Agent-driven ask_user (698.30): when a request is ambiguous the agent calls the
   // built-in `ask_user` tool, which SUSPENDS the run (emitting `tool_suspended` with the
   // question in its payload) until the user answers. This proves the full round-trip the

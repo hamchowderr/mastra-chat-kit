@@ -99,7 +99,7 @@ event mapped/streamed, ⛔ = not consumed yet.
 | `tool_suspended` + `tool_suspension_cancelled` / `pendingSuspension` | `AskUserPrompt` | ✅ (agent-driven `ask_user`; answer wired → `POST /harness/answer`, `698.30`) |
 | `shell_output` (stdout/stderr) | `Terminal` | ✅ (`698.24`) |
 | `subagent_start/_text_delta/_tool_*/_end` + `ActiveSubagentState` | `Agent` (+ nested `Tool`) | ✅ (`SubagentCard`, `698.27`) |
-| `task_updated` (`TaskItemSnapshot[]`) | `Task` / `Plan` / `ChainOfThought` | ✅ (`Task`) |
+| `task_updated` (`TaskItemSnapshot[]`) | `Task` / `Plan` / `ChainOfThought` | ✅ (`Task`; driven by the agent's native `TaskSignalProvider`, `698.19`) |
 | `goal_evaluation` (`objective`, `iteration`, `passed`, …) | `GoalCard` | ✅ (`698.29`) |
 | `background-task-*` (started/running/progress/completed/failed) | `Task` / `Tool` (status) | ⛔ |
 | `mode_changed` | `ModeSwitcher` (composer dropdown) | ✅ (`698.28`) |
@@ -137,7 +137,8 @@ for HITL once `Confirmation` is wired to `addToolApprovalResponse`.
 - web: `useHarnessChat` SSE consumer + `reduceHarnessEvent` reducer + `HarnessChat` view + Single Agent⇄Agent Harness toggle; shared `Composer` so the input never drifts
 - ✅ HITL approval: the Harness gates tool calls by default → `Confirmation` renders → approve/deny POSTs `/harness/approve` → `session.respondToToolApproval` resumes the parked run on the still-open SSE. Verified live (approve → tool runs → completes; decline → run ends).
 - ✅ live e2e: gate→approve→tool→answer round-trip proven via curl on the running server.
-- ✅ subagents (`698.27`), modes (`698.28`), goals (`698.29`), agent-driven `ask_user` (`698.30`), workspace/shell (`698.24`) all wired + tested.
+- ✅ subagents (`698.27`), modes (`698.28`), goals (`698.29`), agent-driven `ask_user` (`698.30`), native task tracking (`698.19`), workspace/shell (`698.24`) all wired + tested.
+- ✅ native task tracking (`698.19`): the chat agent registers `TaskSignalProvider` (bundles the four task tools + `TaskStateProcessor`); a multi-step request → the agent calls `task_write` (auto-allowed — informational, no approval gate) → the processor emits `task_updated` → the `<Task>` element. Verified live vs OpenAI (agent laid out steps as a task list; no gate; the run then correctly gated on the real file write).
 - ✅ agent-driven `ask_user` (`698.30`): an ambiguous request → the agent calls the built-in `ask_user` (auto-allowed, no approval gate) → the run suspends (`tool_suspended`) → `AskUserPrompt` renders the question/options → the answer POSTs `/harness/answer` → `session.respondToToolSuspension` resumes the parked run on the still-open SSE. Verified live vs OpenAI (agent asked "which environment?" with 3 option chips; answering resumed the run to completion).
 - still ⛔: OM event rendering (`698.20`), granular live tool streaming (`698.25`), threads sidebar (`698.16`/`698.17`)
 
