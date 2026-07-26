@@ -107,7 +107,7 @@ event mapped/streamed, ⛔ = not consumed yet.
 | `subagent_model_changed` | `Agent` header | ✅ |
 | `model_changed` | `ModelSelector` (reflect) | ⛔ (composer already shows the active model) |
 | `usage_update` (`TokenUsage`) | `Context` | ✅ |
-| `thread_created/_changed/_deleted` | conversation switcher (sidebar) | ⛔ (`698.16`/`698.17`) |
+| `thread_created/_changed/_deleted` | conversation switcher (sidebar) | ✅ (sidebar built; **semantic** search over message bodies via the fastembed index — `698.16`) |
 | checkpoints (thread snapshots) | `Checkpoint` | ⛔ |
 | `workspace_status_changed`/`_ready`/`_error` | status dot / workbench `Panel` | ✅ (`698.24`) |
 | `om_*` (observational memory: observe/reflect/buffer/activate) | Memory panel + `Context` | 🟡 (OM enabled — `om_status` fires live, `698.20`; Memory-panel rendering pending, `698.35`) |
@@ -143,7 +143,8 @@ for HITL once `Confirmation` is wired to `addToolApprovalResponse`.
 - ✅ native task tracking (`698.19`): the chat agent registers `TaskSignalProvider` (bundles the four task tools + `TaskStateProcessor`); a multi-step request → the agent calls `task_write` (auto-allowed — informational, no approval gate) → the processor emits `task_updated` → the `<Task>` element. Verified live vs OpenAI (agent laid out steps as a task list; no gate; the run then correctly gated on the real file write).
 - ✅ agent-driven `ask_user` (`698.30`): an ambiguous request → the agent calls the built-in `ask_user` (auto-allowed, no approval gate) → the run suspends (`tool_suspended`) → `AskUserPrompt` renders the question/options → the answer POSTs `/harness/answer` → `session.respondToToolSuspension` resumes the parked run on the still-open SSE. Verified live vs OpenAI (agent asked "which environment?" with 3 option chips; answering resumed the run to completion).
 - ✅ observational memory (`698.20`): `observationalMemory` enabled on the shared memory (model gated on `env.CHAT_MODEL`, `scope: 'resource'` for cross-conversation, threshold lowered to 3000 tokens for demo visibility, env-toggle `OBSERVATIONAL_MEMORY` default-on / off in tests). Verified live vs OpenAI: `om_status` fires with real token tracking (crossed the threshold) and chat is unaffected. The Observer/Reflector run on a background loop; rendering their `om_*` events into a Memory panel is `698.35`.
-- still ⛔: OM event rendering (`698.35`), granular live tool streaming (`698.25`), threads sidebar (`698.16`/`698.17`)
+- ✅ harness sidebar semantic search (`698.16`): `/harness/threads/search` embeds the query with fastembed (local, no API spend) and queries the shared `memory_messages_384` vector index filtered to `CHAT_RESOURCE_ID`, matching message **bodies** (user `signal` turns + assistant replies) — not just titles. Harness messages are already embedded there via `createDefaultMemory`'s `semanticRecall`; the sidebar consumes it unchanged. Verified live on the running server (real embeddings, ranked results, zero spend).
+- still ⛔: granular live tool streaming (`698.25`)
 
 **D. Server honoring PromptInput body** (beads `mhr`): `model`, `webSearch`, attachments/file parts.
 

@@ -30,7 +30,13 @@ import {
 } from 'ai';
 import { chatAgent } from './agents/chat';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
-import { getChatBrowser, getChatHarness, getChatSession, WORKSPACE_ROOT } from './lib/harness';
+import {
+  CHAT_RESOURCE_ID,
+  getChatBrowser,
+  getChatHarness,
+  getChatSession,
+  WORKSPACE_ROOT,
+} from './lib/harness';
 import { getImage } from './lib/image-store';
 import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
@@ -637,8 +643,14 @@ const serverConfig = {
       },
     }),
 
-    // Title/first-message search over the harness's conversations (v1: no
-    // semantic recall — the harness store isn't in the fastembed message index).
+    // Semantic search over the harness's conversations — matches message BODIES,
+    // not just titles. Harness messages are embedded into the SAME fastembed
+    // vector index as the Single-Agent path (both drive `createDefaultMemory`'s
+    // semanticRecall), just under the harness resourceId. So we embed the query
+    // with fastembed (a LOCAL ONNX model — no API spend) and query the shared
+    // index filtered to CHAT_RESOURCE_ID, exactly like /threads/search. The user's
+    // turn is stored role="signal" but its text is embedded with `content`, so it
+    // matches too.
     registerApiRoute('/harness/threads/search', {
       method: 'GET',
       handler: async (c) => {
@@ -646,25 +658,64 @@ const serverConfig = {
         if (q.length < 2) {
           return c.json({ threads: [] });
         }
+        const { embedding } = await embed({ model: fastembed, value: q });
+        const hits = await getSharedVector().query({
+          indexName: MESSAGE_VECTOR_INDEX,
+          queryVector: embedding,
+          topK: 24,
+          filter: { resource_id: CHAT_RESOURCE_ID },
+        });
+        // Best (highest-ranked) hit per thread → snippet from the matched message.
+        const seen = new Map<string, { snippet: string; score: number }>();
+        for (const h of hits) {
+          // biome-ignore lint/suspicious/noExplicitAny: vector metadata
+          const md = (h.metadata ?? {}) as any;
+          const tid = md.thread_id as string | undefined;
+          if (tid && !seen.has(tid)) {
+            seen.set(tid, {
+              snippet: searchSnippet(String(md.content ?? ''), q),
+              score: h.score ?? 0,
+            });
+          }
+        }
+        if (seen.size === 0) {
+          return c.json({ threads: [] });
+        }
+        // Resolve display titles for the matched threads from the harness's own
+        // thread list (explicit title → first non-assistant message). Only threads
+        // that still exist are returned.
         const session = await getChatSession();
         const threads = await session.thread.list();
-        const ids = threads.map((t) => t.id);
-        const firstMsgs = ids.length
-          ? await session.thread.firstUserMessages({ threadIds: ids })
-          : new Map();
-        const ql = q.toLowerCase();
-        const results = threads
-          .map((t) => {
-            const first = messageText(firstMsgs.get(t.id));
-            return { id: t.id, title: threadTitle(t, first), first };
-          })
-          .filter((r) => r.title.toLowerCase().includes(ql) || r.first.toLowerCase().includes(ql))
-          .map((r) => ({
-            id: r.id,
-            title: r.title,
-            snippet: r.first ? searchSnippet(r.first, q) : '',
-            score: 1,
-          }));
+        const byId = new Map(threads.map((t) => [t.id, t]));
+        const matchedIds = [...seen.keys()].filter((id) => byId.has(id));
+        const results = await Promise.all(
+          matchedIds.map(async (id) => {
+            const t = byId.get(id);
+            let first = '';
+            const explicit = typeof t?.title === 'string' ? t.title.trim() : '';
+            if (!explicit) {
+              // No stored title yet — derive one from the first non-assistant turn
+              // (the user's role="signal" message), same as /harness/threads.
+              const msgs = await session.thread.listMessages({ threadId: id, limit: 8 });
+              for (const m of msgs) {
+                if ((m as { role?: string }).role !== 'assistant') {
+                  const text = messageText(m);
+                  if (text) {
+                    first = text;
+                    break;
+                  }
+                }
+              }
+            }
+            return {
+              id,
+              title: threadTitle(t, first),
+              snippet: seen.get(id)?.snippet ?? '',
+              score: seen.get(id)?.score ?? 0,
+            };
+          }),
+        );
+        results.sort((a, b) => b.score - a.score);
         return c.json({ threads: results });
       },
     }),
