@@ -71,6 +71,48 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     // "Los Angeles" appears in the executed tool's result regardless of final text.
     expect(blob.toLowerCase()).toContain('los angeles');
   });
+
+  // ONE agent, native subagents: the chat agent delegates to the `code` subagent via
+  // the controller's built-in `subagent` tool. This proves the subagent_* event path
+  // fires end-to-end (the fixture makes the model call `subagent`; the spawned code
+  // subagent responds via its own fixture). Auto-approves any gated tool as it arms.
+  it('delegates to the code subagent and emits subagent_* events', async () => {
+    const controller = createChatHarness({
+      storage: new InMemoryStore(),
+      resourceId: 'u-harness-subagent',
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-harness-subagent' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+      // The subagent tool (and any nested tool) is approval-gated by default — approve
+      // as gates arm so the delegation runs to completion.
+      if (event.type === 'tool_approval_required') {
+        session.respondToToolApproval({ decision: 'approve' });
+      }
+    });
+
+    await session.thread.create({ title: 'subagent' });
+    await session.sendMessage({ content: 'Use the code subagent to create hello.txt' });
+
+    unsubscribe();
+    await controller.destroy();
+
+    const types = new Set(events.map((e) => e.type));
+    // The subagent must have spawned and finished (the six subagent_* events fire).
+    expect(types.has('subagent_start')).toBe(true);
+    expect(types.has('subagent_end')).toBe(true);
+    const blob = JSON.stringify(events);
+    // ...as the `code` type...
+    expect(blob).toContain('"agentType":"code"');
+    // ...and it must run to completion WITHOUT the non-forked state-signal failure.
+    // (code.ts uses forked:true; a non-forked run throws "requires Mastra memory…".)
+    expect(blob).not.toContain('requires Mastra memory');
+  });
 });
 
 /**

@@ -33,6 +33,31 @@
     },
 
     {
+      "_comment": "Subagent delegation (Harness). turn 0: the chat agent calls the built-in `subagent` tool (agentType:code). The controller then spawns the code subagent, whose OWN model call is matched by the systemMessage fixture below (its instructions contain 'coding subagent'), returning text so subagent_start/_text_delta/_end fire. turn 1: after the subagent result returns, the parent gives its final answer. Proves the subagent_* event path end-to-end (698.27).",
+      "match": { "userMessage": "Use the code subagent to create hello.txt", "turnIndex": 0 },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "subagent",
+            "arguments": {
+              "agentType": "code",
+              "task": "create hello.txt with a short greeting"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_comment": "The spawned code subagent's own run. Matched on its distinctive system prompt ('coding subagent'), which the parent chat agent never has, so it only catches the subagent's call. Returns text (no nested tools) — a minimal deterministic subagent result.",
+      "match": { "systemMessage": "coding subagent" },
+      "response": { "content": "Created hello.txt with a short greeting." }
+    },
+    {
+      "match": { "userMessage": "Use the code subagent to create hello.txt", "turnIndex": 1 },
+      "response": { "content": "Done — the code subagent created hello.txt with a greeting." }
+    },
+
+    {
       "_comment": "Thread title generation. Both POST /threads/:id/title and Memory's built-in generateTitle send a system prompt asking for a '3-6 word title'. Matched on systemMessage (not the dynamic transcript) so it stays deterministic. MUST precede the multi-tool fixture below: a title request's transcript can contain that fixture's userMessage substring, and first-match-wins would otherwise return a tool call instead of a title. (beads chg)",
       "match": { "systemMessage": "3-6 word title" },
       "response": { "content": "Tokyo Weather And Research" }

@@ -1,36 +1,35 @@
-import { Agent } from '@mastra/core/agent';
+import type { AgentControllerSubagent } from '@mastra/core/agent-controller';
 import { env } from '../../lib/env';
-import { createDefaultMemory } from '../lib/memory';
-import { getCodeWorkspace } from '../lib/workspace';
 
 /**
- * # Code Agent (mastra-chat-kit)
+ * # Code Subagent (mastra-chat-kit)
  *
- * A coding agent that works inside a real Mastra sandbox workspace. Its tools are
- * Mastra's built-in workspace tools (read/write/edit/list files, grep, mkdir,
- * execute_command) bound to a LocalFilesystem + LocalSandbox. Those tool calls
- * are what light up the Code-category AI Elements with REAL data:
- *   - list_files     → <FileTree>
- *   - execute_command→ <Terminal>  (+ <TestResults> on test runs, <StackTrace> on errors)
- *   - read/write/edit→ <CodeBlock>
+ * A coding **subagent** the single harness agent delegates to via the built-in
+ * `subagent` tool (`agentType: 'code'`). It is NOT a top-level agent — the kit
+ * runs ONE agent, which spawns focused subagents on demand (a fresh instance per
+ * `task`). This mirrors the official `template-agent-harness` single-agent design.
  *
- * Driven by the same Single Agent transport as `chat` (POST /chat/code). The web
- * "Code Agent" mode points the composer at this agent and renders its workspace
- * tool calls into the Code elements.
+ * It inherits the controller's Workspace (LocalFilesystem + LocalSandbox), so its
+ * tool calls are the real workspace tools that light up the Code AI Elements with
+ * live data:
+ *   - list/find files → <FileTree>
+ *   - execute_command → <Terminal>  (+ <TestResults> on test runs, <StackTrace> on errors)
+ *   - read/write/edit  → <CodeBlock>
  *
- * Tools are a lazy DynamicArgument so the sandbox only spins up on the first run,
- * not at server boot.
+ * `forked: false` — this is a real specialist with its own coding instructions,
+ * not a clone of the parent. The parent can still request a forked (self-clone)
+ * subagent per-invocation for ad-hoc parallel subtasks.
  */
-export const codeAgent = new Agent({
+export const codeSubagent: AgentControllerSubagent = {
   id: 'code',
-  name: 'Code Agent',
+  name: 'Code',
   description:
-    'Coding agent that builds and runs code inside a sandboxed Mastra workspace. Exercises the Code AI Elements (File Tree, Terminal, Code Block) with real tool output.',
-  instructions: `You are a coding agent working inside a sandboxed workspace with a real filesystem and shell.
+    'Coding subagent that builds and runs code inside the sandboxed workspace (files + shell). Delegate substantial multi-step build/run/fix tasks to it.',
+  instructions: `You are a coding subagent working inside a sandboxed workspace with a real filesystem and shell.
 
 Workflow:
-- Start by calling list_files to see what's in the workspace.
-- Use write_file / edit_file to create or change files. Prefer small, focused files.
+- Start by listing the workspace to see what's there.
+- Use the write/edit file tools to create or change files. Prefer small, focused files.
 - Use execute_command to run code, install dependencies, and run tests — then read the output and fix problems.
 - When asked to build something, actually create the files AND run it to prove it works.
 - After making changes, briefly summarize what you did and show the key file(s).
@@ -39,8 +38,18 @@ Rules:
 - Use relative paths from the workspace root (no leading slash).
 - Keep commands non-interactive. Don't start long-running servers unless asked.
 - Never claim a result you didn't verify by running it.`,
-  model: env.CHAT_MODEL,
-  // Lazy: resolves (and initializes) the sandbox workspace on first run.
-  tools: async () => (await getCodeWorkspace()).tools,
-  memory: createDefaultMemory(),
-});
+  defaultModelId: env.CHAT_MODEL,
+  // Workspace tools are inherited from the controller's Workspace. Left unrestricted
+  // (all fs + shell tools visible); tighten via `allowedWorkspaceTools` if needed.
+  //
+  // forked: true is REQUIRED to work today. The controller's `browser-context`
+  // state-signal processor (present because the workspace carries a browser) calls
+  // `computeStateSignal`, which throws unless the run has memory + an active
+  // resourceId/threadId. A NON-forked specialist subagent runs without a thread and
+  // fails; forked clones the parent thread, so it has all three. TRADE-OFF: forked
+  // ignores the `instructions`/`tools`/`defaultModelId` above and runs as a clone of
+  // the parent agent — so this is currently a self-clone worker, not a code
+  // specialist. The specialist path is blocked on the non-forked state-signal
+  // limitation (tracked separately). See docs/harness-events.md.
+  forked: true,
+};

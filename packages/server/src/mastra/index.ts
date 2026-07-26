@@ -29,7 +29,6 @@ import {
   streamText,
 } from 'ai';
 import { chatAgent } from './agents/chat';
-import { codeAgent } from './agents/code';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
 import { getChatBrowser, getChatSession, WORKSPACE_ROOT } from './lib/harness';
 import { getImage } from './lib/image-store';
@@ -172,8 +171,8 @@ const serverConfig = {
           typeof body.model === 'string' && MODEL_ALLOWLIST.has(body.model)
             ? body.model
             : undefined;
-        // Composer "Search" toggle. The code agent has a sandbox, not web search.
-        const useWebSearch = body.webSearch === true && agentId !== 'code';
+        // Composer "Search" toggle (Single Agent transport serves the `chat` agent).
+        const useWebSearch = body.webSearch === true;
 
         // Shared: attach finish-step token usage to message.metadata (drives <Context>).
         // biome-ignore lint/suspicious/noExplicitAny: v6 finish part shape
@@ -323,8 +322,7 @@ const serverConfig = {
             ...(memory ? { memory } : {}),
           },
           defaultOptions: {
-            // The Code Agent needs room to write → run → fix; the chat agent needs few.
-            maxSteps: agentId === 'code' ? 12 : 5,
+            maxSteps: 5,
             ...(chosenModel ? { model: chosenModel } : {}),
           },
           messageMetadata: ({ part }) => usageFrom(part),
@@ -985,7 +983,7 @@ const serverConfig = {
 
 export const mastra = new Mastra({
   server: serverConfig,
-  agents: { chat: chatAgent, code: codeAgent },
+  agents: { chat: chatAgent },
   mcpServers: { baseMcp: mcpServer },
   storage,
   logger: new PinoLogger({

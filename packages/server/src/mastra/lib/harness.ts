@@ -26,7 +26,8 @@ import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
 import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
-import { getSharedStore } from './memory';
+import { codeSubagent } from '../agents/code';
+import { createDefaultMemory, getSharedStore } from './memory';
 
 const CHAT_MODEL_ID = env.CHAT_MODEL;
 
@@ -83,18 +84,44 @@ export function createChatHarness(opts?: {
   const browser = opts?.browser === null ? undefined : (opts?.browser ?? createBrowser());
   return new AgentController({
     id: 'chat-harness',
-    defaultModeId: 'default',
+    defaultModeId: 'chat',
+    // Shared backing agent that EVERY mode forks + decorates. Modes let the one
+    // agent switch operating profile (instructions/tool visibility) without
+    // swapping agents — the harness surface a plain agent can't express.
+    agent: chatAgent,
     modes: [
       {
-        id: 'default',
-        name: 'Default',
-        description: 'General conversational assistant.',
-        agent: chatAgent,
+        id: 'chat',
+        name: 'Chat',
+        description: 'General assistant — full tools, can delegate to subagents.',
         defaultModelId: CHAT_MODEL_ID,
+      },
+      {
+        id: 'plan',
+        name: 'Plan',
+        description: 'Research and propose a plan; approving it switches to Chat to execute.',
+        defaultModelId: CHAT_MODEL_ID,
+        // Layered ABOVE the backing agent's own instructions for this mode only.
+        instructions:
+          'You are in PLAN mode. Investigate the request and produce a concise, ordered plan, then call submit_plan with it. Do NOT create, edit, or run anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.',
+        // submit_plan approval in this mode flips the session to `chat` (plan→build).
+        transitionsTo: 'chat',
       },
     ],
     storage: opts?.storage ?? new InMemoryStore(),
     resourceId: opts?.resourceId ?? CHAT_RESOURCE_ID,
+    // Controller-level memory (shared across modes + subagents). REQUIRED for
+    // subagents: a spawned subagent has no memory of its own, and Mastra's
+    // controller-injected state-signal processors (`browser-context`) call
+    // `computeStateSignal`, which needs memory + an active resourceId/threadId —
+    // without this the subagent run fails ("requires Mastra memory with an active
+    // resourceId and threadId").
+    memory: createDefaultMemory(),
+    // ONE agent, native subagents: the controller auto-creates the built-in
+    // `subagent` tool from these definitions, so the chat agent can spawn a fresh
+    // focused subagent per task (agentType:'code'). Callers may also request a
+    // `forked` (self-clone) subagent per-invocation for ad-hoc parallel subtasks.
+    subagents: [codeSubagent],
     // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.
