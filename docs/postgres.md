@@ -89,5 +89,46 @@ npx supabase start   # Postgres + pgvector in Docker
 …or bring your own `pgvector/pgvector:pg16` container and point `DATABASE_URL`
 at it.
 
+## 6. Docker Compose deploy (optional)
+
+The default `packages/server/docker-compose.yml` runs storage on libSQL, so it has
+no Postgres service. If you've switched the code to Postgres and deploy via
+Compose, add the service back (the init script that enables the `vector`
+extension is still shipped at `packages/server/docker/postgres-init/`):
+
+```yaml
+services:
+  mastra:
+    environment:
+      # replaces TURSO_DATABASE_URL for a Postgres build
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro # enables `vector`
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # no published port → reachable only as `postgres` on the internal network
+
+volumes:
+  pgdata: {}
+```
+
+You can drop the `libsqldata` volume + its mount and the `TURSO_DATABASE_URL`
+env from the `mastra` service, since a Postgres build no longer reads them. Set
+`POSTGRES_PASSWORD` in `.env`.
+
 That's the whole switch. `pnpm --filter @mastra-chat-kit/server typecheck` and
 `test` should stay green.

@@ -1,5 +1,14 @@
 # template-mastra-base — Build Spec
 
+> **⚠️ Historical record.** This `SPEC/` set documents the original build of the
+> base template and is preserved as-is for provenance. It predates the migration
+> from **Postgres (PostgresStore) + DuckDB (observability)** to **libSQL/Turso**,
+> so any storage/vector/observability details here describe the *old* backend and
+> no longer match the living code. For the current storage design see the
+> `src/mastra/` source, the root `README.md`/`AGENTS.md`, and — to run on Postgres
+> instead of libSQL — `docs/postgres.md`. Do not use these specs as the source of
+> truth for storage.
+
 You (the AI coding agent) are completing this Mastra base template. The starting state is a clean `npx create-mastra@latest` scaffold with the weather example. Your job is to remove the example, layer in this template's conventions, and verify everything works.
 
 ## Read these spec files in order

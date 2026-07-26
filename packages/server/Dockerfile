@@ -36,6 +36,11 @@ ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 
 COPY --from=build --chown=mastra:nodejs /app/.mastra/output ./.mastra/output
 
+# Persistent libSQL storage dir. Create it owned by the runtime user so the named
+# `libsqldata` volume mounted here (docker-compose.yml) inherits that ownership on
+# first init — the non-root `mastra` user must be able to write the DB file.
+RUN mkdir -p /app/data && chown mastra:nodejs /app/data
+
 USER mastra
 EXPOSE 4111
 
