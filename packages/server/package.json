@@ -42,7 +42,7 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "@copilotkit/aimock": "^1.31.0",
+    "@copilotkit/aimock": "^1.37.4",
     "@types/node": "^25.6.0",
     "@vitest/ui": "^4.1.9",
     "mastra": "^1.20.1",

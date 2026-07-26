@@ -74,8 +74,8 @@ importers:
         version: 4.4.3
     devDependencies:
       '@copilotkit/aimock':
-        specifier: ^1.31.0
-        version: 1.31.0(vitest@4.1.9)
+        specifier: ^1.37.4
+        version: 1.37.4(vitest@4.1.9)
       '@types/node':
         specifier: ^25.6.0
         version: 25.9.4
@@ -792,8 +792,8 @@ packages:
       '@mastra/core': ^1.0.4
       zod: ^3.25 || ^4
 
-  '@copilotkit/aimock@1.31.0':
-    resolution: {integrity: sha512-h5NjwBphbxS82biVpRzDYnMduJzT61B3gEbUXpdtOJMS9kuj0vnbM+aRqPBEFnFJeIgULaLB1TxROGy0TBL09g==}
+  '@copilotkit/aimock@1.37.4':
+    resolution: {integrity: sha512-3fKSBrs7QDTRmYQM9RVh+2aC95KJcEbNHtAAuD8fJ3NdIx1bNdgWvwgWNJLzAuiZI3kSDwRgA0HlCVD6n0eP+A==}
     engines: {node: '>=20.15.0'}
     hasBin: true
     peerDependencies:
@@ -7298,7 +7298,7 @@ snapshots:
       '@mastra/schema-compat': 1.3.4(zod@4.4.3)
       zod: 4.4.3
 
-  '@copilotkit/aimock@1.31.0(vitest@4.1.9)':
+  '@copilotkit/aimock@1.37.4(vitest@4.1.9)':
     optionalDependencies:
       vitest: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(@vitest/ui@4.1.9)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.4)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
