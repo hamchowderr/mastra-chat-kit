@@ -16,9 +16,8 @@ import { env } from '../../lib/env';
  *   - execute_command → <Terminal>  (+ <TestResults> on test runs, <StackTrace> on errors)
  *   - read/write/edit  → <CodeBlock>
  *
- * `forked: false` — this is a real specialist with its own coding instructions,
- * not a clone of the parent. The parent can still request a forked (self-clone)
- * subagent per-invocation for ad-hoc parallel subtasks.
+ * `forked: true` is REQUIRED in production today (see the field note below). The
+ * parent can still request a forked (self-clone) subagent per invocation.
  */
 export const codeSubagent: AgentControllerSubagent = {
   id: 'code',
@@ -42,14 +41,19 @@ Rules:
   // Workspace tools are inherited from the controller's Workspace. Left unrestricted
   // (all fs + shell tools visible); tighten via `allowedWorkspaceTools` if needed.
   //
-  // forked: true is REQUIRED to work today. The controller's `browser-context`
-  // state-signal processor (present because the workspace carries a browser) calls
-  // `computeStateSignal`, which throws unless the run has memory + an active
-  // resourceId/threadId. A NON-forked specialist subagent runs without a thread and
-  // fails; forked clones the parent thread, so it has all three. TRADE-OFF: forked
+  // forked: true is REQUIRED in production. Root cause (traced in core 1.52,
+  // empirically confirmed: `browser:null` works, a real browser throws): the
+  // controller runs a non-forked subagent STATELESS (`threadId:null`, `resourceId:""`,
+  // no `memory` on `.stream()`) but builds it as `new Agent({workspace})`, so the
+  // browser on the workspace auto-attaches the `browser-context` state-signal
+  // processor, whose `computeStateSignal` HARD-THROWS unless the run has memory + an
+  // active resourceId/threadId. Forked clones the parent thread, so it has all three;
+  // a non-forked run has none and fails. TRADE-OFF: forked
   // ignores the `instructions`/`tools`/`defaultModelId` above and runs as a clone of
   // the parent agent — so this is currently a self-clone worker, not a code
-  // specialist. The specialist path is blocked on the non-forked state-signal
-  // limitation (tracked separately). See docs/harness-events.md.
+  // specialist. No clean kit-level fix (removing the browser breaks the main agent;
+  // the subagent config exposes no memory/thread/browser lever) — it's an upstream core
+  // bug (the state-signal processor should skip, not throw, on a threadless run).
+  // Tracked in `mastra-chat-kit-698.32`. See docs/harness-events.md.
   forked: true,
 };
