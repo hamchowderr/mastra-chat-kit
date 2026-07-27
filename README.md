@@ -151,7 +151,7 @@ packages/
 │        ├─ lib/
 │        │  ├─ harness.ts       AgentController + Session (Harness mode)
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
-│        │  └─ dolt.ts          optional versioned business data (mysql2)
+│        │  └─ dolt.ts          optional versioned data, Git-style (mysql2)
 │        └─ tools/            agent tools (getWeather, dolt, image, …)
 └─ web/                      Next.js 16 App Router + AI Elements (:3000)
    ├─ app/                     chat (/) + /events — the harness-event → element map
@@ -219,11 +219,13 @@ Prefer Postgres (Supabase / Neon / RDS)? It's a small, self-contained swap — s
 
 ---
 
-## 🕰️ Optional: versioned business data (Dolt)
+## 🕰️ Optional: versioned data (Dolt)
 
 Separate from the app's own storage (threads/memory/vectors on libSQL), the kit ships an **optional** integration with **[Dolt](https://www.dolthub.com)** — a SQL database that versions data the way Git versions code. It speaks the MySQL wire protocol, so it's a normal `mysql2` connection; the only special part is that every write ends in a `DOLT_COMMIT`.
 
-Why: it gives an agent an **auditable, reversible business database**. When an agent mutates real data, you don't just get the new value — you get a commit you can **diff, view history on, time-travel to, branch, and roll back**. That enables a safe **"branch-per-agent → human merges"** pattern: the agent proposes changes on its own branch, a human reviews the diff and merges. The agent never knows it's a versioned DB — it just calls the `doltQuery` / `doltWrite` tools (`packages/server/src/mastra/tools/dolt.ts`), and every write is auto-committed with author attribution.
+It's **data-agnostic** — Dolt doesn't care what the rows *mean*. Point it at whatever you'd want a history for: records an agent edits, application config, a curated knowledge base, reference datasets, experiment results. The kit ships it as a generic capability, not a specific schema; you decide what lives there.
+
+Why version it at all: it gives an agent an **auditable, reversible database**. When an agent mutates data — whatever that data represents in your app — you don't just get the new value; you get a commit you can **diff, view history on, time-travel to, branch, and roll back**. That enables a safe **"branch-per-agent → human merges"** pattern: the agent proposes changes on its own branch, a human reviews the diff and merges. The agent never knows it's a versioned DB — it just calls the `doltQuery` / `doltWrite` tools (`packages/server/src/mastra/tools/dolt.ts`), and every write is auto-committed with author attribution.
 
 It's **fully optional** and **off by default** — with no `DOLT_HOST` / `DOLT_PORT` set, the tools and boot-time bootstrap don't activate and the app runs entirely on libSQL. Point it at a Dolt server (e.g. the compose stack / Coolify) to switch it on.
 
@@ -237,9 +239,11 @@ The server runs on [Mastra](https://mastra.ai), so you can open it in **Mastra S
 pnpm --filter server dev    # server + Studio → http://localhost:4111
 ```
 
-- 💬 **Chat** with the agents directly (uses your `ANTHROPIC_API_KEY`)
+- 💬 **Chat** with the agents directly (uses your configured `CHAT_MODEL` — any provider)
 - ✏️ **Edit & version** system prompts (draft/publish) via `@mastra/editor`
-- 🧠 **Memory & threads** — every conversation, persisted to libSQL
+- 🧰 **Tools** — browse every tool the agent can call and invoke it by hand (weather, knowledge search, image gen, goals, schedules, workspace fs/shell, Dolt …)
+- 🧠 **Memory & threads** — working memory + every conversation, persisted to libSQL
+- 🧬 **Observational memory** — the durable, cross-chat facts the background Observer distills (in the Memory view)
 - 🔭 **Traces** — per-run agent / tool / LLM spans
 - ✅ **Scorers** — score runs against the eval datasets
 
