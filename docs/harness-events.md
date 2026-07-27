@@ -10,16 +10,21 @@ stream can't carry: sessions/threads, modes, model switching, tool-approval gate
 subagents, tasks, goals, observational memory, and a canonical display state.
 
 `session.subscribe()` forwards **all 50** event types unfiltered over the server's
-`POST /harness/stream` SSE. The web reducer currently **consumes 25 and drops 25**. This file is the
+`POST /harness/stream` SSE. The web reducer currently **consumes 37 and drops 13**. This file is the
 source of truth for what each event means and where it should render.
 
-> **The 25 "dropped" are not 25 bugs.** Of them, **20 fire in this kit's current config** and are
-> worth wiring now (observational memory now that it's enabled, live tool streaming,
-> `model_changed`/`agent_start`); **3 are gated on a feature that isn't enabled** (extra threads,
-> owned by a `698.x` issue); and **2 are intentionally off** (`state_changed`, `display_state_changed`). Subagents
-> (`698.27`), modes (`mode_changed`, `698.28`), goals (`goal_evaluation`, `698.29`), and the `ask_user`
-> suspend flow (`tool_suspended` + `tool_suspension_cancelled`, `698.30`) have graduated to *consumed*.
-> See the grouped roadmap below.
+> **In-product companion:** the browsable version of this table is the **`/events`** page
+> (`packages/web/app/events/page.tsx`), driven by `packages/web/lib/harness-event-map.ts` — each event
+> links to a live Showroom demo of the AI Element it drives, plus its source. Keep the map, this file,
+> and [coverage.md](./coverage.md) in lockstep.
+
+> **The 13 "dropped" are not 13 bugs.** Of them, **8 are OM secondary/redundant** (`om_model_changed`,
+> `om_buffering_*`, `om_thread_title_updated`, plus `model_changed`, `agent_start`, `tool_update` — each
+> already covered by another surface); **3 are gated on a feature not enabled** (extra thread events,
+> the sidebar refetches on run-settle instead); and **2 are intentionally off** (`state_changed`,
+> `display_state_changed`). Everything with a first-class UI — observational memory (`698.20`/`698.35`),
+> live tool streaming (`698.25`), subagents (`698.27`/`698.32`), modes (`698.28`), goals (`698.29`), the
+> `ask_user` suspend flow (`698.30`), tasks (`698.19`), schedules (`698.18`) — is now *consumed*.
 
 > ✅ **`mastra-chat-kit-vud` (fixed 2026-07-25):** the harness tool flow works with OpenAI. An earlier
 > "hangs on every tool call (`generationCount:0`)" symptom was **not** upstream — it was `TokenLimiter`
@@ -47,15 +52,15 @@ source of truth for what each event means and where it should render.
 | 9 | `message_start` | `message: MastraDBMessage` | Message began streaming | ✅ consumed | `Message` (`upsertMessage`) |
 | 10 | `message_update` | `message` | Message updated w/ new parts | ✅ consumed | `Message` |
 | 11 | `message_end` | `message` | Message finished (final form) | ✅ consumed | `Message` |
-| 12 | `tool_start` | `toolCallId`, `toolName`, `args` | Tool call started | ⛔ dropped | `Tool` (`input-available`) |
+| 12 | `tool_start` | `toolCallId`, `toolName`, `args` | Tool call started | ✅ consumed (`698.25`) | `Tool` (`input-available`) |
 | 13 | `tool_approval_required` | `toolCallId`, `toolName`, `args` | Tool gated, awaiting approval | ✅ consumed | `Confirmation` |
 | 14 | `tool_suspended` | `toolCallId`, `toolName`, `args`, `suspendPayload`, `resumeSchema?` | Tool `suspend()`ed (e.g. `ask_user`) | ✅ consumed (`698.30`) | `AskUserPrompt` (→ `POST /harness/answer`) |
 | 15 | `tool_suspension_cancelled` | `toolCallId`, `toolName`, `reason` | Parked suspension cancelled | ✅ consumed (`698.30`) | clears `AskUserPrompt` |
-| 16 | `tool_update` | `toolCallId`, `partialResult` | Incremental tool result | ⛔ dropped | `Tool` (`ToolOutput` streaming) |
+| 16 | `tool_update` | `toolCallId`, `partialResult` | Incremental tool result | ⛔ dropped | `Tool` (settled message part already renders the full result) |
 | 17 | `tool_end` | `toolCallId`, `result`, `isError`, `providerMetadata?` | Tool completed | ✅ consumed | `Tool` (`ToolOutput`) |
-| 18 | `tool_input_start` | `toolCallId`, `toolName` | Model began streaming tool args | ⛔ dropped | `Tool` (`input-streaming`) |
-| 19 | `tool_input_delta` | `toolCallId`, `argsTextDelta`, `toolName?` | Chunk of streamed tool-arg text | ⛔ dropped | `Tool` (`ToolInput` live) |
-| 20 | `tool_input_end` | `toolCallId` | Tool-arg streaming finished | ⛔ dropped | `Tool` (`input-available`) |
+| 18 | `tool_input_start` | `toolCallId`, `toolName` | Model began streaming tool args | ✅ consumed (`698.25`) | `Tool` (`input-streaming`) |
+| 19 | `tool_input_delta` | `toolCallId`, `argsTextDelta`, `toolName?` | Chunk of streamed tool-arg text | ✅ consumed (`698.25`) | `Tool` (`ToolInput` live) |
+| 20 | `tool_input_end` | `toolCallId` | Tool-arg streaming finished | ✅ consumed (`698.25`) | `Tool` (`input-available`) |
 | 21 | `shell_output` | `toolCallId`, `output`, `stream` (`stdout`/`stderr`) | Sandbox shell chunk | ✅ consumed | `Terminal` (appends) |
 | 22 | `usage_update` | `usage: TokenUsage` | Cumulative token usage updated | ✅ consumed | `Context` |
 | 23 | `info` | `message` | Informational status message | ✅ consumed | info status line |
@@ -64,18 +69,18 @@ source of truth for what each event means and where it should render.
 | 26 | `workspace_status_changed` | `status` (`pending`…`destroyed`), `error?` | Workspace lifecycle status | ✅ consumed | workbench status dot |
 | 27 | `workspace_ready` | `workspaceId`, `workspaceName` | Workspace initialized | ✅ consumed | workbench status dot |
 | 28 | `workspace_error` | `error` | Workspace failed | ✅ consumed | workbench status dot |
-| 29 | `om_status` | window/threshold snapshot, `recordId`, `threadId`, `stepNumber`, `generationCount` | Observational-Memory snapshot | ⛔ dropped | Memory panel / `Context` |
-| 30 | `om_observation_start` | `cycleId`, `operationType`, `tokensToObserve` | OM observation started | ⛔ dropped | Memory panel |
-| 31 | `om_observation_end` | `cycleId`, `durationMs`, `tokensObserved`, `observations?`, … | OM observation done | ⛔ dropped | Memory panel |
-| 32 | `om_observation_failed` | `cycleId`, `error`, `durationMs` | OM observation failed | ⛔ dropped | Memory panel |
-| 33 | `om_reflection_start` | `cycleId`, `tokensToReflect` | OM reflection (compression) start | ⛔ dropped | Memory panel |
-| 34 | `om_reflection_end` | `cycleId`, `durationMs`, `compressedTokens`, `observations?` | OM reflection done | ⛔ dropped | Memory panel |
-| 35 | `om_reflection_failed` | `cycleId`, `error`, `durationMs` | OM reflection failed | ⛔ dropped | Memory panel |
+| 29 | `om_status` | window/threshold snapshot, `recordId`, `threadId`, `stepNumber`, `generationCount` | Observational-Memory snapshot | ✅ consumed (`698.35`) | Memory panel (token windows) |
+| 30 | `om_observation_start` | `cycleId`, `operationType`, `tokensToObserve` | OM observation started | ✅ consumed (`698.35`) | Memory panel (activity) |
+| 31 | `om_observation_end` | `cycleId`, `durationMs`, `tokensObserved`, `observations?`, … | OM observation done | ✅ consumed (`698.35`) | Memory panel (activity) |
+| 32 | `om_observation_failed` | `cycleId`, `error`, `durationMs` | OM observation failed | ✅ consumed (`698.35`) | Memory panel (activity) |
+| 33 | `om_reflection_start` | `cycleId`, `tokensToReflect` | OM reflection (compression) start | ✅ consumed (`698.35`) | Memory panel (activity) |
+| 34 | `om_reflection_end` | `cycleId`, `durationMs`, `compressedTokens`, `observations?` | OM reflection done | ✅ consumed (`698.35`) | Memory panel (activity) |
+| 35 | `om_reflection_failed` | `cycleId`, `error`, `durationMs` | OM reflection failed | ✅ consumed (`698.35`) | Memory panel (activity) |
 | 36 | `om_model_changed` | `role` (`observer`/`reflector`), `modelId` | OM backing model changed | ⛔ dropped | Memory panel |
 | 37 | `om_buffering_start` | `cycleId`, `operationType`, `tokensToBuffer` | OM began buffering | ⛔ dropped | Memory panel |
 | 38 | `om_buffering_end` | `cycleId`, `operationType`, `tokensBuffered`, `bufferedTokens`, … | OM buffering done | ⛔ dropped | Memory panel |
 | 39 | `om_buffering_failed` | `cycleId`, `operationType`, `error` | OM buffering failed | ⛔ dropped | Memory panel |
-| 40 | `om_activation` | `cycleId`, `chunksActivated`, `tokensActivated`, … | Buffered OM activated into context | ⛔ dropped | Memory panel |
+| 40 | `om_activation` | `cycleId`, `chunksActivated`, `tokensActivated`, … | Buffered OM activated into context | ✅ consumed (`698.35`) | Memory panel (activity) |
 | 41 | `om_thread_title_updated` | `cycleId`, `threadId`, `oldTitle?`, `newTitle` | OM auto-titled the thread | ⛔ dropped | conversation sidebar |
 | 42 | `subagent_start` | `toolCallId`, `agentType`, `task`, `modelId`, `forked?` | Subagent spawned | ✅ consumed | `Agent` (`SubagentCard`) |
 | 43 | `subagent_text_delta` | `toolCallId`, `agentType`, `textDelta` | Subagent streaming text | ✅ consumed | `Agent` (streamed text) |
@@ -96,43 +101,36 @@ Its richest fields (`activeTools`, `toolInputBuffers`, `activeSubagents`, `pendi
 `modifiedFiles`) are JS `Map`s, which serialize to `{}` over JSON. The UI is therefore driven off the
 **granular plain-object events** (rows 1–49) instead of the aggregate snapshot.
 
-## Consumed (25)
-`agent_end`, `message_start`, `message_update`, `message_end`, `tool_approval_required`, `tool_end`,
-`tool_suspended`, `tool_suspension_cancelled`, `shell_output`, `usage_update`, `error`,
-`follow_up_queued`, `task_updated`,
-`workspace_ready`, `workspace_status_changed`, `workspace_error`, `info`, `mode_changed`,
+## Consumed (37)
+`agent_end`, `message_start`, `message_update`, `message_end`,
+`tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`, `tool_end`,
+`tool_approval_required`, `tool_suspended`, `tool_suspension_cancelled`,
+`shell_output`, `usage_update`, `error`, `info`, `follow_up_queued`, `mode_changed`,
+`workspace_ready`, `workspace_status_changed`, `workspace_error`,
+`om_status`, `om_observation_start`, `om_observation_end`, `om_observation_failed`,
+`om_reflection_start`, `om_reflection_end`, `om_reflection_failed`, `om_activation`,
 `subagent_start`, `subagent_text_delta`, `subagent_tool_start`, `subagent_tool_end`, `subagent_end`,
-`subagent_model_changed`, `goal_evaluation`
-_(`workspace_*` + `info` in `698.24`; `subagent_*` in `698.27` — verified end-to-end by an AIMock
-integration test (the fixture calls the `subagent` tool, the spawned subagent responds);
-`mode_changed` in `698.28` — Chat/Plan switcher, verified `listModes`+`switch` emit it;
-`goal_evaluation` in `698.29` — native `setObjective` → judge loop → `GoalCard`, verified by a
-deterministic set→read→clear integration test on the controller's thread-state store;
-`tool_suspended`/`tool_suspension_cancelled` in `698.30` — agent-driven `ask_user` → `AskUserPrompt`,
-verified live vs OpenAI + a deterministic suspend→resume integration test.)_
+`subagent_model_changed`, `task_updated`, `goal_evaluation`
+_(`workspace_*` + `info` in `698.24`; `subagent_*` in `698.27` (verified by an AIMock integration test);
+`mode_changed` in `698.28`; `goal_evaluation` in `698.29`; `tool_suspended`/`tool_suspension_cancelled`
+in `698.30` (agent-driven `ask_user`); the `om_*` set in `698.35` (Memory panel — token windows +
+observe/reflect/activate activity); the live tool-input set (`tool_start`/`tool_input_*`) in `698.25`
+(input-streaming `Tool`, suppressed once the settled message part lands).)_
 
-## Dropped (25) — grouped by whether they can fire in this kit
+## Dropped (13) — grouped by why
 
-### A. Fires now — worth wiring (20)
-- **Observational memory (13):** `om_status` + all `om_*` → a Memory panel + `Context`. OM is now
-  ENABLED (`698.20`, env-gated, default on), so these fire (`om_status` confirmed live) — but the
-  reducer still drops them (no Memory-panel UI yet). Rendering owned by **`698.35`**. Note: the
-  Observer/Reflector run on a background loop; a persistent subscription surfaces their events.
-- **Live tool streaming (5):** `tool_start`, `tool_input_start`, `tool_input_delta`, `tool_input_end`,
-  `tool_update` → `Tool` (`input-streaming` state + live `ToolInput`).
-  Fires on every gated tool call. Owned by **`698.25`** (deferred — the settled message-part tool_call
-  already renders full args near-instantly).
-- **`model_changed` (1):** fires when the composer switches the run's model → reflect in `ModelSelector`.
-  Deferred: the composer's own selector already shows the active model, so this only adds a server echo.
-- **`agent_start` (1):** run began → a `Shimmer`. Deferred: redundant with the existing streaming indicator.
+### A. Already covered by another surface (6)
+- **`tool_update`** → the settled `message_update` tool_call part already renders the full result.
+- **`model_changed`** → the composer's own model picker already shows the active model.
+- **`agent_start`** → redundant with the existing streaming/typing indicator.
+- **`om_model_changed`, `om_buffering_*` (buffering start/end/failed)** → the Memory panel surfaces
+  `om_status` + observe/reflect/activate; the buffering phase and model swaps aren't shown.
 
-### B. Gated on a feature that isn't enabled yet (3)
-These never fire in the current config — wiring them now is dead code. Each is owned by the issue that
-would turn the feature on. _(Subagents graduated out of this bucket in `698.27`, `mode_changed` in
-`698.28`, `goal_evaluation` in `698.29`, the `ask_user` suspend flow in `698.30`, and observational
-memory in `698.20` — all now fire.)_
-- **Threads/sessions (3):** `thread_changed/_created/_deleted` → conversation sidebar. Gated on
-  persistence + **`698.16`/`698.17`**.
+### B. Gated on a feature that isn't enabled yet (4)
+- **Threads/sessions (3):** `thread_changed/_created/_deleted` → the conversation sidebar **refetches on
+  run-settle** rather than folding these live, so they stay dropped by design.
+- **`om_thread_title_updated` (1):** OM auto-titling isn't reflected live; titles come from the manual
+  `/threads/:id/title` route (`698.11`).
 
 ### C. Intentionally off (2)
 - **`state_changed`** → aggregate `data-*`; redundant with the granular events.

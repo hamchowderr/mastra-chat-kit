@@ -364,16 +364,20 @@ function Card({
   title,
   note,
   wide,
+  slug,
   children,
 }: {
   title: string;
   note?: string;
   wide?: boolean;
+  /** Anchor id so the /events page can deep-link to this element (`/showcase#<slug>`). */
+  slug?: string;
   children: React.ReactNode;
 }) {
   return (
     <section
-      className={`flex flex-col gap-3 rounded-lg border border-border bg-card p-4 ${wide ? 'md:col-span-2' : ''}`}
+      id={slug}
+      className={`flex scroll-mt-20 flex-col gap-3 rounded-lg border border-border bg-card p-4 ${wide ? 'md:col-span-2' : ''}`}
     >
       <header>
         <h3 className="font-semibold text-sm">{title}</h3>
@@ -398,6 +402,9 @@ export default function ShowcasePage() {
         <Link href="/status" className="text-muted-foreground hover:text-foreground">
           Wiring Status
         </Link>
+        <Link href="/events" className="text-muted-foreground hover:text-foreground">
+          Harness Events
+        </Link>
       </nav>
 
       <header className="mb-2">
@@ -415,7 +422,11 @@ export default function ShowcasePage() {
 
       {/* ---------------------------------------------------------------- Chatbot */}
       <Category title="Chatbot">
-        <Card title="Conversation + Message + Response" note="user & assistant turns, markdown">
+        <Card
+          slug="message"
+          title="Conversation + Message + Response"
+          note="user & assistant turns, markdown"
+        >
           <Conversation className="h-auto">
             <ConversationContent>
               <Message from="user">
@@ -457,7 +468,7 @@ export default function ShowcasePage() {
           </Reasoning>
         </Card>
 
-        <Card title="Tool" note="input params + output, with state badge">
+        <Card slug="tool" title="Tool" note="input params + output, with state badge">
           <Tool defaultOpen>
             <ToolHeader type="tool-getWeather" state="output-available" />
             <ToolContent>
@@ -550,7 +561,7 @@ export default function ShowcasePage() {
           </p>
         </Card>
 
-        <Card title="Task" note="collapsible task with files">
+        <Card slug="task" title="Task" note="collapsible task with files">
           <Task defaultOpen>
             <TaskTrigger title="Scaffold the chat shell" />
             <TaskContent>
@@ -563,7 +574,7 @@ export default function ShowcasePage() {
           </Task>
         </Card>
 
-        <Card title="Context" note="token/context-window usage popover">
+        <Card slug="context" title="Context" note="token/context-window usage popover">
           <Context
             usedTokens={5000}
             maxTokens={200000}
@@ -593,7 +604,12 @@ export default function ShowcasePage() {
           />
         </Card>
 
-        <Card title="Confirmation — HITL states" note="requested → accepted / denied" wide>
+        <Card
+          slug="confirmation"
+          title="Confirmation — HITL states"
+          note="requested → accepted / denied"
+          wide
+        >
           <div className="flex flex-col gap-3">
             <Confirmation
               state="approval-requested"
@@ -623,7 +639,7 @@ export default function ShowcasePage() {
           </div>
         </Card>
 
-        <Card title="Queue" note="pending agent task queue">
+        <Card slug="queue" title="Queue" note="pending agent task queue">
           <Queue>
             <QueueSection defaultOpen>
               <QueueSectionTrigger>
@@ -659,7 +675,7 @@ export default function ShowcasePage() {
           </OpenIn>
         </Card>
 
-        <Card title="Shimmer" note="streaming/loading text">
+        <Card slug="shimmer" title="Shimmer" note="streaming/loading text">
           <Shimmer>Generating response…</Shimmer>
         </Card>
       </Category>
@@ -684,7 +700,11 @@ export default function ShowcasePage() {
           </Snippet>
         </Card>
 
-        <Card title="Agent" note="agent definition: instructions + tools + output schema">
+        <Card
+          slug="agent"
+          title="Agent"
+          note="agent definition: instructions + tools + output schema"
+        >
           <Agent>
             <AgentHeader name="chatAgent" model="claude-sonnet-4-6" />
             <AgentContent>
@@ -731,7 +751,7 @@ export default function ShowcasePage() {
           </FileTree>
         </Card>
 
-        <Card title="Terminal" note="command output (ANSI aware)">
+        <Card slug="terminal" title="Terminal" note="command output (ANSI aware)">
           <Terminal output={'$ pnpm test\n✓ 56 passed (56)'} isStreaming={false}>
             <TerminalHeader>
               <TerminalTitle>build output</TerminalTitle>
@@ -1127,7 +1147,7 @@ export default function ShowcasePage() {
           </ConversationDownload>
         </Card>
 
-        <Card title="Model Selector" note="searchable model command palette">
+        <Card slug="model-selector" title="Model Selector" note="searchable model command palette">
           <ModelSelector>
             <ModelSelectorTrigger>Claude Sonnet 4.6</ModelSelectorTrigger>
             <ModelSelectorContent title="Choose a model">

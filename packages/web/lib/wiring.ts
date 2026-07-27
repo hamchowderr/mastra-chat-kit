@@ -221,9 +221,10 @@ export const ELEMENTS: WiredElement[] = [
     name: 'Agent',
     module: 'agent',
     category: 'Code',
-    status: 'showroom',
-    surfaces: ['showroom'],
-    driver: 'Agent-definition card (instructions + tools + schema); needs agent-config data.',
+    status: 'live',
+    surfaces: ['harness', 'showroom'],
+    driver:
+      'Subagent delegation (subagent_* events) → the nested Agent card (SubagentCard): task, streamed text, nested tool calls, result. The code subagent is a real specialist (698.27/698.32).',
   },
   {
     name: 'Artifact',

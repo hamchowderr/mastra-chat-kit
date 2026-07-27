@@ -43,6 +43,9 @@ export default function StatusPage() {
           Showroom
         </Link>
         <span className="font-medium text-foreground">Wiring Status</span>
+        <Link href="/events" className="text-muted-foreground hover:text-foreground">
+          Harness Events
+        </Link>
       </nav>
 
       <header className="mb-6">
