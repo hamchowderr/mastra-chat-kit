@@ -1,14 +1,15 @@
 /**
  * Source of truth for the /events page: every one of the 50 `AgentControllerEvent`
- * types the harness emits, whether this kit's reducer consumes it today, and which
- * AI Element (or other surface) it drives.
+ * types the harness emits, whether this kit's reducer consumes it today, which AI
+ * Element (or other surface) it drives, and — where a user can trigger it — a
+ * copy-paste prompt that makes it happen live in the chat.
  *
  * Grounded in the INSTALLED core declaration (`@mastra/core/dist/agent-controller/
  * types.d.ts`, the `AgentControllerEvent` union) and re-derived from the actual
  * `reduceHarnessEvent` cases in `lib/harness/events.ts` — keep it in lockstep with both,
  * and with `docs/harness-events.md`. "Consumed" means a real case folds it into the
- * transcript today; "dropped" means it hits `default: return state` (on the wire, nothing
- * renders it — not necessarily a bug; see each row's note).
+ * transcript today; "dropped" means it hits `default: return state` (on the wire but
+ * unrendered — not necessarily a bug; see each row's note).
  */
 
 /**
@@ -59,19 +60,41 @@ export interface HarnessEventRow {
   consumed: boolean;
   group: EventGroup;
   /**
-   * The AI Element module (in components/ai-elements) this event drives, when it drives
-   * a showcased element — enables the `[demo →]` (/showcase#<element>) + `‹source›` links.
+   * The AI Element module (in components/ai-elements) this event drives, when it drives a
+   * showcased element — powers the `‹source›` link.
    */
   element?: string;
   /** Display name of the target element. */
   elementLabel?: string;
   /** Plain target label when the surface is NOT an AI Element (status dot, sidebar, panel). */
   target?: string;
+  /**
+   * A copy-paste prompt that triggers this event live in the chat (Harness mode). Present
+   * on events a user turn can produce; automatic / UI-action events (e.g. agent_start,
+   * model_changed) omit it. Clustered events (all of Tools/Subagents/OM) share one prompt.
+   */
+  prompt?: string;
   /** One line: which issue wired it, or why it is (intentionally) dropped. */
   note?: string;
 }
 
-/** All 50 events, in core-union order. `element` set ⇒ it links to a Showroom demo + source. */
+const P = {
+  weather: 'What is the weather in Tokyo?',
+  askUser: 'Deploy my app.',
+  message: 'Say hello and tell me a fun fact.',
+  subagent:
+    'Use the code subagent to create hello.js that prints the numbers 1 to 10, then run it.',
+  workspace: 'Use the code subagent to create a file notes.txt with a short note in it.',
+  shell: 'Use the code subagent to run `node --version` in the workspace.',
+  task: 'Plan and build a tiny counter script in clear, tracked steps.',
+  goal: 'Keep refining a haiku about the ocean until it is genuinely excellent — do not stop early.',
+  plan: 'Investigate adding a dark-mode toggle and propose a short plan first, before changing anything.',
+  om: 'Have a short back-and-forth with me (five or so messages) — once the token window fills, the Observer distills durable facts.',
+  followUp: 'Send this, then immediately send another message while I am still replying.',
+  anyTurn: 'Send any message — this fires on every run.',
+} as const;
+
+/** All 50 events, in core-union order. `element` set ⇒ it links to source; `prompt` set ⇒ copy-paste to trigger. */
 export const HARNESS_EVENTS: HarnessEventRow[] = [
   // ── Run lifecycle ──────────────────────────────────────────────────────────
   {
@@ -91,6 +114,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Run lifecycle',
     target: 'Clears the approval gate, stops the terminal spinner.',
+    prompt: P.anyTurn,
   },
   {
     n: 24,
@@ -116,6 +140,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Run lifecycle',
     element: 'context',
     elementLabel: 'Context',
+    prompt: P.anyTurn,
     note: 'Folds into the Context popover in the composer footer.',
   },
   {
@@ -126,6 +151,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Run lifecycle',
     element: 'queue',
     elementLabel: 'Queue',
+    prompt: P.followUp,
   },
 
   // ── Session & modes ────────────────────────────────────────────────────────
@@ -136,6 +162,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Session & modes',
     target: 'Active-mode state (agent-driven; plan→build transition).',
+    prompt: P.plan,
     note: 'Wired in 698.28.',
   },
   {
@@ -146,7 +173,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Session & modes',
     element: 'model-selector',
     elementLabel: 'Model Selector',
-    note: "Deferred — the composer's own picker already shows the active model.",
+    note: "Deferred — the composer's own picker already shows the active model. Switch it there.",
   },
   {
     n: 6,
@@ -172,7 +199,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     meaning: 'The active thread switched.',
     consumed: false,
     group: 'Threads',
-    target: 'Conversation sidebar.',
+    target: 'Conversation sidebar (switch chats in the left rail).',
     note: 'The sidebar refetches on run-settle instead of folding these live.',
   },
   {
@@ -181,7 +208,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     meaning: 'A new thread was created.',
     consumed: false,
     group: 'Threads',
-    target: 'Conversation sidebar.',
+    target: 'Conversation sidebar (start a new chat).',
     note: 'Sidebar refetches on run-settle.',
   },
   {
@@ -190,7 +217,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     meaning: 'A thread was deleted.',
     consumed: false,
     group: 'Threads',
-    target: 'Conversation sidebar.',
+    target: 'Conversation sidebar (delete a chat).',
     note: 'Sidebar refetches on run-settle.',
   },
 
@@ -203,6 +230,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Messages',
     element: 'message',
     elementLabel: 'Message',
+    prompt: P.message,
   },
   {
     n: 10,
@@ -212,6 +240,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Messages',
     element: 'message',
     elementLabel: 'Message',
+    prompt: P.message,
   },
   {
     n: 11,
@@ -221,6 +250,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Messages',
     element: 'message',
     elementLabel: 'Message',
+    prompt: P.message,
   },
 
   // ── Tools & HITL ───────────────────────────────────────────────────────────
@@ -232,6 +262,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tools & HITL',
     element: 'tool',
     elementLabel: 'Tool',
+    prompt: P.weather,
     note: 'Wired in 698.25 (live input-streaming state).',
   },
   {
@@ -242,6 +273,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tools & HITL',
     element: 'tool',
     elementLabel: 'Tool',
+    prompt: P.weather,
     note: 'Wired in 698.25.',
   },
   {
@@ -252,6 +284,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tools & HITL',
     element: 'tool',
     elementLabel: 'Tool',
+    prompt: P.weather,
     note: 'Wired in 698.25 (accumulates into the live ToolInput).',
   },
   {
@@ -262,6 +295,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tools & HITL',
     element: 'tool',
     elementLabel: 'Tool',
+    prompt: P.weather,
     note: 'Wired in 698.25.',
   },
   {
@@ -272,6 +306,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tools & HITL',
     element: 'tool',
     elementLabel: 'Tool',
+    prompt: P.weather,
   },
   {
     n: 16,
@@ -291,6 +326,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tools & HITL',
     element: 'confirmation',
     elementLabel: 'Confirmation',
+    prompt: P.weather,
     note: 'Approve/decline posts to /harness/approve.',
   },
   {
@@ -300,7 +336,8 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Tools & HITL',
     target: 'Ask-user prompt (resumes via /harness/answer).',
-    note: 'Wired in 698.30.',
+    prompt: P.askUser,
+    note: 'Wired in 698.30 — an ambiguous request makes the agent ask you a question.',
   },
   {
     n: 15,
@@ -321,6 +358,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Workspace',
     element: 'terminal',
     elementLabel: 'Terminal',
+    prompt: P.shell,
   },
   {
     n: 26,
@@ -329,6 +367,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Workspace',
     target: 'Workbench status dot.',
+    prompt: P.workspace,
   },
   {
     n: 27,
@@ -337,6 +376,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Workspace',
     target: 'Workbench status dot.',
+    prompt: P.workspace,
   },
   {
     n: 28,
@@ -355,6 +395,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Observational memory',
     target: 'Memory panel (token windows).',
+    prompt: P.om,
     note: 'Wired in 698.35.',
   },
   {
@@ -364,6 +405,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Observational memory',
     target: 'Memory panel (activity log).',
+    prompt: P.om,
     note: 'Wired in 698.35.',
   },
   {
@@ -373,6 +415,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Observational memory',
     target: 'Memory panel (activity log).',
+    prompt: P.om,
     note: 'Wired in 698.35.',
   },
   {
@@ -391,6 +434,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Observational memory',
     target: 'Memory panel (activity log).',
+    prompt: P.om,
     note: 'Wired in 698.35.',
   },
   {
@@ -400,6 +444,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Observational memory',
     target: 'Memory panel (activity log).',
+    prompt: P.om,
     note: 'Wired in 698.35.',
   },
   {
@@ -418,6 +463,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Observational memory',
     target: 'Memory panel (activity log).',
+    prompt: P.om,
     note: 'Wired in 698.35.',
   },
   {
@@ -475,6 +521,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Subagents',
     element: 'agent',
     elementLabel: 'Agent',
+    prompt: P.subagent,
     note: 'Wired in 698.27; the code subagent is a real specialist (698.32).',
   },
   {
@@ -485,6 +532,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Subagents',
     element: 'agent',
     elementLabel: 'Agent',
+    prompt: P.subagent,
   },
   {
     n: 44,
@@ -494,6 +542,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Subagents',
     element: 'agent',
     elementLabel: 'Agent (nested Tool)',
+    prompt: P.subagent,
   },
   {
     n: 45,
@@ -503,6 +552,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Subagents',
     element: 'agent',
     elementLabel: 'Agent (nested Tool)',
+    prompt: P.subagent,
   },
   {
     n: 46,
@@ -512,6 +562,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Subagents',
     element: 'agent',
     elementLabel: 'Agent',
+    prompt: P.subagent,
   },
   {
     n: 47,
@@ -532,6 +583,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     group: 'Tasks & goals',
     element: 'task',
     elementLabel: 'Task',
+    prompt: P.task,
     note: 'Wired in 698.19 (TaskSignalProvider).',
   },
   {
@@ -541,6 +593,7 @@ export const HARNESS_EVENTS: HarnessEventRow[] = [
     consumed: true,
     group: 'Tasks & goals',
     target: 'Goal card.',
+    prompt: P.goal,
     note: 'Wired in 698.29 (agent-driven setGoal).',
   },
 ];

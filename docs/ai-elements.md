@@ -4,10 +4,16 @@
 > (shadcn-style: the source is copied into this repo, so we own and can edit every file).
 > Built on `ai@7` / `@ai-sdk/react@4` + Radix/Base-UI primitives.
 
-**48 components — 22 LIVE · 26 SHOWROOM-ONLY.**
-- **LIVE** = imported by the real chat surface under `components/chat/*` (and `components/workbench/*`).
-- **SHOWROOM-ONLY** = only referenced by `app/showcase/page.tsx` / `components/showcase/*` — a
-  prop-complete gallery, no live data source yet.
+All 48 Vercel AI Elements are vendored so a real chat can compose any of them. The last column marks
+whether the **reference app** currently drives the component with live data:
+- **live** = imported by the real chat surface (`components/chat/*`, `components/workbench/*`) and fed
+  by a real agent turn.
+- **showroom** = vendored but not yet wired to a live surface in this kit (e.g. the voice and
+  workflow-canvas families) — available to compose, just not exercised here.
+
+For the authoritative, always-current "what's wired" view — every harness event → the element it
+drives, with a copy-paste prompt to trigger it live — see the in-app **`/events`** page
+(`packages/web/app/events/page.tsx`) and [harness-events.md](./harness-events.md).
 
 Each file exports a root component plus several sub-parts (compound-component pattern). "Key props"
 lists the meaningful props of the **root**; sub-parts are named for reference.

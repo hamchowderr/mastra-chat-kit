@@ -1,5 +1,6 @@
 'use client';
 
+import { CheckIcon, CopyIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
@@ -18,9 +19,10 @@ type Filter = 'all' | 'consumed' | 'dropped';
 /**
  * /events — the in-product map of the Agent Harness event stream. Every one of the 50
  * `AgentControllerEvent` types the harness emits over `POST /harness/stream`, whether
- * this kit's reducer consumes it today, and the AI Element (or other surface) it drives —
- * with a live Showroom demo link + a source link per element. The honest, browsable
- * companion to docs/harness-events.md, kept in sync via lib/harness-event-map.ts.
+ * this kit's reducer consumes it today, and the AI Element (or surface) it drives. Where a
+ * prompt can trigger an event, it ships a copy button so you can paste it into the chat and
+ * watch it happen live. The honest, browsable companion to docs/harness-events.md, kept in
+ * sync via lib/harness-event-map.ts.
  */
 export default function EventsPage() {
   const [filter, setFilter] = useState<Filter>('all');
@@ -40,12 +42,6 @@ export default function EventsPage() {
         <Link href="/" className="text-muted-foreground hover:text-foreground">
           ← Chat
         </Link>
-        <Link href="/showcase" className="text-muted-foreground hover:text-foreground">
-          Showroom
-        </Link>
-        <Link href="/status" className="text-muted-foreground hover:text-foreground">
-          Wiring Status
-        </Link>
         <span className="font-medium text-foreground">Harness Events</span>
       </nav>
 
@@ -56,11 +52,8 @@ export default function EventsPage() {
           <code className="text-xs">POST /harness/stream</code>. This kit&rsquo;s reducer folds{' '}
           <strong>{counts.consumed}</strong> of them into the transcript today; the other{' '}
           <strong>{counts.dropped}</strong> are on the wire but unrendered (mostly by design — see
-          each row&rsquo;s note). Each event links to the AI Element it drives: a live{' '}
-          <Link href="/showcase" className="underline underline-offset-2">
-            Showroom
-          </Link>{' '}
-          demo, and its source.
+          each row&rsquo;s note). Where an event is user-triggerable, copy its prompt into the chat
+          to watch it happen live; each element also links to its source.
         </p>
       </header>
 
@@ -165,6 +158,7 @@ function EventRow({ row }: { row: HarnessEventRow }) {
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <p className="text-pretty text-sm">{row.meaning}</p>
         <TargetLine row={row} />
+        {row.prompt && <CopyPrompt prompt={row.prompt} />}
         {row.note && <p className="text-pretty text-muted-foreground text-xs italic">{row.note}</p>}
       </div>
     </li>
@@ -192,7 +186,7 @@ function ConsumedChip({ consumed }: { consumed: boolean }) {
   );
 }
 
-/** The event's target: an AI Element (with demo + source links) or a plain surface label. */
+/** The event's target: an AI Element (with a source link) or a plain surface label. */
 function TargetLine({ row }: { row: HarnessEventRow }) {
   if (!row.element) {
     return (
@@ -206,12 +200,6 @@ function TargetLine({ row }: { row: HarnessEventRow }) {
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
       <span className="text-muted-foreground">→</span>
       <span className="font-medium text-foreground">{row.elementLabel ?? row.element}</span>
-      <Link
-        href={`/showcase#${row.element}`}
-        className="rounded-full border border-border bg-background px-2 py-0.5 text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
-      >
-        demo →
-      </Link>
       {src ? (
         <a
           href={src}
@@ -231,5 +219,36 @@ function TargetLine({ row }: { row: HarnessEventRow }) {
         </code>
       )}
     </p>
+  );
+}
+
+/**
+ * A copy-paste prompt for triggering an event live. Copies the prompt to the clipboard
+ * (paste it into the chat in Harness mode) and shows the text so you know what you'll send.
+ */
+function CopyPrompt({ prompt }: { prompt: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    navigator.clipboard?.writeText(prompt).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      },
+      () => {},
+    );
+  };
+  return (
+    <div className="flex items-start gap-2">
+      <button
+        type="button"
+        onClick={copy}
+        aria-label="Copy prompt to clipboard"
+        className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 font-medium text-[11px] text-muted-foreground transition-[color,border-color,scale] hover:border-foreground/30 hover:text-foreground active:scale-[0.96]"
+      >
+        {copied ? <CheckIcon className="size-3 text-green-600" /> : <CopyIcon className="size-3" />}
+        {copied ? 'Copied' : 'Copy prompt'}
+      </button>
+      <span className="text-pretty text-muted-foreground text-xs italic">“{prompt}”</span>
+    </div>
   );
 }
