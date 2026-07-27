@@ -191,10 +191,13 @@ pnpm install
 
 # 2. Configure the server env
 cp packages/server/.env.example packages/server/.env
-#   Set APP_SECRET (openssl rand -hex 32) + a provider key for your CHAT_MODEL.
-#   CHAT_MODEL is a `provider/model` string resolved by Mastra's model router, so ANY
-#   provider works — set that provider's key (OPENAI_API_KEY, GROQ_API_KEY, …). See
-#   https://mastra.ai/models/environment-variables. Leave TURSO_DATABASE_URL as-is for the local file: DB.
+#   Set APP_SECRET (openssl rand -hex 32) + model access. CHAT_MODEL is a `provider/model`
+#   string resolved by Mastra's model router. Two ways to give it a key:
+#     • GATEWAY (easiest — one key, every provider, switch models freely):
+#         AI_GATEWAY_API_KEY     + CHAT_MODEL=vercel/…   (Vercel AI Gateway), or
+#         MASTRA_GATEWAY_API_KEY + CHAT_MODEL=mastra/…   (Mastra Gateway) — swap anytime.
+#     • DIRECT (one key per provider): ANTHROPIC_API_KEY + anthropic/…, OPENAI_API_KEY + openai/…
+#   See https://mastra.ai/models/environment-variables. Leave TURSO_DATABASE_URL as-is for the local file: DB.
 
 # 3. Run server (:4111) + web (:3000) together
 pnpm dev
