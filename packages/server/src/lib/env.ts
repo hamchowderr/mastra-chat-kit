@@ -64,27 +64,14 @@ const envSchema = z
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
 
     // The model the chat agent uses (Single Agent + Agent Harness both wrap it).
-    // `provider/model` form, resolved by Mastra's model router. Override to run a
-    // real cheap model, e.g. CHAT_MODEL=openai/gpt-4.1-nano.
+    // `provider/model` form, resolved by Mastra's model router — set it to any provider
+    // (see mastra.ai/models). Thread auto-titles derive a cheap model from this same
+    // provider automatically (lib/memory.ts). Override to run a cheap model in dev.
     CHAT_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
-    // Cheap, fast model for thread auto-titling. `provider/model` form. Leave unset
-    // to derive a provider-appropriate default from CHAT_MODEL's provider (so an
-    // OpenAI-only setup titles with an OpenAI model, not a hardcoded Anthropic one).
-    // See `resolveTitleModelId` in lib/memory.ts.
-    TITLE_MODEL: z.string().optional(),
-
-    // Attach the shared workspace (filesystem + sandbox + browser) to the chat AGENT
-    // so Mastra Studio surfaces it (698.31). Default ON. The ungated Single-Agent
-    // /chat transport opts OUT per-request (a `noWorkspace` request-context flag); tests
-    // force this OFF so AIMock runs stay hermetic (the controller still supplies its own
-    // workspace to the harness). See agents/chat.ts + lib/workspace.ts.
-    AGENT_WORKSPACE: boolish.default(true),
-
-    // Observational Memory: a background Observer/Reflector distills durable, cross-
-    // conversation facts (see lib/memory.ts). Adds background model calls, so it's
-    // toggleable — default ON (showcase); tests force it OFF for deterministic runs.
-    OBSERVATIONAL_MEMORY: boolish.default(true),
+    // Observational memory + the agent workspace are ALWAYS on (they're core to the
+    // kit, not user options) — no env toggle. Both are gated OFF only when NODE_ENV is
+    // 'test' so AIMock runs stay hermetic; see lib/memory.ts + agents/chat.ts.
 
     USE_AIMOCK: boolish.default(false),
     AIMOCK_URL: z.string().url().default('http://localhost:4010'),

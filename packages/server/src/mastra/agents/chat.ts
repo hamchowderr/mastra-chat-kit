@@ -245,14 +245,16 @@ export const chatAgent = new Agent({
   // dedupes by tool id). Needs memory + a thread, which both paths supply.
   signals: [new TaskSignalProvider()],
   // The SHARED workspace (filesystem + sandbox + browser) so Mastra Studio surfaces it +
-  // its tools on this registered agent (698.31), matching the official template. It's a
-  // DynamicArgument so the UNGATED Single-Agent /chat transport can opt OUT per request
-  // (it sets `noWorkspace` in the request context) — otherwise that simple path would expose
-  // fs/shell tools with NO approval. Tests force it off (env.AGENT_WORKSPACE) so the suite
-  // stays hermetic. In Harness mode the controller shares THIS same instance
-  // (getChatWorkspace), so it's not double-provisioned, and every tool is HITL-gated there.
+  // its tools on this registered agent (698.31), matching the official template. Always on
+  // — it's core to the kit, not a user option. It's a DynamicArgument so the UNGATED
+  // Single-Agent /chat transport can opt OUT per request (it sets `noWorkspace` in the
+  // request context) — otherwise that simple path would expose fs/shell tools with NO
+  // approval — and so the AIMock suite (NODE_ENV=test) stays hermetic (the harness
+  // controller supplies its own workspace there). In Harness mode the controller shares
+  // THIS same instance (getChatWorkspace), so it's not double-provisioned, and every tool
+  // is HITL-gated there.
   workspace: ({ requestContext }) =>
-    env.AGENT_WORKSPACE && requestContext?.get('noWorkspace') !== true
+    env.NODE_ENV !== 'test' && requestContext?.get('noWorkspace') !== true
       ? getChatWorkspace()
       : undefined,
   tools: {

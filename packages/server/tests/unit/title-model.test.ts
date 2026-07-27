@@ -15,15 +15,6 @@ describe('deriveTitleModelId — provider-appropriate auto-title model', () => {
     expect(deriveTitleModelId('anthropic/claude-sonnet-4-6')).toBe('anthropic/claude-haiku-4-5');
   });
 
-  it('an explicit TITLE_MODEL always wins, regardless of provider', () => {
-    expect(deriveTitleModelId('openai/gpt-4.1-mini', 'anthropic/claude-haiku-4-5')).toBe(
-      'anthropic/claude-haiku-4-5',
-    );
-    expect(deriveTitleModelId('anthropic/claude-sonnet-4-6', 'openai/gpt-4o-mini')).toBe(
-      'openai/gpt-4o-mini',
-    );
-  });
-
   it('falls back to the chat model itself for an unrecognized provider', () => {
     // e.g. a Google or custom-router model — reuse the chat model so it still resolves.
     expect(deriveTitleModelId('google/gemini-2.5-flash')).toBe('google/gemini-2.5-flash');

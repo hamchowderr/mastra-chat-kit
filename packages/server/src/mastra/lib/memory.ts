@@ -92,14 +92,11 @@ export const MESSAGE_VECTOR_INDEX = 'memory_messages_384';
  *
  * Titling is a cheap, high-volume task, so we want a small/fast model — but it MUST use
  * a provider the deployment actually has a key for. Hardcoding an Anthropic model
- * silently breaks titles on an OpenAI-only setup (`698.11`). So: honor an explicit
- * `titleModelId`, else pick a cheap model matching `chatModelId`'s provider, else fall
- * back to `chatModelId` itself (guaranteed to have a working key). Pure for testability.
+ * silently breaks titles on an OpenAI-only setup (`698.11`). So: pick a cheap model
+ * matching `chatModelId`'s provider, else fall back to `chatModelId` itself (guaranteed
+ * to have a working key). Pure for testability.
  */
-export function deriveTitleModelId(chatModelId: string, titleModelId?: string): string {
-  if (titleModelId) {
-    return titleModelId;
-  }
+export function deriveTitleModelId(chatModelId: string): string {
   if (chatModelId.startsWith('openai/')) {
     return 'openai/gpt-4.1-nano';
   }
@@ -110,9 +107,9 @@ export function deriveTitleModelId(chatModelId: string, titleModelId?: string): 
   return chatModelId;
 }
 
-/** The configured auto-title model id, derived from env (`TITLE_MODEL` → CHAT_MODEL provider). */
+/** The auto-title model id, derived from CHAT_MODEL's provider. */
 export function resolveTitleModelId(): string {
-  return deriveTitleModelId(env.CHAT_MODEL, env.TITLE_MODEL);
+  return deriveTitleModelId(env.CHAT_MODEL);
 }
 
 /**
@@ -149,12 +146,11 @@ export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TE
       // Observational Memory (harness showcase) — a background Observer distills durable
       // facts from the conversation and a Reflector compresses them, so the agent recalls
       // context ACROSS conversations (scope: 'resource'), not just within a thread. It runs
-      // its own model (gated on env.CHAT_MODEL rather than the default Google model, so a
-      // single provider key suffices). This adds background model calls, so it's toggleable
-      // via env.OBSERVATIONAL_MEMORY (default on) — tests set it off for deterministic,
-      // zero-spend runs (the Observer/Reflector need real structured output AIMock can't
-      // stand in for). Emits the om_* events the harness forwards (Memory-panel UI: 698.x).
-      ...(env.OBSERVATIONAL_MEMORY
+      // its own model (uses env.CHAT_MODEL rather than the default Google model, so a single
+      // provider key suffices). ALWAYS ON — it's core to the kit, not a user option — except
+      // under NODE_ENV=test, where the Observer/Reflector need real structured output AIMock
+      // can't stand in for. Emits the om_* events the harness forwards (Memory panel).
+      ...(env.NODE_ENV !== 'test'
         ? {
             observationalMemory: {
               model: env.CHAT_MODEL,
