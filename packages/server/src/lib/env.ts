@@ -100,10 +100,18 @@ const envSchema = z
     MASTRA_JWT_SECRET: z.string().min(32, 'MASTRA_JWT_SECRET must be at least 32 chars').optional(),
   })
   .refine(
-    (e) => Boolean(e.ANTHROPIC_API_KEY || e.OPENAI_API_KEY || e.GOOGLE_GENERATIVE_AI_API_KEY),
+    // Provider-agnostic. `CHAT_MODEL` is resolved by Mastra's model router, which derives
+    // the required key from the provider prefix (e.g. `groq/…` → `GROQ_API_KEY`) and errors
+    // clearly if it's missing (https://mastra.ai/models/environment-variables). So we only
+    // fail fast when NO provider key at all is set — any `<PROVIDER>_API_KEY` (or a gateway
+    // token) is accepted: openai, anthropic, google, groq, xai, deepseek, mistral, …
+    () =>
+      Object.entries(process.env).some(
+        ([k, v]) => Boolean(v) && (k.endsWith('_API_KEY') || k === 'MASTRA_CLOUD_ACCESS_TOKEN'),
+      ),
     {
       message:
-        'At least one LLM provider key required (ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY)',
+        'Set the API key for your CHAT_MODEL provider (e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GENERATIVE_AI_API_KEY, GROQ_API_KEY, …). See https://mastra.ai/models/environment-variables.',
     },
   );
 

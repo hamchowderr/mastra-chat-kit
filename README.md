@@ -191,14 +191,18 @@ pnpm install
 
 # 2. Configure the server env
 cp packages/server/.env.example packages/server/.env
-#   Set APP_SECRET (openssl rand -hex 32) + one provider key.
-#   Leave TURSO_DATABASE_URL as-is to use the local file: DB.
+#   Set APP_SECRET (openssl rand -hex 32) + a provider key for your CHAT_MODEL.
+#   CHAT_MODEL is a `provider/model` string resolved by Mastra's model router, so ANY
+#   provider works — set that provider's key (OPENAI_API_KEY, GROQ_API_KEY, …). See
+#   https://mastra.ai/models/environment-variables. Leave TURSO_DATABASE_URL as-is for the local file: DB.
 
 # 3. Run server (:4111) + web (:3000) together
 pnpm dev
 ```
 
 Open the web app at `http://localhost:3000` (chat) and `/events` (the harness event → element map, with a copy-paste prompt per capability). For deterministic, zero-cost dev, run the server against AIMock: `pnpm --filter server dev:mock`.
+
+> **Loading env in dev:** a plain `.env` works everywhere. We personally inject secrets with **[Infisical](https://infisical.com)** instead of a committed file — `infisical run --path=/<project> -- pnpm dev` — so nothing sensitive lands on disk. Either way the app just reads them from the environment.
 
 ---
 
@@ -249,7 +253,7 @@ It's a Mastra app, so it deploys anywhere a Node server or edge runtime runs. `T
 |---|---|---|
 | **Local** | `pnpm --filter server dev` | `pnpm --filter web dev` |
 | **Vercel** | Mastra build; point at Turso | `next build` (default target) |
-| **Mastra Cloud** | Mastra's hosted platform (Observe / Server / Studio) | — |
+| **Mastra Cloud** | `mastra deploy --org <id> --project <name>` (auth once with `mastra auth`) | deploy the Next.js web separately (e.g. Vercel) |
 | **VPS / container** | `Dockerfile` (bundles Studio); Turso or self-hosted libSQL | any Next.js host |
 
 Turso's database-per-tenant model and edge replication make libSQL a natural fit for multi-tenant and edge deploys.
@@ -262,6 +266,25 @@ Turso's database-per-tenant model and edge replication make libSQL a natural fit
 - 🧩 **Upstream the AI Elements patches** — contribute the vendored fixes back to `vercel/ai-elements`.
 - 🔁 **More clients** — add an IPC/desktop client (Electron) alongside the Agent-mode transport and the Harness SSE hook.
 - 🧾 **Real-provider smoke tier** — a small opt-in test script that runs against a live model, gated behind an explicit key.
+
+---
+
+## 📚 Docs & references
+
+The kit is built on **Mastra** (the agent framework + model router) and the **Vercel AI SDK** (the streaming + UI layer). The pages it leans on:
+
+**Mastra**
+- [Get started](https://mastra.ai/docs) · [Agent reference](https://mastra.ai/reference/agents/agent)
+- **[Model Router](https://mastra.ai/models)** — 600+ models across 40+ providers via one `provider/model` string · **[Environment variables](https://mastra.ai/models/environment-variables)** — which key each provider needs · [announcement](https://mastra.ai/blog/model-router)
+- **[Agent Harness / AgentController](https://mastra.ai/reference/agent-controller/agent-controller-class)** — the session controller Harness mode runs on · [announcement](https://mastra.ai/blog/announcing-agent-harness)
+- [Memory](https://mastra.ai/docs/memory/overview) · [Signals](https://mastra.ai/docs/agents/signals) — goals, task tracking, and observational memory all ride on the signal system
+
+**Vercel AI SDK**
+- [AI SDK](https://ai-sdk.dev) — the streaming layer under the hood · [AI Elements](https://ai-sdk.dev/elements) — the UI components this kit wires up
+
+**This repo**
+- [`docs/harness-events.md`](docs/harness-events.md) — every harness event → the element it drives (also live in-app at **`/events`**)
+- [`docs/coverage.md`](docs/coverage.md) · [`docs/modes.md`](docs/modes.md) · [`docs/ai-elements.md`](docs/ai-elements.md) · [`docs/registry.md`](docs/registry.md) · [`docs/postgres.md`](docs/postgres.md)
 
 ---
 
