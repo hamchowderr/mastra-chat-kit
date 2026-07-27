@@ -6,7 +6,7 @@
 
 **mastra-chat-kit is a production-grade chat frontend + backend that wires [Vercel AI Elements](https://ai-sdk.dev/elements) to the full [Mastra](https://mastra.ai) Agent Harness event stream — the hard part, done for you.** Built on the [AI SDK v7](https://ai-sdk.dev), it runs the *same* UI in **Agent mode** (a bare stateless agent) or **Harness mode** (a session-controlled `AgentController` with modes, goals, tool approvals, subagents, observational memory, schedules, and a live workspace). An in-app **`/events`** map lists every one of the 50 harness events, the AI Element it drives, and a copy-paste prompt to trigger it live. Ships as an **ai-elements / shadcn registry** so every project installs the same chat layer instead of drifting.
 
-[![License: Internal](https://img.shields.io/badge/license-internal-blue)](#-license)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Status: active](https://img.shields.io/badge/status-active-brightgreen)]()
 [![Node: 22+](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](#-getting-started)
 [![Built on Mastra](https://img.shields.io/badge/built%20on-Mastra-000)](https://mastra.ai)
@@ -15,9 +15,7 @@
 
 </div>
 
-![mastra-chat-kit](docs/screenshot.png)
-
-> _Screenshot placeholder — to be added. Run the app and open **`/events`** for the live harness-event → element map._
+![mastra-chat-kit — the chat, with a conversation sidebar and the agent workbench](docs/screenshot.png)
 
 ---
 
@@ -46,7 +44,7 @@ Add the namespace to your `components.json`, then install:
 npx shadcn@latest add @mastra-chat-kit/chat
 ```
 
-It pulls upstream [AI Elements](https://ai-sdk.dev/elements) and overrides only the components we patched (a tool-renderer registry, one approval component, the canonical chat shell). See [`docs/registry.md`](docs/registry.md) for the full design and [`docs/coverage.md`](docs/coverage.md) for the element → event mapping.
+It pulls upstream [AI Elements](https://ai-sdk.dev/elements) and overrides only the components we patched (a tool-renderer registry, one approval component, the canonical chat shell). See [`docs/registry.md`](docs/registry.md) for the full design, the in-app **`/events`** page for the live harness-event → element map, and [`docs/coverage.md`](docs/coverage.md) for the end-to-end matrix.
 
 ---
 
@@ -87,6 +85,8 @@ Every capability is **agent-driven** (no manual buttons — the agent calls the 
 | **Semantic search** | The conversation sidebar searches message bodies via a local embedding index. | *type in the sidebar search* |
 
 The **workbench** (right rail) surfaces the agent's workspace live: **Files · Terminal · Browser · Memory · Schedules**.
+
+![The in-app /events page — all 50 harness events mapped to the AI Element each drives, with a copy-paste prompt to trigger it live](docs/events.png)
 
 ---
 
@@ -266,4 +266,4 @@ Turso's database-per-tenant model and edge replication make libSQL a natural fit
 
 ## 📜 License
 
-**Internal.** © 2026 Otaku Solutions. Part of the Mastra kit lineage (sibling to `mastra-base` / `mastra-base-turso`). Questions: **hello@otakusolutions.io**.
+**[MIT](LICENSE).** © 2026 Otaku Solutions. Part of the Mastra kit lineage (sibling to `mastra-base` / `mastra-base-turso`). Questions: **hello@otakusolutions.io**.

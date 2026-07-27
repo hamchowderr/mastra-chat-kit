@@ -51,9 +51,10 @@ export default function EventsPage() {
           The Agent Harness streams <strong>{counts.total}</strong> event types over{' '}
           <code className="text-xs">POST /harness/stream</code>. This kit&rsquo;s reducer folds{' '}
           <strong>{counts.consumed}</strong> of them into the transcript today; the other{' '}
-          <strong>{counts.dropped}</strong> are on the wire but unrendered (mostly by design — see
-          each row&rsquo;s note). Where an event is user-triggerable, copy its prompt into the chat
-          to watch it happen live; each element also links to its source.
+          <strong>{counts.dropped}</strong>
+          {' are on the wire but unrendered (mostly by design — see each row’s note). '}
+          Where an event is user-triggerable, copy its prompt into the chat to watch it happen live;
+          each element also links to its source.
         </p>
       </header>
 
