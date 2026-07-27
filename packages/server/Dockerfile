@@ -36,6 +36,19 @@ ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 
 COPY --from=build --chown=mastra:nodejs /app/.mastra/output ./.mastra/output
 
+# The workspace's headless browser (@mastra/browser-viewer → playwright-core) drives a
+# version-matched Chromium. `mastra build` externalizes @mastra/browser-viewer, which
+# depends on playwright-core, so both land in output/node_modules — but a slim image
+# ships neither the browser BINARY nor Chromium's ~40 system libraries. Provision both
+# here into a fixed path that this install AND the runtime process read via
+# PLAYWRIGHT_BROWSERS_PATH. Runs as root (apt) before the USER switch; chown so the
+# non-root `mastra` user can launch it. Browser tools are lazy, so this only matters at
+# first browser use — but without it those calls fail (fs/shell/memory work regardless).
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN node .mastra/output/node_modules/playwright-core/cli.js install --with-deps chromium \
+    && chown -R mastra:nodejs /ms-playwright \
+    && rm -rf /var/lib/apt/lists/*
+
 # Persistent libSQL storage dir. Create it owned by the runtime user so the named
 # `libsqldata` volume mounted here (docker-compose.yml) inherits that ownership on
 # first init — the non-root `mastra` user must be able to write the DB file.

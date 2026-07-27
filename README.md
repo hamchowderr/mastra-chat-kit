@@ -266,8 +266,7 @@ pnpm --filter server dev    # server + Studio → http://localhost:4111
 
 **Always-on Node host / container — recommended, minimal changes.**
 Railway · Render · Fly.io · a VPS (Docker/Coolify) · AWS EC2 · DigitalOcean · Azure App Service. Point the build at `packages/server/Dockerfile`, set `TURSO_DATABASE_URL` + your keys.
-- ✅ Server, memory/threads/vectors (libSQL), the **filesystem + shell workspace**, and **DuckDB traces** all work with **no app-code changes**.
-- ⚠️ The **headless browser** needs Chromium in the image — the Dockerfile doesn't install it yet. Add `playwright-core install chromium --with-deps` (browser + system libs) to enable browser tools; without it, everything else works and only a browser tool call fails.
+- ✅ Server, memory/threads/vectors (libSQL), the **filesystem + shell workspace**, **DuckDB traces**, and the **headless browser** all work with **no app-code changes**. The `Dockerfile` provisions the browser's Chromium (`playwright-core install --with-deps chromium` → `/ms-playwright`) — verified by launching headless Chromium inside the built image as the non-root user.
 
 **Serverless / edge — a real port, not drop-in.**
 Vercel · Netlify · Cloudflare, via Mastra's deployers (`@mastra/deployer-vercel` / `-netlify` / `-cloudflare`, added as `deployer:` on the Mastra instance — a code change). Serverless has no persistent disk or long-running process, so the **local workspace + browser + DuckDB don't run there**. Chat + memory + the model gateway work on the edge out of the box; to keep the **workspace**, swap its local backends for **cloud** ones (a code edit in `workspace.ts`): a cloud **sandbox** that runs the shell remotely (`E2BSandbox`, `VercelSandbox`, `RailwaySandbox`, …), a cloud **filesystem** (`S3Filesystem`, `GCSFilesystem`, …), a non-DuckDB observability store, and Turso storage.
