@@ -2,12 +2,12 @@
 
 # 💬 mastra-chat-kit
 
-### One canonical AI chat layer. Every AI Element, every prop. Agent mode or Harness mode.
+### The Mastra Agent Harness, wired to Vercel AI Elements. One UI, Agent mode or Harness mode.
 
-**mastra-chat-kit is a production-grade chat frontend + backend built on [Vercel AI Elements](https://ai-sdk.dev/elements), the [AI SDK v7](https://ai-sdk.dev), and [Mastra](https://mastra.ai).** It exercises every AI Element and every prop, runs the *same* UI in **Agent mode** (a bare stateless agent) or **Harness mode** (a session-controlled `AgentController` with modes, tool approvals, subagents, model switching, and follow-ups), and ships as an **ai-elements / shadcn registry** so every project installs the same chat layer instead of drifting.
+**mastra-chat-kit is a production-grade chat frontend + backend that wires [Vercel AI Elements](https://ai-sdk.dev/elements) to the full [Mastra](https://mastra.ai) Agent Harness event stream — the hard part, done for you.** Built on the [AI SDK v7](https://ai-sdk.dev), it runs the *same* UI in **Agent mode** (a bare stateless agent) or **Harness mode** (a session-controlled `AgentController` with modes, goals, tool approvals, subagents, observational memory, schedules, and a live workspace). An in-app **`/events`** map lists every one of the 50 harness events, the AI Element it drives, and a copy-paste prompt to trigger it live. Ships as an **ai-elements / shadcn registry** so every project installs the same chat layer instead of drifting.
 
 [![License: Internal](https://img.shields.io/badge/license-internal-blue)](#-license)
-[![Status: scaffolding](https://img.shields.io/badge/status-scaffolding-orange)]()
+[![Status: active](https://img.shields.io/badge/status-active-brightgreen)]()
 [![Node: 22+](https://img.shields.io/badge/node-22%2B-339933?logo=node.js&logoColor=white)](#-getting-started)
 [![Built on Mastra](https://img.shields.io/badge/built%20on-Mastra-000)](https://mastra.ai)
 [![AI SDK v7](https://img.shields.io/badge/AI%20SDK-v7-000?logo=vercel)](https://ai-sdk.dev)
@@ -15,9 +15,9 @@
 
 </div>
 
-![mastra-chat-kit Showcase](docs/screenshot.png)
+![mastra-chat-kit](docs/screenshot.png)
 
-> _Screenshot placeholder — to be added. See `packages/web/app/showcase` for every element + prop, live._
+> _Screenshot placeholder — to be added. Run the app and open **`/events`** for the live harness-event → element map._
 
 ---
 
@@ -25,7 +25,7 @@
 
 One chat layer, built once, installed everywhere:
 
-- **Every AI Element, every prop.** `packages/web/app/showcase` renders the full Vercel AI Elements surface — messages, reasoning, tools, sources, tasks, context/usage, approvals — with every prop exercised, so nothing is untested when you compose a real chat.
+- **The whole harness surface, wired.** Mastra's Agent Harness emits ~50 orchestration events a bare chat stream can't carry — modes, goals, tool approvals (HITL), subagents, observational memory, recurring schedules, task tracking, live tool-input streaming, a sandboxed workspace. This kit folds each into the AI Element that renders it — the wiring you'd otherwise build by hand. The in-app **`/events`** map documents every event, the element it drives, and a copy-paste prompt to trigger it live.
 - **Two engines, one UI.** The web layer talks to the server over a `ChatTransport`. Swap the transport and the *same* `useChat` + AI Elements run in **Agent mode** (stateless HTTP) or **Harness mode** (session SSE). Nothing in the UI changes.
 - **AIMock-first.** Test everything before spending a cent — unit, integration, component, and e2e all run against deterministic [AIMock](https://aimock.copilotkit.dev) fixtures. A real provider is touched only at the final tier.
 - **Ships as a registry.** `npx shadcn@latest add @mastra-chat-kit/chat` installs the canonical shell into any project. It depends on upstream AI Elements and overrides only the few components we patched.
@@ -68,6 +68,28 @@ The web layer is pure frontend. **Agent mode** drives `useChat` with `singleAgen
 
 ---
 
+## 🧰 Harness capabilities
+
+Every capability is **agent-driven** (no manual buttons — the agent calls the right tool when it recognizes the intent) and wired to a real AI Element. Open **`/events`** in the app for the full event map with a copy-paste prompt per capability.
+
+| Capability | What it does | Try it (Harness mode) |
+|---|---|---|
+| **Modes** (Chat / Plan) | The agent proposes a plan, then switches to Chat to execute it on approval. | *"Propose a plan to add a dark-mode toggle, then wait for approval."* |
+| **Goals** | A standing objective the agent iterates toward; a judge scores each turn until it passes. | *"Keep refining a haiku about the ocean until it's excellent."* |
+| **Subagents** | Delegates to a real code specialist (its own instructions / model / tools) in the sandbox. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
+| **Tool approvals (HITL)** | Every side-effecting tool pauses for approve / decline before it runs. | *"What's the weather in Tokyo?"* |
+| **ask_user** | On a genuinely ambiguous request the agent asks *you* a question and resumes with the answer. | *"Deploy my app."* |
+| **Task tracking** | Multi-step work rendered as a live checklist. | *"Plan and build a tiny counter in tracked steps."* |
+| **Observational memory** | A background Observer distills durable facts across chats (the Memory panel). | *have a short back-and-forth* |
+| **Schedules** | Recurring, persisted cron runs that survive a restart. | *"Remind me every morning to check the changelog."* |
+| **Workspace** | A real filesystem + shell sandbox + browser the agent and its subagents drive. | *"Use the code subagent to create notes.txt."* |
+| **Live tool streaming** | Tool arguments stream into an input-streaming Tool before the call settles. | *(fires on any tool call)* |
+| **Semantic search** | The conversation sidebar searches message bodies via a local embedding index. | *type in the sidebar search* |
+
+The **workbench** (right rail) surfaces the agent's workspace live: **Files · Terminal · Browser · Memory · Schedules**.
+
+---
+
 ## 🧠 How it works
 
 ```
@@ -105,7 +127,7 @@ Every tier is **AIMock-backed, zero LLM spend** — real provider keys are inten
 |---|---|---|
 | **unit + integration** | `pnpm --filter server test` | Agent + Harness flows via [AIMock](https://aimock.copilotkit.dev) — a `globalSetup` boots the mock on :4010 |
 | **evals** | `pnpm --filter server eval` | `@mastra/evals` scorers (run with `USE_AIMOCK=true`) |
-| **component** | `pnpm --filter web test` | Every AI Element (Vitest + RTL) |
+| **component** | `pnpm --filter web test` | Harness reducer, transport + chat views, element rendering (Vitest + RTL) |
 | **e2e** | `pnpm test:e2e` | Full chat flow, both modes (Playwright, AIMock-backed) |
 
 `pnpm test` runs the unit/integration + component tiers across both packages. No script hits a real provider yet — a real-model smoke tier is on the roadmap.
@@ -132,11 +154,12 @@ packages/
 │        │  └─ dolt.ts          optional versioned business data (mysql2)
 │        └─ tools/            agent tools (getWeather, dolt, image, …)
 └─ web/                      Next.js 16 App Router + AI Elements (:3000)
-   ├─ app/showcase/            every element + prop, live
-   ├─ components/chat/         canonical shell · tool-renderer registry · approvals
+   ├─ app/                     chat (/) + /events — the harness-event → element map
+   ├─ components/chat/         canonical shell · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
    ├─ lib/transports/          single-agent.ts — Agent-mode DefaultChatTransport
-   └─ lib/harness/             use-harness-chat.ts + events — Harness-mode SSE client
+   ├─ lib/harness/             use-harness-chat.ts + events — Harness-mode SSE client
+   └─ lib/harness-event-map.ts the 50 events → elements + prompts (drives /events)
 ```
 
 ### Stack
@@ -175,7 +198,7 @@ cp packages/server/.env.example packages/server/.env
 pnpm dev
 ```
 
-Open the web app at `http://localhost:3000` (chat) and `/showcase` (every element). For deterministic, zero-cost dev, run the server against AIMock: `pnpm --filter server dev:mock`.
+Open the web app at `http://localhost:3000` (chat) and `/events` (the harness event → element map, with a copy-paste prompt per capability). For deterministic, zero-cost dev, run the server against AIMock: `pnpm --filter server dev:mock`.
 
 ---
 
