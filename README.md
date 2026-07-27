@@ -226,7 +226,15 @@ Prefer Postgres (Supabase / Neon / RDS)? It's a small, self-contained swap — s
 
 Separate from the app's own storage (threads/memory/vectors on libSQL), the kit ships an **optional** integration with **[Dolt](https://www.dolthub.com)** — a SQL database that versions data the way Git versions code. It speaks the MySQL wire protocol, so it's a normal `mysql2` connection; the only special part is that every write ends in a `DOLT_COMMIT`.
 
-It's **data-agnostic** — Dolt doesn't care what the rows *mean*. Point it at whatever you'd want a history for: records an agent edits, application config, a curated knowledge base, reference datasets, experiment results. The kit ships it as a generic capability, not a specific schema; you decide what lives there.
+It's **data-agnostic** — Dolt doesn't care what the rows *mean*. Point it at whatever you'd want a history for. The kit ships it as a generic capability, not a specific schema; you decide what lives there. A few concrete examples:
+
+| You put here… | …and versioning buys you |
+|---|---|
+| A **product catalog / price list** an agent edits | Undo a bad bulk change with one revert; `diff` exactly which rows moved |
+| **Customer / CRM records** the agent updates | A full audit trail — who changed what, when — with author attribution on every commit |
+| A **knowledge base / FAQ** the agent curates | Review its edits as a diff on a branch, merge only what you approve |
+| **App config / feature flags** | Time-travel back to a known-good state after a regression |
+| **Labeled datasets / eval results** | A branch per experiment, compared side by side |
 
 Why version it at all: it gives an agent an **auditable, reversible database**. When an agent mutates data — whatever that data represents in your app — you don't just get the new value; you get a commit you can **diff, view history on, time-travel to, branch, and roll back**. That enables a safe **"branch-per-agent → human merges"** pattern: the agent proposes changes on its own branch, a human reviews the diff and merges. The agent never knows it's a versioned DB — it just calls the `doltQuery` / `doltWrite` tools (`packages/server/src/mastra/tools/dolt.ts`), and every write is auto-committed with author attribution.
 
@@ -254,16 +262,20 @@ pnpm --filter server dev    # server + Studio → http://localhost:4111
 
 ## ☁️ Deployment
 
-It's a Mastra app, so it deploys anywhere a Node server or edge runtime runs. `TURSO_DATABASE_URL` selects storage — a local file for dev, a Turso URL for prod — and the web app is a standard Next.js deploy.
+It deploys anywhere Node runs — the server is a Mastra ([Hono](https://hono.dev)) app (`mastra build`, plus `packages/server/Dockerfile`) and the web app is a standard Next.js deploy. Which target fits depends on one thing: whether you need the agent's **workspace** (filesystem + shell + headless browser) and **DuckDB traces** — both want a persistent disk and a long-running process.
 
-| Host | Server | Web |
-|---|---|---|
-| **Local** | `pnpm --filter server dev` | `pnpm --filter web dev` |
-| **Vercel** | Mastra build; point at Turso | `next build` (default target) |
-| **Mastra Cloud** | `mastra deploy --org <id> --project <name>` (auth once with `mastra auth`) | deploy the Next.js web separately (e.g. Vercel) |
-| **VPS / container** | `Dockerfile` (bundles Studio); Turso or self-hosted libSQL | any Next.js host |
+**Node server / container — full capability (recommended).** Runs the container / `mastra build` output as-is, with the workspace, browser, and traces all working. Point `TURSO_DATABASE_URL` at Turso (or self-hosted libSQL), set your keys — **no code changes**.
 
-Turso's database-per-tenant model and edge replication make libSQL a natural fit for multi-tenant and edge deploys.
+| Target | What to do |
+|---|---|
+| **Railway · Render · Fly.io** | Deploy the repo; point the build at `packages/server/Dockerfile` (monorepo — set the service's root / dockerfile path) |
+| **VPS (Docker / Coolify) · AWS EC2 · DigitalOcean · Azure App Service** | Build & run `packages/server/Dockerfile` (bundles Studio) |
+
+**Serverless / edge — via Mastra's built-in deployers.** Mastra ships `@mastra/deployer-vercel` / `-netlify` / `-cloudflare` to automate the build. Trade-off on this kit: serverless has **no persistent filesystem**, so the **agent workspace (fs/shell) + headless browser don't run**, **DuckDB traces need a swap** (Cloudflare D1, or Mastra Cloud Observability), and storage must be **Turso** (not the `file:` default). You still get chat + memory + gateway on the edge — just without the workspace/browser.
+
+**Mastra Cloud — managed.** `mastra auth` once, then `mastra deploy --org <id> --project <name>` — the gateway is auto-seeded and a managed libSQL (Turso) DB is provisioned. Deploy the Next.js web separately (e.g. Vercel).
+
+The **web app** is plain Next.js — it goes anywhere Next.js runs (Vercel, Netlify, Cloudflare, or the same Node host). Turso's database-per-tenant model + edge replication make libSQL a natural fit for multi-tenant and edge deploys.
 
 ---
 
