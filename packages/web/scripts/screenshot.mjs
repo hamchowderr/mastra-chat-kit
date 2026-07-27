@@ -43,4 +43,19 @@ for (const s of shots) {
   console.log('wrote', out);
 }
 
+// Workbench (right rail) open on the Files tab — the sidebar │ chat │ workbench shell.
+// networkidle (not just domcontentloaded) so the client fully hydrates before we click.
+await page.goto(`${BASE}/`, { waitUntil: 'networkidle' });
+await page
+  .getByText(/on your mind/i)
+  .first()
+  .waitFor({ timeout: 15_000 });
+await page.getByRole('button', { name: 'Show workbench' }).click({ timeout: 5000 });
+// Confirm the panel opened (a workbench tab appears) before capturing.
+await page.getByText('Schedules').first().waitFor({ timeout: 5000 });
+await page.waitForTimeout(1000);
+const wbOut = path.join(docs, 'workbench.png');
+await page.screenshot({ path: wbOut });
+console.log('wrote', wbOut);
+
 await browser.close();

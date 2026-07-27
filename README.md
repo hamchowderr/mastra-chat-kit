@@ -15,7 +15,7 @@
 
 </div>
 
-![mastra-chat-kit — the chat, with a conversation sidebar and the agent workbench](docs/screenshot.png)
+![mastra-chat-kit — the conversation sidebar, the chat, and the agent workbench (Files / Terminal / Browser / Memory / Schedules)](docs/workbench.png)
 
 ---
 
@@ -74,7 +74,7 @@ Every capability is **agent-driven** (no manual buttons — the agent calls the 
 |---|---|---|
 | **Modes** (Chat / Plan) | The agent proposes a plan, then switches to Chat to execute it on approval. | *"Propose a plan to add a dark-mode toggle, then wait for approval."* |
 | **Goals** | A standing objective the agent iterates toward; a judge scores each turn until it passes. | *"Keep refining a haiku about the ocean until it's excellent."* |
-| **Subagents** | Delegates to a real code specialist (its own instructions / model / tools) in the sandbox. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
+| **Subagents** | Delegates to a specialist from a roster — **code** (build/run in the sandbox), **research** (browse + search + cite), **writer** (draft long-form) — each a real specialist with its own instructions / model / tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
 | **Tool approvals (HITL)** | Every side-effecting tool pauses for approve / decline before it runs. | *"What's the weather in Tokyo?"* |
 | **ask_user** | On a genuinely ambiguous request the agent asks *you* a question and resumes with the answer. | *"Deploy my app."* |
 | **Task tracking** | Multi-step work rendered as a live checklist. | *"Plan and build a tiny counter in tracked steps."* |
@@ -147,7 +147,7 @@ packages/
 │     ├─ lib/env.ts           Zod-validated env — crashes on bad config
 │     └─ mastra/
 │        ├─ index.ts          Boot: env → AIMock → Mastra; Agent + Harness routes
-│        ├─ agents/           chat · code
+│        ├─ agents/           chat · code · research · writer  (harness spawns the specialists)
 │        ├─ lib/
 │        │  ├─ harness.ts       AgentController + Session (Harness mode)
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
@@ -212,6 +212,16 @@ Memory, threads, and the vector index for semantic recall live in **libSQL** (na
 | **Production** | `libsql://<db>-<org>.turso.io` + `TURSO_AUTH_TOKEN` | a [Turso](https://turso.tech) database |
 
 Prefer Postgres (Supabase / Neon / RDS)? It's a small, self-contained swap — see **[`docs/postgres.md`](docs/postgres.md)**.
+
+---
+
+## 🕰️ Optional: versioned business data (Dolt)
+
+Separate from the app's own storage (threads/memory/vectors on libSQL), the kit ships an **optional** integration with **[Dolt](https://www.dolthub.com)** — a SQL database that versions data the way Git versions code. It speaks the MySQL wire protocol, so it's a normal `mysql2` connection; the only special part is that every write ends in a `DOLT_COMMIT`.
+
+Why: it gives an agent an **auditable, reversible business database**. When an agent mutates real data, you don't just get the new value — you get a commit you can **diff, view history on, time-travel to, branch, and roll back**. That enables a safe **"branch-per-agent → human merges"** pattern: the agent proposes changes on its own branch, a human reviews the diff and merges. The agent never knows it's a versioned DB — it just calls the `doltQuery` / `doltWrite` tools (`packages/server/src/mastra/tools/dolt.ts`), and every write is auto-committed with author attribution.
+
+It's **fully optional** and **off by default** — with no `DOLT_HOST` / `DOLT_PORT` set, the tools and boot-time bootstrap don't activate and the app runs entirely on libSQL. Point it at a Dolt server (e.g. the compose stack / Coolify) to switch it on.
 
 ---
 
