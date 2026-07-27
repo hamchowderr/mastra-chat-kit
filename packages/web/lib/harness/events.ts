@@ -172,6 +172,28 @@ export type HarnessSchedule = {
   name?: string;
 };
 
+/**
+ * A tool call whose input is still streaming — folded from the granular `tool_input_*`
+ * / `tool_start` events that fire BEFORE the settled `message_update` tool-invocation
+ * part arrives. Rendered as an input-streaming `<Tool>` for the window between the
+ * first arg delta and the settled message part, then SUPPRESSED (removed) the moment a
+ * message `tool_call` part with the same `toolCallId` lands — so it never double-renders
+ * against the settled Tool.
+ *
+ * Real event order (captured live, 698.25): `tool_input_start` → `tool_input_delta`×N →
+ * `tool_input_end` → `tool_start` → `message_update`[tool-invocation] → (gate). On a fast
+ * model the settled part arrives near-instantly, so this state is mostly visible when the
+ * model streams args slowly or the tool takes large inputs.
+ */
+export type ActiveTool = {
+  toolCallId: string;
+  name: string;
+  /** Accumulated raw args text (JSON), streamed in via `tool_input_delta.argsTextDelta`. */
+  argsText: string;
+  /** `input-streaming` while deltas arrive; `input-available` once `tool_input_end`/`tool_start` lands. */
+  state: 'input-streaming' | 'input-available';
+};
+
 /** What the SSE consumer folds events into and the view renders. */
 export type HarnessTranscript = {
   threadId: string | null;
@@ -195,6 +217,8 @@ export type HarnessTranscript = {
   goal: HarnessGoal | null;
   /** Observational-Memory state, folded from `om_*` (→ the workbench Memory panel). */
   memory: HarnessMemory | null;
+  /** Tools whose input is still streaming (input-streaming <Tool>), suppressed once settled. */
+  activeTools: ActiveTool[];
   error: string | null;
   done: boolean;
 };
@@ -214,6 +238,7 @@ export const emptyTranscript = (): HarnessTranscript => ({
   activeMode: null,
   goal: null,
   memory: null,
+  activeTools: [],
   error: null,
   done: false,
 });
@@ -314,6 +339,45 @@ function effectiveRole(msg: HarnessMessage): 'user' | 'assistant' | 'system' {
   return isUser ? 'user' : 'system';
 }
 
+/** Upsert an active (still-streaming) tool by toolCallId. */
+function upsertActiveTool(list: ActiveTool[], t: ActiveTool): ActiveTool[] {
+  const idx = list.findIndex((x) => x.toolCallId === t.toolCallId);
+  if (idx === -1) {
+    return [...list, t];
+  }
+  const next = list.slice();
+  next[idx] = t;
+  return next;
+}
+
+/** All toolCallIds that have a SETTLED `tool_call` part somewhere in the messages. */
+function settledToolCallIds(messages: HarnessMessage[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of messages) {
+    for (const p of m.content) {
+      if (p.type === 'tool_call') {
+        const id = (p as { id?: string }).id;
+        if (typeof id === 'string' && id) {
+          ids.add(id);
+        }
+      }
+    }
+  }
+  return ids;
+}
+
+/** Best-effort JSON string of tool args (for the input-available fallback). */
+function safeStringify(v: unknown): string {
+  if (typeof v === 'string') {
+    return v;
+  }
+  try {
+    return JSON.stringify(v ?? {});
+  } catch {
+    return '';
+  }
+}
+
 function upsertMessage(messages: HarnessMessage[], msg: HarnessMessage): HarnessMessage[] {
   const m: HarnessMessage = {
     ...msg,
@@ -388,6 +452,8 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
         done: true,
         pendingApproval: null,
         pendingSuspension: null,
+        // The run ended — any tool still marked "streaming input" is stale.
+        activeTools: [],
         terminal: { ...state.terminal, running: false },
       };
     // The sandbox streams command stdout/stderr as it runs — accumulate it into
@@ -412,14 +478,88 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
           event.toolCallId && state.pendingSuspension?.toolCallId === event.toolCallId
             ? null
             : state.pendingSuspension,
+        // Drop the finished tool's live entry (agent_end has no id → clear all).
+        activeTools: event.toolCallId
+          ? state.activeTools.filter((t) => t.toolCallId !== event.toolCallId)
+          : [],
         terminal: { ...state.terminal, running: false },
       };
+    // A settled message part is the canonical Tool render. After folding it in, drop any
+    // live (input-streaming) entry whose tool_call now has a message part — so the live
+    // <Tool> is replaced by the settled one, never rendered alongside it (no double-render).
     case 'message_start':
     case 'message_update':
-    case 'message_end':
-      return event.message
-        ? { ...state, messages: upsertMessage(state.messages, event.message as HarnessMessage) }
-        : state;
+    case 'message_end': {
+      if (!event.message) {
+        return state;
+      }
+      const messages = upsertMessage(state.messages, event.message as HarnessMessage);
+      const settled = settledToolCallIds(messages);
+      const activeTools = settled.size
+        ? state.activeTools.filter((t) => !settled.has(t.toolCallId))
+        : state.activeTools;
+      return { ...state, messages, activeTools };
+    }
+    // ── Live tool-input streaming (698.25) ──────────────────────────────────────
+    // The granular input events fold into `activeTools` so a tool renders in its
+    // input-streaming state while args stream, BEFORE the settled message part lands
+    // (which then suppresses the live entry — see the message case above).
+    case 'tool_input_start':
+      return {
+        ...state,
+        activeTools: upsertActiveTool(state.activeTools, {
+          toolCallId: String(event.toolCallId ?? ''),
+          name: String(event.toolName ?? ''),
+          argsText: '',
+          state: 'input-streaming',
+        }),
+      };
+    case 'tool_input_delta': {
+      const toolCallId = String(event.toolCallId ?? '');
+      const existing = state.activeTools.find((t) => t.toolCallId === toolCallId);
+      const delta =
+        typeof event.argsTextDelta === 'string'
+          ? event.argsTextDelta
+          : String(event.argsTextDelta ?? '');
+      return {
+        ...state,
+        activeTools: upsertActiveTool(state.activeTools, {
+          toolCallId,
+          name: existing?.name ?? String(event.toolName ?? ''),
+          argsText: (existing?.argsText ?? '') + delta,
+          state: 'input-streaming',
+        }),
+      };
+    }
+    case 'tool_input_end': {
+      const existing = state.activeTools.find((t) => t.toolCallId === event.toolCallId);
+      if (!existing) {
+        return state;
+      }
+      return {
+        ...state,
+        activeTools: upsertActiveTool(state.activeTools, { ...existing, state: 'input-available' }),
+      };
+    }
+    // The tool call is fully formed (args complete). Ensure a live entry exists with the
+    // final args — covers the case where input deltas were coalesced/missed.
+    case 'tool_start': {
+      const toolCallId = String(event.toolCallId ?? '');
+      const existing = state.activeTools.find((t) => t.toolCallId === toolCallId);
+      // If the settled message part already landed, don't resurrect a live entry.
+      if (settledToolCallIds(state.messages).has(toolCallId)) {
+        return state;
+      }
+      return {
+        ...state,
+        activeTools: upsertActiveTool(state.activeTools, {
+          toolCallId,
+          name: String(event.toolName ?? existing?.name ?? ''),
+          argsText: existing?.argsText || safeStringify(event.args),
+          state: 'input-available',
+        }),
+      };
+    }
     case 'task_updated':
       return { ...state, tasks: (event.tasks as HarnessTaskItem[]) ?? state.tasks };
     case 'usage_update':
@@ -689,6 +829,7 @@ export function reduceHarnessEvent(state: HarnessTranscript, event: AnyEvent): H
     case 'error':
       return {
         ...state,
+        activeTools: [],
         error: typeof event.error === 'string' ? event.error : JSON.stringify(event.error),
       };
     default:

@@ -52,6 +52,7 @@ import {
   StepTrace,
 } from '@/components/chat/tool-views';
 import {
+  type ActiveTool,
   collectToolResults,
   type HarnessContentPart,
   type SubagentRun,
@@ -119,8 +120,17 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
   // there are no manual mode/goal controls in the composer. `clearGoal` backs the goal
   // card's dismiss affordance (the user can abandon an active goal).
   const { goal, clearGoal } = harness;
-  const { messages, tasks, pendingApproval, pendingSuspension, usage, info, subagents, error } =
-    transcript;
+  const {
+    messages,
+    tasks,
+    pendingApproval,
+    pendingSuspension,
+    usage,
+    info,
+    subagents,
+    activeTools,
+    error,
+  } = transcript;
   const resultsById = collectToolResults(messages);
   // Subagent runs keyed by the parent `subagent` tool-call id, so a `subagent`
   // tool call in the transcript renders as the nested <Agent> card.
@@ -260,6 +270,13 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
                 );
               })}
 
+            {/* Live tool calls whose input is still streaming — shown until the settled
+                message part lands and suppresses them (698.25). No double-render: the
+                reducer drops an active entry the moment its tool_call message part exists. */}
+            {activeTools.map((t) => (
+              <ActiveToolCard key={`active-${t.toolCallId}`} tool={t} />
+            ))}
+
             {tasks.length > 0 && (
               <Task defaultOpen>
                 <TaskTrigger title={`Tasks (${tasks.length})`} />
@@ -383,6 +400,32 @@ function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?:
         ) : null}
       </AgentContent>
     </Agent>
+  );
+}
+
+/**
+ * A tool call whose input is still streaming — rendered from an `activeTools` entry
+ * during the window before the settled `message_update` tool-invocation part arrives
+ * (which then suppresses this via the reducer). Shows the input-streaming <Tool> state
+ * with whatever args have streamed so far (best-effort parse of the partial JSON).
+ */
+function ActiveToolCard({ tool }: { tool: ActiveTool }) {
+  let input: unknown = tool.argsText;
+  try {
+    if (tool.argsText.trim()) {
+      input = JSON.parse(tool.argsText);
+    }
+  } catch {
+    // Partial/streaming JSON — show the raw text until it parses.
+    input = tool.argsText;
+  }
+  return (
+    <Tool>
+      <ToolHeader type={`tool-${tool.name}`} state={tool.state} />
+      <ToolContent>
+        <ToolInput input={input} />
+      </ToolContent>
+    </Tool>
   );
 }
 

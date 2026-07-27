@@ -454,4 +454,90 @@ describe('harness reducer', () => {
     const map = collectToolResults(messages);
     expect(map.get('tc1')).toMatchObject({ type: 'tool_result' });
   });
+
+  // ── Live tool-input streaming (698.25) ────────────────────────────────────────
+  // Real captured order: tool_input_start → tool_input_delta×N → tool_input_end →
+  // tool_start → message_update[tool-invocation] → tool_approval_required.
+  describe('live tool-input streaming (activeTools, 698.25)', () => {
+    it('builds an input-streaming activeTool as args deltas arrive', () => {
+      const s = reduceHarnessEvents(emptyTranscript(), [
+        { type: 'tool_input_start', toolCallId: 'c1', toolName: 'getWeather' },
+        { type: 'tool_input_delta', toolCallId: 'c1', argsTextDelta: '{"loc' },
+        { type: 'tool_input_delta', toolCallId: 'c1', argsTextDelta: 'ation":"Paris"}' },
+      ]);
+      expect(s.activeTools).toHaveLength(1);
+      expect(s.activeTools[0]).toMatchObject({
+        toolCallId: 'c1',
+        name: 'getWeather',
+        argsText: '{"location":"Paris"}',
+        state: 'input-streaming',
+      });
+    });
+
+    it('flips to input-available on tool_input_end / tool_start', () => {
+      const base = reduceHarnessEvents(emptyTranscript(), [
+        { type: 'tool_input_start', toolCallId: 'c1', toolName: 'getWeather' },
+        { type: 'tool_input_delta', toolCallId: 'c1', argsTextDelta: '{}' },
+      ]);
+      const ended = reduceHarnessEvent(base, { type: 'tool_input_end', toolCallId: 'c1' });
+      expect(ended.activeTools[0].state).toBe('input-available');
+    });
+
+    it('SUPPRESSES the live entry once the settled message tool_call part lands (no double-render)', () => {
+      const streaming = reduceHarnessEvents(emptyTranscript(), [
+        { type: 'tool_input_start', toolCallId: 'c1', toolName: 'getWeather' },
+        { type: 'tool_input_delta', toolCallId: 'c1', argsTextDelta: '{"location":"Paris"}' },
+        { type: 'tool_input_end', toolCallId: 'c1' },
+        {
+          type: 'tool_start',
+          toolCallId: 'c1',
+          toolName: 'getWeather',
+          args: { location: 'Paris' },
+        },
+      ]);
+      expect(streaming.activeTools).toHaveLength(1);
+      // The settled message part for the SAME toolCallId arrives → the live entry is dropped.
+      const settled = reduceHarnessEvent(streaming, {
+        type: 'message_update',
+        message: {
+          id: 'm1',
+          role: 'assistant',
+          content: [
+            { type: 'tool_call', id: 'c1', name: 'getWeather', args: { location: 'Paris' } },
+          ],
+        },
+      });
+      expect(settled.activeTools).toHaveLength(0); // suppressed — the message-part Tool wins
+      expect(settled.messages).toHaveLength(1);
+    });
+
+    it('tool_start does not resurrect a live entry once its message part already exists', () => {
+      const withPart = reduceHarnessEvent(emptyTranscript(), {
+        type: 'message_update',
+        message: {
+          id: 'm1',
+          role: 'assistant',
+          content: [{ type: 'tool_call', id: 'c1', name: 'getWeather', args: {} }],
+        },
+      });
+      const after = reduceHarnessEvent(withPart, {
+        type: 'tool_start',
+        toolCallId: 'c1',
+        toolName: 'getWeather',
+        args: {},
+      });
+      expect(after.activeTools).toHaveLength(0);
+    });
+
+    it('clears active tools when the run ends', () => {
+      const streaming = reduceHarnessEvent(emptyTranscript(), {
+        type: 'tool_input_start',
+        toolCallId: 'c1',
+        toolName: 'getWeather',
+      });
+      expect(streaming.activeTools).toHaveLength(1);
+      expect(reduceHarnessEvent(streaming, { type: '__done__' }).activeTools).toHaveLength(0);
+      expect(reduceHarnessEvent(streaming, { type: 'agent_end' }).activeTools).toHaveLength(0);
+    });
+  });
 });
