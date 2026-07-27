@@ -262,20 +262,20 @@ pnpm --filter server dev    # server + Studio → http://localhost:4111
 
 ## ☁️ Deployment
 
-It deploys anywhere Node runs — the server is a Mastra ([Hono](https://hono.dev)) app (`mastra build`, plus `packages/server/Dockerfile`) and the web app is a standard Next.js deploy. Which target fits depends on one thing: whether you need the agent's **workspace** (filesystem + shell + headless browser) and **DuckDB traces** — both want a persistent disk and a long-running process.
+`mastra build` compiles the server into a self-contained Node app (`.mastra/output`, run with `node .mastra/output/index.mjs` or `mastra start`) that runs on any Node/Bun/Deno host; `packages/server/Dockerfile` wraps it. The web app is a plain Next.js deploy. What decides the target is the agent's **workspace**: as shipped it uses **local** backends — `LocalFilesystem` + `LocalSandbox` (a real shell) + a Playwright browser — which want a persistent disk and a long-running process.
 
-**Node server / container — full capability (recommended).** Runs the container / `mastra build` output as-is, with the workspace, browser, and traces all working. Point `TURSO_DATABASE_URL` at Turso (or self-hosted libSQL), set your keys — **no code changes**.
+**Always-on Node host / container — recommended, minimal changes.**
+Railway · Render · Fly.io · a VPS (Docker/Coolify) · AWS EC2 · DigitalOcean · Azure App Service. Point the build at `packages/server/Dockerfile`, set `TURSO_DATABASE_URL` + your keys.
+- ✅ Server, memory/threads/vectors (libSQL), the **filesystem + shell workspace**, and **DuckDB traces** all work with **no app-code changes**.
+- ⚠️ The **headless browser** needs Chromium in the image — the Dockerfile doesn't install it yet. Add `playwright-core install chromium --with-deps` (browser + system libs) to enable browser tools; without it, everything else works and only a browser tool call fails.
 
-| Target | What to do |
-|---|---|
-| **Railway · Render · Fly.io** | Deploy the repo; point the build at `packages/server/Dockerfile` (monorepo — set the service's root / dockerfile path) |
-| **VPS (Docker / Coolify) · AWS EC2 · DigitalOcean · Azure App Service** | Build & run `packages/server/Dockerfile` (bundles Studio) |
+**Serverless / edge — a real port, not drop-in.**
+Vercel · Netlify · Cloudflare, via Mastra's deployers (`@mastra/deployer-vercel` / `-netlify` / `-cloudflare`, added as `deployer:` on the Mastra instance — a code change). Serverless has no persistent disk or long-running process, so the **local workspace + browser + DuckDB don't run there**. Chat + memory + the model gateway work on the edge out of the box; to keep the **workspace**, swap its local backends for **cloud** ones (a code edit in `workspace.ts`): a cloud **sandbox** that runs the shell remotely (`E2BSandbox`, `VercelSandbox`, `RailwaySandbox`, …), a cloud **filesystem** (`S3Filesystem`, `GCSFilesystem`, …), a non-DuckDB observability store, and Turso storage.
 
-**Serverless / edge — via Mastra's built-in deployers.** Mastra ships `@mastra/deployer-vercel` / `-netlify` / `-cloudflare` to automate the build. Trade-off on this kit: serverless has **no persistent filesystem**, so the **agent workspace (fs/shell) + headless browser don't run**, **DuckDB traces need a swap** (Cloudflare D1, or Mastra Cloud Observability), and storage must be **Turso** (not the `file:` default). You still get chat + memory + gateway on the edge — just without the workspace/browser.
+**Mastra Cloud — managed.**
+`mastra auth`, then `mastra deploy --org <id> --project <name>` — gateway auto-seeded, managed libSQL provisioned. Deploy the Next.js web separately (e.g. Vercel).
 
-**Mastra Cloud — managed.** `mastra auth` once, then `mastra deploy --org <id> --project <name>` — the gateway is auto-seeded and a managed libSQL (Turso) DB is provisioned. Deploy the Next.js web separately (e.g. Vercel).
-
-The **web app** is plain Next.js — it goes anywhere Next.js runs (Vercel, Netlify, Cloudflare, or the same Node host). Turso's database-per-tenant model + edge replication make libSQL a natural fit for multi-tenant and edge deploys.
+The **web app** is plain Next.js — it goes anywhere Next.js runs. Turso's edge replication makes libSQL a natural fit for multi-tenant / edge.
 
 ---
 

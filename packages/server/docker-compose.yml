@@ -30,7 +30,7 @@ services:
       # Mastra storage + vectors → libSQL file: DB on the persistent libsqldata
       # volume (absolute path so it lands on the mount, not the ephemeral layer).
       - TURSO_DATABASE_URL=file:/app/data/mastra.db
-      # Versioned business data → the dolt service (private, internal network)
+      # Versioned data (Dolt) → the dolt service (private, internal network)
       - DOLT_HOST=dolt
       - DOLT_PORT=3306
       - DOLT_USER=root
