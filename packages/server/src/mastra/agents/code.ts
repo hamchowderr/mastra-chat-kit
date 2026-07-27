@@ -16,8 +16,10 @@ import { env } from '../../lib/env';
  *   - execute_command → <Terminal>  (+ <TestResults> on test runs, <StackTrace> on errors)
  *   - read/write/edit  → <CodeBlock>
  *
- * `forked: true` is REQUIRED in production today (see the field note below). The
- * parent can still request a forked (self-clone) subagent per invocation.
+ * It runs `forked: false` — a TRUE specialist: a fresh agent built from the
+ * `instructions` / `defaultModelId` / tools below, spawned per `task`. The parent
+ * can still request a `forked` (self-clone) subagent per invocation when a subtask
+ * needs the parent's conversation context.
  */
 export const codeSubagent: AgentControllerSubagent = {
   id: 'code',
@@ -41,19 +43,20 @@ Rules:
   // Workspace tools are inherited from the controller's Workspace. Left unrestricted
   // (all fs + shell tools visible); tighten via `allowedWorkspaceTools` if needed.
   //
-  // forked: true is REQUIRED in production. Root cause (traced in core 1.52,
-  // empirically confirmed: `browser:null` works, a real browser throws): the
-  // controller runs a non-forked subagent STATELESS (`threadId:null`, `resourceId:""`,
-  // no `memory` on `.stream()`) but builds it as `new Agent({workspace})`, so the
-  // browser on the workspace auto-attaches the `browser-context` state-signal
-  // processor, whose `computeStateSignal` HARD-THROWS unless the run has memory + an
-  // active resourceId/threadId. Forked clones the parent thread, so it has all three;
-  // a non-forked run has none and fails. TRADE-OFF: forked
-  // ignores the `instructions`/`tools`/`defaultModelId` above and runs as a clone of
-  // the parent agent — so this is currently a self-clone worker, not a code
-  // specialist. No clean kit-level fix (removing the browser breaks the main agent;
-  // the subagent config exposes no memory/thread/browser lever) — it's an upstream core
-  // bug (the state-signal processor should skip, not throw, on a threadless run).
-  // Tracked in `mastra-chat-kit-698.32`. See docs/harness-events.md.
-  forked: true,
+  // forked: false → a real specialist. It runs with THIS definition's instructions /
+  // model / tools (not a clone of the parent), which is the whole point of a code
+  // subagent. The parent hands it a self-contained task; a non-forked run doesn't see
+  // the parent conversation, so the `subagent` tool is instructed to include full
+  // context in the task.
+  //
+  // HISTORY (`mastra-chat-kit-698.32`, resolved): an earlier @mastra/core hard-threw
+  // `[Processor:browser-context] computeStateSignal requires Mastra memory with an
+  // active resourceId and threadId` for a non-forked subagent when the workspace
+  // carried a browser (the controller runs non-forked stateless — threadId:null,
+  // resourceId:"" — yet built it with the browser-bearing workspace). We ran it
+  // forked as a workaround. On the CURRENT core it no longer reproduces — verified
+  // with the browser both unlaunched AND launched — so we run the real specialist.
+  // Guarded by tests/integration/subagent-browser-repro.test.ts (flips red if a core
+  // upgrade regresses it). See docs/harness-events.md.
+  forked: false,
 };

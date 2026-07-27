@@ -109,8 +109,9 @@ describe('chat agent — Agent Harness mode (AIMock)', () => {
     const blob = JSON.stringify(events);
     // ...as the `code` type...
     expect(blob).toContain('"agentType":"code"');
-    // ...and it must run to completion WITHOUT the non-forked state-signal failure.
-    // (code.ts uses forked:true; a non-forked run throws "requires Mastra memory…".)
+    // ...and it must run to completion WITHOUT the browser-context state-signal failure
+    // that 698.32 tracked (now resolved upstream; code.ts runs forked:false — a real
+    // specialist). subagent-browser-repro.test.ts guards the non-forked+browser case.
     expect(blob).not.toContain('requires Mastra memory');
   });
 
