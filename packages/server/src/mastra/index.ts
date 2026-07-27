@@ -336,6 +336,13 @@ const serverConfig = {
           return createUIMessageStreamResponse({ stream });
         }
 
+        // The Single-Agent transport is UNGATED (no HITL approval/resume), so keep the
+        // chat agent's workspace (fs/shell/browser tools) OUT of it: the agent's
+        // `workspace` DynamicArgument returns undefined when `noWorkspace` is set. Studio
+        // and the Harness path (which IS gated) still get the workspace.
+        const noWorkspaceCtx = new RequestContext();
+        noWorkspaceCtx.set('noWorkspace', true);
+
         const stream = await handleChatStream({
           mastra,
           agentId,
@@ -346,6 +353,7 @@ const serverConfig = {
             // biome-ignore lint/suspicious/noExplicitAny: pass the UIMessage[] body through verbatim
             messages: (body.messages ?? []) as any,
             trigger: body.trigger,
+            requestContext: noWorkspaceCtx,
             ...(memory ? { memory } : {}),
           },
           defaultOptions: {

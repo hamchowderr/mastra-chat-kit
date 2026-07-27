@@ -74,6 +74,13 @@ const envSchema = z
     // See `resolveTitleModelId` in lib/memory.ts.
     TITLE_MODEL: z.string().optional(),
 
+    // Attach the shared workspace (filesystem + sandbox + browser) to the chat AGENT
+    // so Mastra Studio surfaces it (698.31). Default ON. The ungated Single-Agent
+    // /chat transport opts OUT per-request (a `noWorkspace` request-context flag); tests
+    // force this OFF so AIMock runs stay hermetic (the controller still supplies its own
+    // workspace to the harness). See agents/chat.ts + lib/workspace.ts.
+    AGENT_WORKSPACE: boolish.default(true),
+
     // Observational Memory: a background Observer/Reflector distills durable, cross-
     // conversation facts (see lib/memory.ts). Adds background model calls, so it's
     // toggleable — default ON (showcase); tests force it OFF for deterministic runs.

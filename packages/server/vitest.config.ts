@@ -21,6 +21,10 @@ export default defineConfig({
       // output AIMock can't stand in for, and it would add nondeterministic background
       // model calls. OM is verified live against a real provider, not in the mock suite.
       OBSERVATIONAL_MEMORY: 'false',
+      // Don't attach the shared workspace to the chat agent in tests — the harness
+      // controller supplies its own throwaway workspace, and this keeps the agent
+      // (and the Single-Agent path) off the real WORKSPACE_ROOT/browser singleton.
+      AGENT_WORKSPACE: 'false',
       AIMOCK_URL: 'http://127.0.0.1:4010',
       // Route provider SDKs at AIMock (anthropic appends /messages to this base).
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:4010/v1',

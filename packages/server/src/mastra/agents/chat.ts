@@ -7,6 +7,7 @@ import { env } from '../../lib/env';
 import { putImage } from '../lib/image-store';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
+import { getChatWorkspace } from '../lib/workspace';
 import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
 /**
@@ -243,6 +244,17 @@ export const chatAgent = new Agent({
   // task tools via the controller; the agent's provider is the canonical source and
   // dedupes by tool id). Needs memory + a thread, which both paths supply.
   signals: [new TaskSignalProvider()],
+  // The SHARED workspace (filesystem + sandbox + browser) so Mastra Studio surfaces it +
+  // its tools on this registered agent (698.31), matching the official template. It's a
+  // DynamicArgument so the UNGATED Single-Agent /chat transport can opt OUT per request
+  // (it sets `noWorkspace` in the request context) — otherwise that simple path would expose
+  // fs/shell tools with NO approval. Tests force it off (env.AGENT_WORKSPACE) so the suite
+  // stays hermetic. In Harness mode the controller shares THIS same instance
+  // (getChatWorkspace), so it's not double-provisioned, and every tool is HITL-gated there.
+  workspace: ({ requestContext }) =>
+    env.AGENT_WORKSPACE && requestContext?.get('noWorkspace') !== true
+      ? getChatWorkspace()
+      : undefined,
   tools: {
     getWeather,
     searchKnowledge,

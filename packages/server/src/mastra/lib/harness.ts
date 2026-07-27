@@ -18,8 +18,7 @@
  * Session per user (keyed by resourceId).
  */
 
-import path from 'node:path';
-import { BrowserViewer } from '@mastra/browser-viewer';
+import type { BrowserViewer } from '@mastra/browser-viewer';
 import { AgentController, type Session } from '@mastra/core/agent-controller';
 import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
@@ -28,15 +27,20 @@ import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
 import { createDefaultMemory, getSharedStore } from './memory';
+import {
+  createBrowser,
+  getChatBrowserInstance,
+  getChatWorkspace,
+  WORKSPACE_ROOT,
+} from './workspace';
+
+// The workspace (filesystem + sandbox + browser) is defined once in ./workspace and
+// shared by BOTH the chat agent (Studio visibility, 698.31) and this controller — same
+// instance, so nothing is double-provisioned. Re-exported for the /workspace/* routes
+// (index.ts, WORKSPACE_ROOT) and the integration test (createBrowser) which import from here.
+export { createBrowser, WORKSPACE_ROOT };
 
 const CHAT_MODEL_ID = env.CHAT_MODEL;
-
-// Absolute root for the agent's workspace (filesystem + sandbox share it). Under
-// `mastra dev` the cwd shifts, so resolve a relative WORKSPACE_ROOT once here.
-// Exported so the /workspace/* routes can read the same folder the agent works in.
-export const WORKSPACE_ROOT = path.isAbsolute(env.WORKSPACE_ROOT)
-  ? env.WORKSPACE_ROOT
-  : path.resolve(process.cwd(), env.WORKSPACE_ROOT);
 
 /** Fixed resource id for the single logical user this reference serves. */
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
@@ -54,22 +58,6 @@ function createHarnessStore(): MastraStorage {
 }
 
 /**
- * Build the workspace's browser: a `BrowserViewer` (a `MastraBrowser`) that owns
- * a Playwright-driven Chrome and injects its CDP URL into the CLI the agent
- * shells out to (`agent-browser` by default), so shell-driven and native browser
- * tools drive the SAME window. Construction is cheap — Chrome launches lazily on
- * first use, so this stays off the boot/AIMock/test path until a browser tool
- * actually fires. Pass `browser: null` to `createChatHarness` to opt out.
- */
-export function createBrowser(): BrowserViewer {
-  return new BrowserViewer({
-    cli: env.BROWSER_CLI,
-    headless: env.BROWSER_HEADLESS,
-    ...(env.BROWSER_EXECUTABLE_PATH ? { executablePath: env.BROWSER_EXECUTABLE_PATH } : {}),
-  });
-}
-
-/**
  * Build (but don't init) an AgentController around `chatAgent` in a single
  * "default" mode. Tests pass their own `storage` (InMemoryStore) for
  * zero-dependency AIMock runs; the live singleton falls back to an in-memory
@@ -80,8 +68,23 @@ export function createChatHarness(opts?: {
   resourceId?: string;
   /** Override the workspace browser; pass `null` to omit it (hermetic tests). */
   browser?: MastraBrowser | null;
+  /**
+   * The workspace to drive the session with. The live singleton passes the SHARED
+   * workspace (`getChatWorkspace()`) — the same instance the chat agent carries — so
+   * nothing is double-provisioned. Omit it (tests) to build a throwaway workspace from
+   * the `browser` option instead, keeping AIMock runs hermetic.
+   */
+  workspace?: Workspace;
 }): AgentController {
   const browser = opts?.browser === null ? undefined : (opts?.browser ?? createBrowser());
+  const workspace =
+    opts?.workspace ??
+    new Workspace({
+      id: 'chat-workspace',
+      filesystem: new LocalFilesystem({ basePath: WORKSPACE_ROOT }),
+      sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_ROOT }),
+      ...(browser ? { browser } : {}),
+    });
   return new AgentController({
     id: 'chat-harness',
     defaultModeId: 'chat',
@@ -126,13 +129,8 @@ export function createChatHarness(opts?: {
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.
     // Every tool is approval-gated by the harness (HITL), so nothing runs without
-    // an explicit decision.
-    workspace: new Workspace({
-      id: 'chat-workspace',
-      filesystem: new LocalFilesystem({ basePath: WORKSPACE_ROOT }),
-      sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_ROOT }),
-      ...(browser ? { browser } : {}),
-    }),
+    // an explicit decision. Live: the SHARED workspace (also on the chat agent).
+    workspace,
   });
 }
 
@@ -147,15 +145,17 @@ export function getChatHarness(): Promise<AgentController> {
   }
   if (!initPromise) {
     initPromise = (async () => {
-      // Create the browser explicitly so the screencast route can reach the same
-      // instance the agent's browser tools drive.
-      const browser = createBrowser();
-      // Persistent store → the session's threads/messages survive restarts, so
-      // the conversation sidebar can list + reopen them (`session.thread.list()`).
-      const harness = createChatHarness({ browser, storage: createHarnessStore() });
+      // Drive the session with the SHARED workspace singleton — the very same instance
+      // the chat agent carries (getChatWorkspace), so Studio + the harness + the
+      // screencast route all point at one workspace/browser. No double-provision.
+      const harness = createChatHarness({
+        workspace: getChatWorkspace(),
+        storage: createHarnessStore(),
+      });
       await harness.init();
       singleton = harness;
-      singletonBrowser = browser;
+      // The screencast route reaches the same Chrome the agent's browser tools drive.
+      singletonBrowser = getChatBrowserInstance();
       return harness;
     })();
   }
