@@ -38,7 +38,12 @@ import {
   WORKSPACE_ROOT,
 } from './lib/harness';
 import { getImage } from './lib/image-store';
-import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
+import {
+  getSharedStore,
+  getSharedVector,
+  MESSAGE_VECTOR_INDEX,
+  resolveTitleModelId,
+} from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
 import { readWorkspaceFile, readWorkspaceTree } from './lib/workspace-files';
 import { doltTools } from './tools/dolt';
@@ -117,6 +122,22 @@ function resolveWebSearch(routerId: string) {
     tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 4 }) },
   };
 }
+// Resolve the AI SDK model instance for the manual thread-title route (the Single
+// Agent path titles by hand — generateTitle doesn't fire through handleChatStream).
+// Follows the configured title model (resolveTitleModelId), so an OpenAI-only setup
+// titles with OpenAI instead of a hardcoded Anthropic model (698.11). Returns null
+// for a provider this route can't construct — the caller then keeps the fallback title.
+function resolveTitleModel() {
+  const id = resolveTitleModelId();
+  if (id.startsWith('openai/')) {
+    return openai(id.slice('openai/'.length));
+  }
+  if (id.startsWith('anthropic/')) {
+    return anthropic(id.slice('anthropic/'.length));
+  }
+  return null;
+}
+
 const WEB_SEARCH_SYSTEM =
   'You are a helpful, concise assistant with live web search. Use the web_search tool for anything that needs current or factual information, then answer and cite the sources. Use markdown.';
 // On a persistent provider overload, fall back to this model (Haiku is the least
@@ -559,10 +580,16 @@ const serverConfig = {
         if (!transcript) {
           return c.json({ title: thread.title ?? '' });
         }
+        // Provider-appropriate title model (falls back to the first-message title
+        // when the configured provider isn't one this route can construct).
+        const titleGenModel = resolveTitleModel();
+        if (!titleGenModel) {
+          return c.json({ title: thread.title ?? '' });
+        }
         let title = '';
         try {
           const { text } = await generateText({
-            model: anthropic('claude-haiku-4-5'),
+            model: titleGenModel,
             maxRetries: 3,
             system:
               'Generate a concise 3-6 word title summarizing the user\'s request in this conversation. Output ONLY the plain title text — no markdown, no quotes, no "Title:" label.',

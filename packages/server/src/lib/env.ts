@@ -68,6 +68,12 @@ const envSchema = z
     // real cheap model, e.g. CHAT_MODEL=openai/gpt-4.1-nano.
     CHAT_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
+    // Cheap, fast model for thread auto-titling. `provider/model` form. Leave unset
+    // to derive a provider-appropriate default from CHAT_MODEL's provider (so an
+    // OpenAI-only setup titles with an OpenAI model, not a hardcoded Anthropic one).
+    // See `resolveTitleModelId` in lib/memory.ts.
+    TITLE_MODEL: z.string().optional(),
+
     // Observational Memory: a background Observer/Reflector distills durable, cross-
     // conversation facts (see lib/memory.ts). Adds background model calls, so it's
     // toggleable — default ON (showcase); tests force it OFF for deterministic runs.

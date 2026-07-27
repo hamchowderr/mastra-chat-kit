@@ -88,6 +88,34 @@ export function getSharedVector(): LibSQLVector {
 export const MESSAGE_VECTOR_INDEX = 'memory_messages_384';
 
 /**
+ * Pure provider-derivation for the auto-title model id (`provider/model` router form).
+ *
+ * Titling is a cheap, high-volume task, so we want a small/fast model — but it MUST use
+ * a provider the deployment actually has a key for. Hardcoding an Anthropic model
+ * silently breaks titles on an OpenAI-only setup (`698.11`). So: honor an explicit
+ * `titleModelId`, else pick a cheap model matching `chatModelId`'s provider, else fall
+ * back to `chatModelId` itself (guaranteed to have a working key). Pure for testability.
+ */
+export function deriveTitleModelId(chatModelId: string, titleModelId?: string): string {
+  if (titleModelId) {
+    return titleModelId;
+  }
+  if (chatModelId.startsWith('openai/')) {
+    return 'openai/gpt-4.1-nano';
+  }
+  if (chatModelId.startsWith('anthropic/')) {
+    return 'anthropic/claude-haiku-4-5';
+  }
+  // Unknown/other provider (or AIMock): reuse the chat model — it definitely resolves.
+  return chatModelId;
+}
+
+/** The configured auto-title model id, derived from env (`TITLE_MODEL` → CHAT_MODEL provider). */
+export function resolveTitleModelId(): string {
+  return deriveTitleModelId(env.CHAT_MODEL, env.TITLE_MODEL);
+}
+
+/**
  * Build a Memory instance with the shared baseline. Each agent gets its own
  * instance. Override `template` to track agent-specific fields.
  */
@@ -110,9 +138,11 @@ export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TE
         topK: 3,
         messageRange: 2,
       },
-      // Name each new thread so the sidebar has a human-readable title.
+      // Name each new thread so the sidebar has a human-readable title. The model
+      // follows the configured provider (resolveTitleModelId) so titling works on an
+      // OpenAI-only setup, not just when an Anthropic key is present (698.11).
       generateTitle: {
-        model: 'anthropic/claude-haiku-4-5',
+        model: resolveTitleModelId(),
         instructions:
           'Generate a concise 3-6 word title summarizing the user\'s request in this conversation. Output ONLY the plain title text — no markdown, no quotes, no "Title:" label.',
       },
