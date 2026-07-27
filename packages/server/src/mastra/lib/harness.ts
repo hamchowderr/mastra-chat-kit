@@ -26,6 +26,8 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
+import { researchSubagent } from '../agents/research';
+import { writerSubagent } from '../agents/writer';
 import { createDefaultMemory, getSharedStore } from './memory';
 import {
   createBrowser,
@@ -120,11 +122,13 @@ export function createChatHarness(opts?: {
     // without this the subagent run fails ("requires Mastra memory with an active
     // resourceId and threadId").
     memory: createDefaultMemory(),
-    // ONE agent, native subagents: the controller auto-creates the built-in
-    // `subagent` tool from these definitions, so the chat agent can spawn a fresh
-    // focused subagent per task (agentType:'code'). Callers may also request a
-    // `forked` (self-clone) subagent per-invocation for ad-hoc parallel subtasks.
-    subagents: [codeSubagent],
+    // ONE agent, a ROSTER of native specialist subagents: the controller auto-creates
+    // the built-in `subagent` tool from these definitions, so the chat agent can spawn a
+    // fresh, focused specialist per task — agentType 'code' (build/run in the sandbox),
+    // 'research' (browse + search + cite), or 'writer' (draft long-form). Each is a real
+    // `forked:false` specialist (its own instructions/model/tools); callers may still
+    // request a `forked` (self-clone) subagent per-invocation for parallel subtasks.
+    subagents: [codeSubagent, researchSubagent, writerSubagent],
     // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.
