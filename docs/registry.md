@@ -12,7 +12,7 @@ our own copies of only the few we had to patch.
 
 | Item | Type | What it is |
 |---|---|---|
-| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, **plus the harness sidebar and the 4-tab workbench** (browser, files, memory, schedules). Contains both `chat.tsx` (Agent mode) and `chat-switcher.tsx` (the Harness shell). **This is what you install.** |
+| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, **plus the harness sidebar and the 4-tab workbench** (browser, files, memory, schedules). **This is what you install.** |
 | `chat-engine` | lib | Swappable transport + harness client (`lib/transports`, `lib/harness`). |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `harness/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
@@ -174,7 +174,6 @@ this contract — the routes proxy 1:1:
 
 | Next route (installed) | → Mastra server endpoint |
 |---|---|
-| `POST /api/chat/:agentId` | `POST /chat/:agentId` (streaming) |
 | `GET /api/threads` | `GET /threads` |
 | `GET /api/threads/search?q=` | `GET /threads/search?q=` |
 | `GET /api/threads/:id/messages` | `GET /threads/:id/messages` |
@@ -206,7 +205,7 @@ Harness mode needs the rest of the surface — the workbench panels and
 > with `registerApiRoute()`; treat it as the reference implementation.
 
 Then mount `<ChatSwitcher />` (the Harness shell — sidebar │ chat │ workbench;
-it is not a mode toggle) or `<Chat agentId="…" />` (the leaner Agent-mode shell)
+it is not a mode toggle — there is only one engine)
 from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
 `<Toaster />` in your root layout if you want notifications.
 

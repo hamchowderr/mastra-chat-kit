@@ -111,16 +111,9 @@
       "type": "registry:lib",
       "title": "Chat Engine",
       "description": "Swappable transport + harness client for Agent mode and Harness mode.",
-      "dependencies": [
-        "ai"
-      ],
+      "dependencies": [],
       "registryDependencies": [],
       "files": [
-        {
-          "path": "lib/transports/single-agent.ts",
-          "type": "registry:lib",
-          "target": "lib/transports/single-agent.ts"
-        },
         {
           "path": "lib/harness/events.ts",
           "type": "registry:lib",
@@ -145,11 +138,6 @@
           "path": "lib/mastra-proxy.ts",
           "type": "registry:file",
           "target": "lib/mastra-proxy.ts"
-        },
-        {
-          "path": "app/api/chat/[agentId]/route.ts",
-          "type": "registry:file",
-          "target": "app/api/chat/[agentId]/route.ts"
         },
         {
           "path": "app/api/threads/route.ts",
@@ -254,7 +242,6 @@
       "title": "Mastra Chat",
       "description": "Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.",
       "dependencies": [
-        "@ai-sdk/react",
         "ai",
         "lucide-react",
         "shiki",
@@ -287,21 +274,10 @@
         "https://ai-sdk.dev/elements/api/registry/suggestion.json",
         "https://ai-sdk.dev/elements/api/registry/task.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json",
-        "https://ai-sdk.dev/elements/api/registry/web-preview.json",
         "sonner",
         "@mastra-chat-kit/chat-routes"
       ],
       "files": [
-        {
-          "path": "components/chat/chat.tsx",
-          "type": "registry:component",
-          "target": "components/chat/chat.tsx"
-        },
-        {
-          "path": "components/chat/chat-sidebar.tsx",
-          "type": "registry:component",
-          "target": "components/chat/chat-sidebar.tsx"
-        },
         {
           "path": "components/chat/chat-switcher.tsx",
           "type": "registry:component",

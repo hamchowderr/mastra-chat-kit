@@ -145,43 +145,39 @@ The UI is **pure frontend** — it talks to a Mastra server over the same-origin
 
 ---
 
-## 🎛️ Two modes, one UI
+## 🎛️ One engine: the Agent Harness
 
-The web layer talks to the server over a swappable transport, so the *same* AI Elements render either engine.
+There is one engine, and everything in this kit comes from it.
 
-| | 🟢 **Agent mode** | 🟣 **Harness mode** |
-|---|---|---|
-| **Component** | `<Chat agentId="…" />` | `<ChatSwitcher />` |
-| **Backend** | `agent.stream` → `toAISdkStream` → `createUIMessageStreamResponse` | `AgentController` → `Session`; commands in, events out |
-| **Route** | `POST /chat/:agent` (HTTP) | `POST /harness/stream` (SSE) + `POST /harness/approve` |
-| **Web client** | `useChat` + `singleAgentTransport` (`DefaultChatTransport`) | `useHarnessChat` hook (command POST + SSE) |
-| **Wire format** | AI SDK `UIMessage` parts | `AgentControllerEvent`s → `AgentControllerDisplayState` |
-| **Modes / approvals / subagents / workbench** | n/a | first-class |
+| | |
+|---|---|
+| **Component** | `<ChatSwitcher />` — sidebar │ chat │ workbench |
+| **Backend** | `AgentController` → `Session`; commands in, events out |
+| **Route** | `POST /harness/stream` (SSE) + `POST /harness/approve` |
+| **Web client** | `useHarnessChat` hook (command POST + SSE) |
+| **Wire format** | `AgentControllerEvent`s → `AgentControllerDisplayState` |
 
-Both ship in the registry. **This repo's demo app mounts Harness mode only** (`app/page.tsx` → `<ChatSwitcher />`); Agent mode is the leaner `<Chat />` component, installed and available but not wired into the demo.
+It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (Shipped originally as `Harness`, renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `harness` name for its routes and files.)
 
-**Harness mode** runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (Shipped originally as `Harness`, renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `harness` name for its routes and files.)
+> **Previously there were two.** A second "Agent mode" wrapped a bare `agent.stream` with no session, approvals, subagents, or workbench. It was mounted nowhere, had no e2e coverage, and its only unit test rendered an empty shell — so a consumer installing it would have been the first person to run it. It was removed rather than shipped unverified (`bd mastra-chat-kit-eg1`).
 
-**→ [`docs/modes.md`](docs/modes.md)** explains both in full, using Mastra's exact vocabulary.
+**→ [`docs/modes.md`](docs/modes.md)** covers the harness in full, using Mastra's exact vocabulary.
 
 ---
 
 ## 🧠 How it works
 
 ```
-   Browser  ·  AI Elements + useChat  ·  packages/web (Next.js 16, :3000)
-        │
-        │  Agent = useChat + transport   ·   Harness = useHarnessChat hook
-        ├─────────────────────────────┬────────────────────────────────┐
-        ▼                             ▼                                 │
-   Agent mode (HTTP)            Harness mode (SSE)                       │
-   POST /chat/:agent           POST /harness/stream                     │
-        │                             │                                 │
-        ▼                             ▼                                 │
-   agent.stream                 AgentController → Session               │
-   → toAISdkStream              modes · approvals · subagents ·         │
-   → UIMessage parts            model-switch · follow-ups → events      │
-        └─────────────┬───────────────┘                                 │
+   Browser  ·  AI Elements + useHarnessChat  ·  packages/web (Next.js 16, :3000)
+        │                                                                │
+        ▼                                                                │
+   POST /harness/stream  (SSE)  ·  POST /harness/approve                 │
+        │                                                                │
+        ▼                                                                │
+   AgentController → Session                                             │
+   modes · goals · approvals · subagents · tasks · workspace             │
+   · schedules · follow-ups  →  AgentControllerEvents                    │
+                      │                                                  │
                       ▼                                                  │
              packages/server  ·  Mastra + Hono (:4111)                  │
                       │                                                  │
@@ -191,7 +187,7 @@ Both ship in the registry. **This repo's demo app mounts Harness mode only** (`a
         memory · threads · observability · semantic recall  ◀───────────┘
 ```
 
-Both modes wrap the **same** `chatAgent`. Storage, threads, observability, and vector recall land in one libSQL database; embeddings run locally via `fastembed` (no embedding API).
+The harness wraps the `chatAgent`. Storage, threads, observability, and vector recall land in one libSQL database; embeddings run locally via `fastembed` (no embedding API).
 
 ---
 
@@ -285,7 +281,6 @@ packages/
    ├─ app/                     chat (/) + /events — the harness-event → element map
    ├─ components/chat/         canonical shell · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
-   ├─ lib/transports/          single-agent.ts — Agent-mode DefaultChatTransport
    ├─ lib/harness/             use-harness-chat.ts + events — Harness-mode SSE client
    ├─ lib/harness-event-map.ts the 50 events → elements + prompts (drives /events)
    └─ scripts/                 gen-registry.mjs (registry manifest) · screenshot.mjs

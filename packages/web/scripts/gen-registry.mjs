@@ -172,11 +172,7 @@ for (const name of [...LOCAL_ELEMENTS]) {
 }
 
 // 2) chat-engine: the kit-specific transports/harness lib (not lib/utils).
-const ENGINE_FILES = [
-  'lib/transports/single-agent.ts',
-  'lib/harness/events.ts',
-  'lib/harness/use-harness-chat.ts',
-];
+const ENGINE_FILES = ['lib/harness/events.ts', 'lib/harness/use-harness-chat.ts'];
 {
   const c = classify(ENGINE_FILES);
   items.push({
@@ -196,8 +192,7 @@ const ENGINE_FILES = [
 // explicit targets so they land at the exact app/ paths the components expect.
 const ROUTE_FILES = [
   'lib/mastra-proxy.ts',
-  'app/api/chat/[agentId]/route.ts',
-  // Agent-mode threads (chat-sidebar + chat).
+  // Conversation history for the harness sidebar.
   'app/api/threads/route.ts',
   'app/api/threads/search/route.ts',
   'app/api/threads/[id]/route.ts',
@@ -237,8 +232,6 @@ const ROUTE_FILES = [
 
 // 4) chat: the headline block — the canonical shell.
 const CHAT_FILES = [
-  'components/chat/chat.tsx',
-  'components/chat/chat-sidebar.tsx',
   'components/chat/chat-switcher.tsx',
   'components/chat/composer.tsx',
   'components/chat/harness-chat.tsx',

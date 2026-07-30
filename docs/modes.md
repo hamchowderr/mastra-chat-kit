@@ -1,4 +1,10 @@
-# Agent mode & Harness mode
+# The Agent Harness
+
+> **Agent mode was removed.** This kit previously shipped a second, bare-`agent.stream`
+> mode alongside the harness. It was mounted nowhere, had zero e2e coverage, and its only
+> unit test rendered an empty shell, so it was dropped rather than shipped unverified —
+> see `bd mastra-chat-kit-eg1`. Everything below describes the one remaining engine.
+
 
 mastra-chat-kit runs the **same** chat UI (the AI Elements + `useChat` surface) two
 ways. Only the client-side wiring and the server route change; the components don't.
