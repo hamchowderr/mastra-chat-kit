@@ -120,7 +120,7 @@ function ThinkingIndicator() {
 
 /**
  * Agent Controller chat — consumes the AgentController SSE (`useAgentControllerChat`) and renders its
- * richer surface on the SAME AI Elements as the Single Agent <Chat>: text, thinking
+ * full surface onto stock AI Elements: text, thinking
  * → Reasoning, tool calls → Tool, search results → Sources/InlineCitation, images →
  * Image, submit_plan → Plan, the step sequence → ChainOfThought, task_updated → Task,
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.

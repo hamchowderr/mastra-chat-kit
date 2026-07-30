@@ -15,10 +15,10 @@ import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
  *
  * A general conversational agent whose only job is to exercise the full chat UI
  * surface: streamed text, reasoning, tool input/output rendering, and sources.
- * Both Agent mode (`handleChatStream` / `chatRoute`) and AgentController mode drive THIS
- * agent — the UI stays identical; only the transport changes.
+ * The AgentController drives THIS agent — it is the one engine this kit ships.
  *
- * Endpoint (Agent mode): POST /chat/chat   (registered via chatRoute in index.ts)
+ * Endpoint: POST /agent-controller/stream (SSE), registered in index.ts. Mastra
+ * Studio also drives it directly at /api/agents/chat.
  *
  * Demo tools are deterministic so AIMock fixtures can drive them with zero spend.
  */
@@ -195,20 +195,19 @@ const BASE_INSTRUCTIONS = `You are a helpful, concise assistant.
 - When the user asks for an image, picture, drawing, or illustration, call generateImage with a vivid prompt.
 - For substantial, self-contained work, delegate to a specialist subagent via the subagent tool rather than doing it inline (AgentController mode only). Pick the agentType by the task: "code" for building/editing/running code and tests in the sandbox; "research" for open-ended "find out / look up / compare / what's the latest" questions that need live web browsing + sources; "writer" for drafting long-form content (docs, summaries, posts, explanations). A subagent can't see this conversation, so put ALL the context it needs in the task. Handle small, quick things yourself.
 - When the user gives you a STANDING objective to work toward over multiple turns — "keep going until…", "your goal is…", "don't stop until…", "iterate until it's good" — call setGoal with a crisp, verifiable restatement, then start working. A judge scores each turn and you keep iterating until it's met. Do NOT call setGoal for ordinary one-shot requests; just answer those.
-- For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, then call submit_plan with a short, ordered plan and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly. (submit_plan is only available in AgentController mode.)
-- When you need something from the user that you don't have and can't sensibly assume — a genuinely ambiguous request (which of several things they mean) OR a required detail that's missing (a name, value, or choice you can't default) — ALWAYS ask through the ask_user tool, NEVER in plain prose. (A plain-text question just stalls the turn; ask_user gives the user a real prompt that resumes the run with their answer.) Call ask_user with ONE clear, specific question, and pass \`options\` (2–4 concise labels) when the likely answers are known so the user can pick instead of typing. Ask once, then continue with the answer. Don't use it for things you can reasonably infer or default — for trivial gaps, act on a sensible assumption and say what you assumed. (ask_user is only available in AgentController mode.)
+- For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, then call submit_plan with a short, ordered plan and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly.
+- When you need something from the user that you don't have and can't sensibly assume — a genuinely ambiguous request (which of several things they mean) OR a required detail that's missing (a name, value, or choice you can't default) — ALWAYS ask through the ask_user tool, NEVER in plain prose. (A plain-text question just stalls the turn; ask_user gives the user a real prompt that resumes the run with their answer.) Call ask_user with ONE clear, specific question, and pass \`options\` (2–4 concise labels) when the likely answers are known so the user can pick instead of typing. Ask once, then continue with the answer. Don't use it for things you can reasonably infer or default — for trivial gaps, act on a sensible assumption and say what you assumed.
 - For a task with several distinct steps, track it with the task tools: call task_write once to lay out the steps up front, then task_update / task_complete as you finish each one, so the user can watch progress. Skip this for single-step or trivial requests — don't narrate a one-liner as a task list.
-- When the user wants something to happen repeatedly on a timer — "every morning…", "remind me every hour…", "run X daily…" — call start_schedule with a cron expression and the prompt to run; it returns a schedule id and fires into this conversation. To stop or cancel one, call stop_schedule with its id (use list_schedules first if you don't have it). Use these only for genuinely recurring requests, not one-off "do this now" tasks. (Scheduling is only available in AgentController mode.)
+- When the user wants something to happen repeatedly on a timer — "every morning…", "remind me every hour…", "run X daily…" — call start_schedule with a cron expression and the prompt to run; it returns a schedule id and fires into this conversation. To stop or cancel one, call stop_schedule with its id (use list_schedules first if you don't have it). Use these only for genuinely recurring requests, not one-off "do this now" tasks.
 - Keep responses tight and skimmable. Use markdown (lists, code blocks) where it helps.
 - Never fabricate tool results; only state what the tools return.`;
 
-// Appended when the composer's "Search" toggle is on. The AgentController path passes
-// `webSearch: true` on the request context (see /agent-controller/stream), and in that path
-// the agent has real workspace browser tools — the SAME Chrome the Browser panel
+// Appended when the composer's "Search" toggle is on. The controller passes
+// `webSearch: true` on the request context (see /agent-controller/stream), and the
+// agent has real workspace browser tools — the SAME Chrome the Browser panel
 // screencasts — so web search is routed THROUGH the browser: it navigates the live
-// web and reads pages rather than answering from memory. The Single Agent path uses
-// provider-executed web_search instead and never sets this key, so this only applies
-// in AgentController mode.
+// web and reads pages rather than answering from memory. No provider-executed
+// web_search tool is involved (@mastra/core's loop can't forward those results).
 const WEB_SEARCH_INSTRUCTIONS = `
 
 The user has enabled web search for this turn. Use your browser tools to look things up on the live web:
@@ -266,7 +265,7 @@ export const chatAgent = new Agent({
     stopSchedule,
     listSchedules,
   },
-  // Default execution options applied to EVERY run (chatRoute + AgentController): enable
+  // Default execution options applied to EVERY run: enable
   // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
   // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic
   // providers, so it's safe regardless of CHAT_MODEL.

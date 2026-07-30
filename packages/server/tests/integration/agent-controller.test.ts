@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { createBrowser, createChatAgentController } from '../../src/mastra/lib/agent-controller';
 
 /**
- * Agent Controller mode end-to-end through AIMock — deterministic, zero spend.
- * Proves the AgentController wraps the same chatAgent and emits AgentControllerEvents we can
- * stream to the UI (message updates, run lifecycle). Mirrors the Single Agent
- * integration test but over the AgentController `subscribe()` surface.
+ * The Agent Controller end-to-end through AIMock — deterministic, zero spend.
+ * Proves the AgentController wraps `chatAgent` and emits AgentControllerEvents we
+ * can stream to the UI (message updates, run lifecycle). Mirrors the chat-agent
+ * integration test, but over the AgentController `subscribe()` surface.
  */
-describe('chat agent — Agent Controller mode (AIMock)', () => {
+describe('chat agent — Agent Controller (AIMock)', () => {
   it('streams controller events for a greeting', async () => {
     const controller = createChatAgentController({
       storage: new InMemoryStore(),

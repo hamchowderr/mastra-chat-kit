@@ -1,16 +1,14 @@
 /**
  * # Agent Controller (mastra-chat-kit reference)
  *
- * Wraps the SAME `chatAgent` the Single Agent path uses, but through Mastra's
- * `AgentController` (`@mastra/core/agent-controller` — formerly `AgentController`). It
- * adds the orchestration surface a bare agent stream can't carry — sessions/
- * threads, modes, model switching, tool-approval gates (HITL), subagents, tasks,
- * and a canonical display state — emitted as `AgentControllerEvent`s via a
- * session's `subscribe()`.
+ * Drives `chatAgent` through Mastra's `AgentController`
+ * (`@mastra/core/agent-controller`). It adds the orchestration surface a bare
+ * agent stream can't carry — sessions/threads, modes, model switching,
+ * tool-approval gates (HITL), subagents, tasks, and a canonical display state —
+ * emitted as `AgentControllerEvent`s via a session's `subscribe()`.
  *
- * The Single Agent path streams AI SDK v7 `UIMessage` parts over HTTP; the Agent
- * AgentController path streams controller events over SSE (see the `/agent-controller/stream`
- * route in `index.ts`). The web layer maps both onto the same AI Elements. See
+ * Those events stream over SSE (see the `/agent-controller/stream` route in
+ * `index.ts`); the web layer maps them onto stock AI Elements. See
  * `docs/coverage.md` for the full event → element mapping.
  *
  * Reference scope: a single process-wide controller + one Session (one logical

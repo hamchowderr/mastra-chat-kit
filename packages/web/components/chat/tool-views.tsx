@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * Shared renderers that turn real agent TOOL output into the matching AI Elements,
- * used by BOTH the Single Agent and Agent Controller chat views so they never drift.
+ * shared by the chat view and the workbench panels so the two never drift.
  * Each takes the real data a tool produced — no static/example props.
  */
 

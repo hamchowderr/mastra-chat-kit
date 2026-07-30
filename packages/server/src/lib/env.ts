@@ -63,7 +63,7 @@ const envSchema = z
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
 
-    // The model the chat agent uses (Single Agent + Agent Controller both wrap it).
+    // The model the chat agent uses (the Agent Controller wraps it).
     // `provider/model` form, resolved by Mastra's model router — set it to any provider
     // (see mastra.ai/models). Thread auto-titles derive a cheap model from this same
     // provider automatically (lib/memory.ts). Override to run a cheap model in dev.

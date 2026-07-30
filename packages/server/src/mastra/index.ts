@@ -8,7 +8,6 @@ configureAIMock();
 
 import { anthropic } from '@ai-sdk/anthropic';
 import { openai } from '@ai-sdk/openai';
-import { handleChatStream } from '@mastra/ai-sdk';
 import { MastraJwtAuth } from '@mastra/auth';
 // 3. Mastra imports — agents/tools constructed below now see the right base URLs
 import { Mastra } from '@mastra/core/mastra';
@@ -21,13 +20,7 @@ import { fastembed } from '@mastra/fastembed';
 import { PinoLogger } from '@mastra/loggers';
 import { MCPServer } from '@mastra/mcp';
 import { MastraStorageExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  embed,
-  generateText,
-  streamText,
-} from 'ai';
+import { embed, generateText } from 'ai';
 import { chatAgent } from './agents/chat';
 import {
   CHAT_RESOURCE_ID,
@@ -84,7 +77,7 @@ const storage = new MastraCompositeStore({
   },
 });
 
-// Models the Single Agent route will accept from body.model (the composer's model
+// Models the controller stream will accept from body.model (the composer's model
 // picker). Keep in sync with web `MODELS` in components/chat/composer.tsx. The
 // agent's own `model: env.CHAT_MODEL` is the fallback when none/invalid is sent.
 const MODEL_ALLOWLIST = new Set([
@@ -100,30 +93,8 @@ const MODEL_ALLOWLIST = new Set([
 // Swap for the authenticated user id when adding auth.
 const LOCAL_RESOURCE = 'local-user';
 
-// Provider-native web search. NOTE: this can't stream through Mastra's agent loop
-// in @mastra/core@1.45 — the loop has no provider-executed/server-hosted tool
-// handling, so it stops at the web_search tool call and never forwards the result
-// (mastra GH #14148/#10327, still open at latest). So web-search turns are handled
-// by the AI SDK `streamText` directly (the layer Mastra is built on), streamed to
-// the SAME v6 UIMessage transport + elements. Reversible: when Mastra fixes the
-// loop, drop this branch and register the tool on the agent.
-//
-// Each provider has its OWN native web search; resolve the right model + tool from
-// the model-router id so an OpenAI selection uses OpenAI search, Anthropic uses
-// Anthropic's. OpenAI web search requires the Responses API (`openai.responses`).
-function resolveWebSearch(routerId: string) {
-  if (routerId.startsWith('openai/')) {
-    const id = routerId.slice('openai/'.length);
-    return { model: openai.responses(id), tools: { web_search: openai.tools.webSearch() } };
-  }
-  const id = routerId.replace(/^anthropic\//, '');
-  return {
-    model: anthropic(id),
-    tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 4 }) },
-  };
-}
-// Resolve the AI SDK model instance for the manual thread-title route (the Single
-// Agent path titles by hand — generateTitle doesn't fire through handleChatStream).
+// Resolve the AI SDK model instance for the manual thread-title route (the title
+// is written by hand — Memory's built-in generateTitle doesn't fire on this path).
 // Follows the configured title model (resolveTitleModelId), so an OpenAI-only setup
 // titles with OpenAI instead of a hardcoded Anthropic model (698.11). Returns null
 // for a provider this route can't construct — the caller then keeps the fallback title.
@@ -138,24 +109,6 @@ function resolveTitleModel() {
   return null;
 }
 
-const WEB_SEARCH_SYSTEM =
-  'You are a helpful, concise assistant with live web search. Use the web_search tool for anything that needs current or factual information, then answer and cite the sources. Use markdown.';
-// On a persistent provider overload, fall back to this model (Haiku is the least
-// likely to be capacity-constrained). Full model-router id.
-const WEB_SEARCH_FALLBACK_MODEL = 'anthropic/claude-haiku-4-5';
-
-/** Anthropic returns HTTP 529 `overloaded_error` when capacity is momentarily saturated. */
-function isOverloaded(err: unknown): boolean {
-  const text = `${(err as { message?: string })?.message ?? ''} ${(() => {
-    try {
-      return JSON.stringify(err);
-    } catch {
-      return String(err);
-    }
-  })()}`;
-  return /overloaded|\b529\b/i.test(text);
-}
-
 // JWT auth: when MASTRA_JWT_SECRET is set, gate all /api/* routes AND Studio
 // behind a Bearer JWT signed with the shared secret. `/health` and `/api/auth/*`
 // stay public (so healthchecks and the Studio login screen still work). Leave
@@ -166,9 +119,14 @@ function isOverloaded(err: unknown): boolean {
 const serverConfig = {
   apiRoutes: [
     // ──────────────────────────────────────────────────────────────────────
-    // Chat-history sidebar — thread CRUD over Mastra Memory (single local user).
-    // Titles fall back to the first user message (generateTitle doesn't fire via
-    // handleChatStream). `archived` is a thread-metadata flag (soft, reversible).
+    // Thread CRUD over Mastra Memory, scoped to a single local user.
+    // `archived` is a thread-metadata flag (soft, reversible).
+    //
+    // DEAD SURFACE — these built the removed Agent-mode sidebar and now have no
+    // caller: the shipped UI reads /agent-controller/threads* instead. They are
+    // also scoped to LOCAL_RESOURCE, not the controller's CHAT_RESOURCE_ID, so
+    // they would return an empty list. Remove or repurpose — `bd
+    // mastra-chat-kit-e70`.
     // ──────────────────────────────────────────────────────────────────────
 
     // List threads (newest first) with a display title + archived flag.
@@ -354,9 +312,10 @@ const serverConfig = {
       },
     }),
 
-    // Generate (and persist) an AI title for a thread from its first turns. The
-    // client calls this once after a new thread's first exchange, because Mastra's
-    // built-in generateTitle doesn't fire through `handleChatStream`. Best-effort:
+    // Generate (and persist) an AI title for a thread from its first turns —
+    // written by hand because Memory's built-in generateTitle does not fire on
+    // this path. Part of the dead surface above (`bd mastra-chat-kit-e70`).
+    // Best-effort:
     // on any model error it leaves the existing first-message fallback in place.
     registerApiRoute('/threads/:id/title', {
       method: 'POST',
@@ -554,8 +513,8 @@ const serverConfig = {
     }),
 
     // Load one controller conversation's messages as v6 UIMessages (text-only
-    // restore, same as the Single Agent path — richer parts rehydrate on the
-    // live stream when the conversation continues).
+    // restore — richer parts rehydrate on the live stream when the conversation
+    // continues).
     registerApiRoute('/agent-controller/threads/:id/messages', {
       method: 'GET',
       handler: async (c) => {
@@ -578,7 +537,7 @@ const serverConfig = {
     // Archive/unarchive or rename a controller conversation. The AgentController's
     // public `session.thread.rename`/metadata are ACTIVE-thread scoped, but the
     // controller's threads now live in the shared store, so the Memory can update any
-    // thread by id (same table) — the exact path the Single Agent sidebar uses.
+    // thread by id (same table).
     registerApiRoute('/agent-controller/threads/:id', {
       method: 'PATCH',
       handler: async (c) => {
@@ -687,8 +646,8 @@ const serverConfig = {
             // Hand the client the active thread id so it can continue the conversation.
             send({ type: '__thread__', threadId: activeThreadId });
             try {
-              // Honor the composer's model pick (validated against the same allow-list
-              // the Single Agent route uses). Switching here — inside the subscribed
+              // Honor the composer's model pick (validated against MODEL_ALLOWLIST).
+              // Switching here — inside the subscribed
               // stream — lets the resulting `model_changed` event flow to the client too.
               if (model && MODEL_ALLOWLIST.has(model)) {
                 await session.model.switch({ modelId: model });

@@ -4,10 +4,10 @@
 > `@mastra/core@1.52.1` — `dist/agent-controller/types.d.ts` (the `AgentControllerEvent` union, lines 537–804).
 > Reducer under test: `packages/web/lib/agent-controller/events.ts` (`reduceAgentControllerEvent`).
 
-The Agent Controller (`AgentController`, formerly `AgentController`) drives the same `chatAgent` the Single
-Agent path uses, but through a **session** that emits a rich orchestration surface a bare AI SDK
-stream can't carry: sessions/threads, modes, model switching, tool-approval gates (HITL),
-subagents, tasks, goals, observational memory, and a canonical display state.
+The Agent Controller drives `chatAgent` through a **session** that emits a rich orchestration
+surface a bare AI SDK stream can't carry: sessions/threads, modes, model switching,
+tool-approval gates (HITL), subagents, tasks, goals, observational memory, and a canonical
+display state.
 
 `session.subscribe()` forwards **all 50** event types unfiltered over the server's
 `POST /agent-controller/stream` SSE. The web reducer currently **consumes 37 and drops 13**. This file is the
@@ -15,8 +15,9 @@ source of truth for what each event means and where it should render.
 
 > **In-product companion:** the browsable version of this table is the **`/events`** page
 > (`packages/web/app/events/page.tsx`), driven by `packages/web/lib/agent-controller-event-map.ts` — each event
-> links to a live Showroom demo of the AI Element it drives, plus its source. Keep the map, this file,
-> and [coverage.md](./coverage.md) in lockstep.
+> names the AI Element it drives and links to that element's source. Keep the map, this file,
+> and [coverage.md](./coverage.md) in lockstep; `tests/events.test.tsx` fails the build if the map
+> names an element the chat UI never imports.
 
 > **The 13 "dropped" are not 13 bugs.** Of them, **8 are OM secondary/redundant** (`om_model_changed`,
 > `om_buffering_*`, `om_thread_title_updated`, plus `model_changed`, `agent_start`, `tool_update` — each
@@ -129,11 +130,12 @@ observe/reflect/activate activity); the live tool-input set (`tool_start`/`tool_
 ### B. Gated on a feature that isn't enabled yet (4)
 - **Threads/sessions (3):** `thread_changed/_created/_deleted` → the conversation sidebar **refetches on
   run-settle** rather than folding these live, so they stay dropped by design.
-- **`om_thread_title_updated` (1):** OM auto-titling isn't reflected live; titles come from the manual
-  `/threads/:id/title` route (`698.11`).
+- **`om_thread_title_updated` (1):** OM auto-titling isn't reflected live. The sidebar resolves titles
+  from `session.thread.list()` — Memory's own `generateTitle` populates most, falling back to the
+  first non-assistant message.
 
 ### C. Intentionally off (2)
 - **`state_changed`** → aggregate `data-*`; redundant with the granular events.
 - **`display_state_changed`** → its `Map` fields serialize to `{}` over JSON (see note above).
 
-See [coverage.md](./coverage.md) for the end-to-end matrix and the Single Agent (AI SDK v7) path.
+See [coverage.md](./coverage.md) for the end-to-end event → element matrix.

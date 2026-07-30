@@ -6,7 +6,7 @@
 
 All 48 Vercel AI Elements are vendored so a real chat can compose any of them. The last column marks
 whether the **reference app** currently drives the component with live data:
-- **live** = imported by the real chat surface (`components/chat/*`, `components/workbench/*`) and fed
+- **live** = imported by the real chat surface (`components/chat/*`) and fed
   by a real agent turn.
 - **showroom** = vendored but not yet wired to a live surface in this kit (e.g. the voice and
   workflow-canvas families) — available to compose, just not exercised here.

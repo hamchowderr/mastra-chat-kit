@@ -174,14 +174,20 @@ this contract — the routes proxy 1:1:
 
 | Next route (installed) | → Mastra server endpoint |
 |---|---|
-| `GET /api/threads` | `GET /threads` |
-| `GET /api/threads/search?q=` | `GET /threads/search?q=` |
-| `GET /api/threads/:id/messages` | `GET /threads/:id/messages` |
-| `GET`/`DELETE /api/threads/:id` | `GET`/`DELETE /threads/:id` |
-| `POST /api/threads/:id/title` | `POST /threads/:id/title` |
+| `GET /api/threads` † | `GET /threads` |
+| `GET /api/threads/search?q=` † | `GET /threads/search?q=` |
+| `GET /api/threads/:id/messages` † | `GET /threads/:id/messages` |
+| `GET`/`DELETE /api/threads/:id` † | `GET`/`DELETE /threads/:id` |
+| `POST /api/threads/:id/title` † | `POST /threads/:id/title` |
 | `GET /api/images/:id` | `GET /images/:id` |
 
-AgentController mode needs the rest of the surface — the workbench panels and
+> † **Installed but unused.** These five built the removed Agent-mode sidebar; the
+> shipped UI reads `/api/agent-controller/threads*` instead. They are also scoped to
+> the server's `LOCAL_RESOURCE`, not the controller's `CHAT_RESOURCE_ID`, so they
+> return an empty list as-is. Kept for now as a generic Memory thread-CRUD starting
+> point — whether to drop or repurpose them is `bd mastra-chat-kit-e70`.
+
+The controller surface is what the shell actually drives — the workbench panels and
 `use-agent-controller-chat` call all of these:
 
 | Next route (installed) | → Mastra server endpoint |

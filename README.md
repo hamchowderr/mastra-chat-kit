@@ -17,7 +17,7 @@ Ships as a **shadcn registry**, so any project installs the same chat layer with
 
 </div>
 
-![The kit running AgentController mode — conversation sidebar, the chat, and the agent workbench open on Files](docs/workbench.png)
+![The kit running the Agent Controller — conversation sidebar, the chat, and the agent workbench open on Files](docs/workbench.png)
 
 <div align="center"><sub>Sidebar │ chat │ workbench. The right rail is the agent's live workspace — Files, Terminal, Browser, Memory, Schedules.</sub></div>
 
@@ -133,7 +133,7 @@ That lands **82 files**: 12 chat components, 20 `app/api/*` proxy routes plus th
 Then mount the shell and point it at a server:
 
 ```tsx
-import { ChatSwitcher } from '@/components/chat/chat-switcher';   // AgentController mode
+import { ChatSwitcher } from '@/components/chat/chat-switcher';
 ```
 
 ```bash
@@ -161,7 +161,7 @@ It runs on Mastra's `AgentController` — the session controller Mastra's docs d
 
 > **Previously there were two.** A second "Agent mode" wrapped a bare `agent.stream` with no session, approvals, subagents, or workbench. It was mounted nowhere, had no e2e coverage, and its only unit test rendered an empty shell — so a consumer installing it would have been the first person to run it. It was removed rather than shipped unverified (`bd mastra-chat-kit-eg1`).
 
-**→ [`docs/modes.md`](docs/modes.md)** covers the controller in full, using Mastra's exact vocabulary.
+**→ [`docs/agent-controller.md`](docs/agent-controller.md)** covers the controller in full, using Mastra's exact vocabulary.
 
 ---
 
@@ -270,10 +270,10 @@ packages/
 │  └─ src/
 │     ├─ lib/env.ts           Zod-validated env — crashes on bad config
 │     └─ mastra/
-│        ├─ index.ts          Boot: env → AIMock → Mastra; Agent + AgentController routes
+│        ├─ index.ts          Boot: env → AIMock → Mastra; AgentController routes
 │        ├─ agents/           chat · code · research · writer  (controller spawns the specialists)
 │        ├─ lib/
-│        │  ├─ controller.ts       AgentController + Session (AgentController mode)
+│        │  ├─ agent-controller.ts  AgentController + Session
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
 │        │  └─ dolt.ts          optional versioned data, Git-style (mysql2)
 │        └─ tools/            agent tools (getWeather, dolt, image, schedules …)
@@ -281,7 +281,7 @@ packages/
    ├─ app/                     chat (/) + /events — the controller-event → element map
    ├─ components/chat/         canonical shell · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
-   ├─ lib/agent-controller/             use-agent-controller-chat.ts + events — AgentController-mode SSE client
+   ├─ lib/agent-controller/             use-agent-controller-chat.ts + events — the SSE client
    ├─ lib/agent-controller-event-map.ts the 50 events → elements + prompts (drives /events)
    └─ scripts/                 gen-registry.mjs (registry manifest) · screenshot.mjs
 ```
@@ -446,7 +446,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 **Mastra**
 - [Get started](https://mastra.ai/docs) · [Agent reference](https://mastra.ai/reference/agents/agent)
 - **[Model Router](https://mastra.ai/models)** — 600+ models across 40+ providers via one `provider/model` string · **[Environment variables](https://mastra.ai/models/environment-variables)** — which key each provider needs
-- **[Agent Controller / AgentController](https://mastra.ai/reference/agent-controller/agent-controller-class)** — the session controller AgentController mode runs on · [announcement](https://mastra.ai/blog/announcing-agent-controller)
+- **[Agent Controller / AgentController](https://mastra.ai/reference/agent-controller/agent-controller-class)** — the session controller this kit runs on · [announcement](https://mastra.ai/blog/announcing-agent-harness)
 - [Memory](https://mastra.ai/docs/memory/overview) · [Signals](https://mastra.ai/docs/agents/signals) — goals, task tracking, and observational memory all ride on the signal system
 
 **Vercel AI SDK**
@@ -455,7 +455,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 **This repo**
 - [`docs/registry.md`](docs/registry.md) — what ships, the install prerequisites, the server contract
 - [`docs/agent-controller-events.md`](docs/agent-controller-events.md) — every controller event → the element it drives (also live at **`/events`**)
-- [`docs/coverage.md`](docs/coverage.md) · [`docs/modes.md`](docs/modes.md) · [`docs/ai-elements.md`](docs/ai-elements.md) · [`docs/postgres.md`](docs/postgres.md)
+- [`docs/coverage.md`](docs/coverage.md) · [`docs/agent-controller.md`](docs/agent-controller.md) · [`docs/ai-elements.md`](docs/ai-elements.md) · [`docs/postgres.md`](docs/postgres.md)
 
 ---
 

@@ -85,9 +85,9 @@ function AttachmentsDisplay() {
 
 /**
  * The ONE chat composer — full PromptInput surface (attachments + drag-drop,
- * action menu, web-search toggle, model selector, submit). Shared by BOTH the
- * Single Agent and Agent Controller chat views so the input never drifts between
- * engines — only the transport behind `onSend` changes.
+ * action menu, web-search toggle, model selector, submit). Kept separate from
+ * the chat view so the input surface can be reused behind any transport —
+ * only the behaviour behind `onSend` changes.
  */
 export function Composer({
   onSend,

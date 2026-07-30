@@ -23,7 +23,7 @@ describe('AgentControllerChat — Agent Controller view', () => {
     );
     expect(screen.getByPlaceholderText('Ask anything…')).toBeInTheDocument();
     expect(screen.getAllByText('Search').length).toBeGreaterThan(0);
-    // AgentController empty-state hero (distinct from the Single Agent view's title).
+    // AgentController empty-state hero.
     expect(screen.getByText(/on your mind today/)).toBeInTheDocument();
   });
 });

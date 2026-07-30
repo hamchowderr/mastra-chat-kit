@@ -110,7 +110,7 @@
       "name": "chat-engine",
       "type": "registry:lib",
       "title": "Chat Engine",
-      "description": "Swappable transport + controller client for Agent mode and AgentController mode.",
+      "description": "Agent Controller SSE client + transcript reducer.",
       "dependencies": [],
       "registryDependencies": [],
       "files": [

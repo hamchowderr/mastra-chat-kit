@@ -161,7 +161,7 @@
     },
 
     {
-      "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat (Single Agent AND Agent Controller) always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
+      "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {
         "content": "I'm the mastra-chat-kit reference assistant (running on AIMock — a deterministic mock, no real model call). Try **\"What's the weather in Los Angeles?\"** or **\"How do I use Mastra memory?\"** to see tool calls, reasoning, and sources render in the UI."

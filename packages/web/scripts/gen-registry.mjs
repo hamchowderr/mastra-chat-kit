@@ -182,7 +182,7 @@ const ENGINE_FILES = [
     name: 'chat-engine',
     type: 'registry:lib',
     title: 'Chat Engine',
-    description: 'Swappable transport + controller client for Agent mode and AgentController mode.',
+    description: 'Agent Controller SSE client + transcript reducer.',
     dependencies: c.npm,
     registryDependencies: regDeps(c, 'chat-engine'),
     files: ENGINE_FILES.map((f) => ({ path: f, type: 'registry:lib', target: f })),
