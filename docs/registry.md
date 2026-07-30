@@ -143,21 +143,24 @@ shadcn resolves the dependency graph automatically: our 5 vendored components +
 Vercel, and the shadcn/ui primitives from the default registry. (Individual items
 also install, e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.)
 
-Installing `chat` lays down **82 files** — measured by a real install into a
-fresh `init --base radix` project (shadcn CLI 4.16.0, 2026-07-29):
+Installing `chat` pulls **32 files from this registry**, plus everything they
+resolve to upstream:
 
 | | Files | From |
 |---|---|---|
-| `components/chat/*.tsx` | 12 | this registry |
-| `app/api/**/route.ts` | 20 | this registry |
-| `lib/agent-controller`, `lib/transports`, `mastra-proxy` | 4 | this registry |
-| `components/ai-elements/*.tsx` | 23 | 5 ours + 18 from Vercel |
-| `components/ui/*.tsx` | 23 | the default shadcn registry |
-| **Total** | **82** | |
+| `components/chat/*.tsx` | 10 | this registry (`chat`) |
+| `app/api/**/route.ts` + `lib/mastra-proxy.ts` | 15 | this registry (`chat-routes`) |
+| `lib/agent-controller/*` | 2 | this registry (`chat-engine`) |
+| `components/ai-elements/*.tsx` | 5 | this registry (the patched ones) |
+| **Subtotal — ours** | **32** | |
+| `components/ai-elements/*.tsx` | 17 | Vercel's registry, by URL |
+| `components/ui/*.tsx` | — | the default shadcn registry, resolved transitively |
 
-> Upstream counts drift as Vercel and shadcn change; `bd mastra-chat-kit-7zt`
-> turns this measurement into a scheduled check. (An earlier hand-count of 61
-> predates shipping the controller half.)
+> Only the "ours" counts are pinned. Upstream counts drift as Vercel and shadcn
+> change, which is exactly why they aren't asserted here — `registry-smoke.mjs`
+> does a real install and checks the three numbers that are ours to keep correct
+> (10 chat components, 14 route handlers, 5 vendored elements), on every relevant
+> PR and nightly.
 
 ### Wire it to a Mastra server
 
@@ -174,20 +177,9 @@ this contract — the routes proxy 1:1:
 
 | Next route (installed) | → Mastra server endpoint |
 |---|---|
-| `GET /api/threads` † | `GET /threads` |
-| `GET /api/threads/search?q=` † | `GET /threads/search?q=` |
-| `GET /api/threads/:id/messages` † | `GET /threads/:id/messages` |
-| `GET`/`DELETE /api/threads/:id` † | `GET`/`DELETE /threads/:id` |
-| `POST /api/threads/:id/title` † | `POST /threads/:id/title` |
 | `GET /api/images/:id` | `GET /images/:id` |
 
-> † **Installed but unused.** These five built the removed Agent-mode sidebar; the
-> shipped UI reads `/api/agent-controller/threads*` instead. They are also scoped to
-> the server's `LOCAL_RESOURCE`, not the controller's `CHAT_RESOURCE_ID`, so they
-> return an empty list as-is. Kept for now as a generic Memory thread-CRUD starting
-> point — whether to drop or repurpose them is `bd mastra-chat-kit-e70`.
-
-The controller surface is what the shell actually drives — the workbench panels and
+The controller surface is the rest of it — the workbench panels and
 `use-agent-controller-chat` call all of these:
 
 | Next route (installed) | → Mastra server endpoint |

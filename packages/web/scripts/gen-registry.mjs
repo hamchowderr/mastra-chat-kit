@@ -195,14 +195,8 @@ const ENGINE_FILES = [
 // explicit targets so they land at the exact app/ paths the components expect.
 const ROUTE_FILES = [
   'lib/mastra-proxy.ts',
-  // Conversation history for the controller sidebar.
-  'app/api/threads/route.ts',
-  'app/api/threads/search/route.ts',
-  'app/api/threads/[id]/route.ts',
-  'app/api/threads/[id]/messages/route.ts',
-  'app/api/threads/[id]/title/route.ts',
-  // AgentController mode. use-agent-controller-chat.ts fetches ALL of these — shipping only
-  // stream+approve left AgentController mode dead on arrival for consumers (bd b5y).
+  // use-agent-controller-chat.ts + the workbench panels fetch ALL of these — shipping
+  // only stream+approve left the controller dead on arrival for consumers (bd b5y).
   'app/api/agent-controller/stream/route.ts',
   'app/api/agent-controller/approve/route.ts',
   'app/api/agent-controller/answer/route.ts',

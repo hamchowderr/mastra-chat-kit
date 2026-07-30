@@ -47,7 +47,7 @@ const HOSTED = hostedArg > -1 ? process.argv[hostedArg + 1] : null;
 const EXPECT = {
   'components/chat': 10,
   'components/ai-elements': 5, // OUR vendored ones; upstream adds more on top
-  'app/api': 19, // route.ts files
+  'app/api': 14, // route.ts files
 };
 
 let server;

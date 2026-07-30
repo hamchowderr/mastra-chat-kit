@@ -6,8 +6,6 @@ import { configureAIMock } from './lib/aimock';
 
 configureAIMock();
 
-import { anthropic } from '@ai-sdk/anthropic';
-import { openai } from '@ai-sdk/openai';
 import { MastraJwtAuth } from '@mastra/auth';
 // 3. Mastra imports — agents/tools constructed below now see the right base URLs
 import { Mastra } from '@mastra/core/mastra';
@@ -20,7 +18,7 @@ import { fastembed } from '@mastra/fastembed';
 import { PinoLogger } from '@mastra/loggers';
 import { MCPServer } from '@mastra/mcp';
 import { MastraStorageExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
-import { embed, generateText } from 'ai';
+import { embed } from 'ai';
 import { chatAgent } from './agents/chat';
 import {
   CHAT_RESOURCE_ID,
@@ -31,12 +29,7 @@ import {
 } from './lib/agent-controller';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
 import { getImage } from './lib/image-store';
-import {
-  getSharedStore,
-  getSharedVector,
-  MESSAGE_VECTOR_INDEX,
-  resolveTitleModelId,
-} from './lib/memory';
+import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from './lib/thread-utils';
 import { readWorkspaceFile, readWorkspaceTree } from './lib/workspace-files';
 import { doltTools } from './tools/dolt';
@@ -89,26 +82,6 @@ const MODEL_ALLOWLIST = new Set([
   'openai/gpt-4.1-nano',
 ]);
 
-// Single local user for thread/resource-scoped memory (this kit has no auth).
-// Swap for the authenticated user id when adding auth.
-const LOCAL_RESOURCE = 'local-user';
-
-// Resolve the AI SDK model instance for the manual thread-title route (the title
-// is written by hand — Memory's built-in generateTitle doesn't fire on this path).
-// Follows the configured title model (resolveTitleModelId), so an OpenAI-only setup
-// titles with OpenAI instead of a hardcoded Anthropic model (698.11). Returns null
-// for a provider this route can't construct — the caller then keeps the fallback title.
-function resolveTitleModel() {
-  const id = resolveTitleModelId();
-  if (id.startsWith('openai/')) {
-    return openai(id.slice('openai/'.length));
-  }
-  if (id.startsWith('anthropic/')) {
-    return anthropic(id.slice('anthropic/'.length));
-  }
-  return null;
-}
-
 // JWT auth: when MASTRA_JWT_SECRET is set, gate all /api/* routes AND Studio
 // behind a Bearer JWT signed with the shared secret. `/health` and `/api/auth/*`
 // stay public (so healthchecks and the Studio login screen still work). Leave
@@ -118,267 +91,6 @@ function resolveTitleModel() {
 // 'server' has already been declared"). `mastra build` doesn't hit it.
 const serverConfig = {
   apiRoutes: [
-    // ──────────────────────────────────────────────────────────────────────
-    // Thread CRUD over Mastra Memory, scoped to a single local user.
-    // `archived` is a thread-metadata flag (soft, reversible).
-    //
-    // DEAD SURFACE — these built the removed Agent-mode sidebar and now have no
-    // caller: the shipped UI reads /agent-controller/threads* instead. They are
-    // also scoped to LOCAL_RESOURCE, not the controller's CHAT_RESOURCE_ID, so
-    // they would return an empty list. Remove or repurpose — `bd
-    // mastra-chat-kit-e70`.
-    // ──────────────────────────────────────────────────────────────────────
-
-    // List threads (newest first) with a display title + archived flag.
-    registerApiRoute('/threads', {
-      method: 'GET',
-      handler: async (c) => {
-        const memory = await mastra.getAgent('chat').getMemory();
-        if (!memory) {
-          return c.json({ threads: [] });
-        }
-        const { threads } = await memory.listThreads({
-          filter: { resourceId: LOCAL_RESOURCE },
-          perPage: false,
-        });
-        // Per-thread recall to derive first-message title fallbacks. libSQL's
-        // getThreadById can't bind an array, so a batched `threadId: ids` throws
-        // ("SQLite3 can only bind numbers, strings, bigints, buffers, and null")
-        // and 500s the whole list — recall one id at a time. Best-effort: threads
-        // carry a generated title regardless, so a recall miss just skips the
-        // fallback rather than failing the request.
-        const ids = threads.map((t) => t.id);
-        const firstMsg = new Map<string, string>();
-        for (const id of ids) {
-          try {
-            const { messages } = await memory.recall({
-              threadId: id,
-              resourceId: LOCAL_RESOURCE,
-              perPage: false,
-            });
-            for (const m of messages) {
-              // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
-              const mm = m as any;
-              if (mm.role === 'user' && !firstMsg.has(id)) {
-                firstMsg.set(id, messageText(mm));
-                break;
-              }
-            }
-          } catch {
-            // best-effort — thread.title still applies
-          }
-        }
-        const items = threads
-          .map((t) => ({
-            id: t.id,
-            title: threadTitle(t, firstMsg.get(t.id)),
-            archived: Boolean((t.metadata as Record<string, unknown> | undefined)?.archived),
-            createdAt: t.createdAt,
-            updatedAt: t.updatedAt,
-          }))
-          .sort((a, b) => +new Date(b.updatedAt ?? 0) - +new Date(a.updatedAt ?? 0));
-        return c.json({ threads: items });
-      },
-    }),
-
-    // Load one thread's messages as v6 UIMessages (text-only restore).
-    registerApiRoute('/threads/:id/messages', {
-      method: 'GET',
-      handler: async (c) => {
-        const memory = await mastra.getAgent('chat').getMemory();
-        if (!memory) {
-          return c.json({ messages: [] });
-        }
-        const { messages } = await memory.recall({
-          threadId: c.req.param('id'),
-          resourceId: LOCAL_RESOURCE,
-          perPage: false,
-        });
-        return c.json({ messages: messages.map(toUIMessage) });
-      },
-    }),
-
-    // Semantic search across all the user's chats: embed the query with fastembed
-    // and query the PgVector message-embedding index directly (the message text +
-    // thread_id live in the vector metadata, so snippets are free).
-    registerApiRoute('/threads/search', {
-      method: 'GET',
-      handler: async (c) => {
-        const q = (c.req.query('q') ?? '').trim();
-        if (q.length < 2) {
-          return c.json({ threads: [] });
-        }
-        const { embedding } = await embed({ model: fastembed, value: q });
-        const hits = await getSharedVector().query({
-          indexName: MESSAGE_VECTOR_INDEX,
-          queryVector: embedding,
-          topK: 24,
-          filter: { resource_id: LOCAL_RESOURCE },
-        });
-        // First (best) hit per thread → snippet from the matched message content.
-        const seen = new Map<string, { snippet: string; score: number }>();
-        for (const h of hits) {
-          // biome-ignore lint/suspicious/noExplicitAny: vector metadata
-          const md = (h.metadata ?? {}) as any;
-          const tid = md.thread_id as string | undefined;
-          if (tid && !seen.has(tid)) {
-            seen.set(tid, {
-              snippet: searchSnippet(String(md.content ?? ''), q),
-              score: h.score ?? 0,
-            });
-          }
-        }
-        if (seen.size === 0) {
-          return c.json({ threads: [] });
-        }
-        // Resolve titles for the matched threads (stored title → first user message).
-        const memory = await mastra.getAgent('chat').getMemory();
-        const ids = [...seen.keys()];
-        const firstMsg = new Map<string, string>();
-        const byId = new Map<string, unknown>();
-        if (memory) {
-          const { threads } = await memory.listThreads({
-            filter: { resourceId: LOCAL_RESOURCE },
-            perPage: false,
-          });
-          for (const t of threads) {
-            byId.set(t.id, t);
-          }
-          const { messages } = await memory.recall({
-            threadId: ids,
-            resourceId: LOCAL_RESOURCE,
-            perPage: false,
-          });
-          for (const m of messages) {
-            // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
-            const mm = m as any;
-            if (mm.role === 'user' && mm.threadId && !firstMsg.has(mm.threadId)) {
-              firstMsg.set(mm.threadId, messageText(mm));
-            }
-          }
-        }
-        const results = ids
-          .map((id) => ({
-            id,
-            title: threadTitle(byId.get(id), firstMsg.get(id)),
-            snippet: seen.get(id)?.snippet ?? '',
-            score: seen.get(id)?.score ?? 0,
-          }))
-          .sort((a, b) => b.score - a.score);
-        return c.json({ threads: results });
-      },
-    }),
-
-    // Delete a chat (hard delete).
-    registerApiRoute('/threads/:id', {
-      method: 'DELETE',
-      handler: async (c) => {
-        const memory = await mastra.getAgent('chat').getMemory();
-        if (!memory) {
-          return c.json({ error: 'memory not configured' }, 500);
-        }
-        await memory.deleteThread(c.req.param('id'));
-        return c.json({ ok: true });
-      },
-    }),
-
-    // Archive/unarchive or rename a chat (soft, reversible).
-    registerApiRoute('/threads/:id', {
-      method: 'PATCH',
-      handler: async (c) => {
-        const id = c.req.param('id');
-        const body = await c.req.json<{ archived?: boolean; title?: string }>();
-        const memory = await mastra.getAgent('chat').getMemory();
-        if (!memory) {
-          return c.json({ error: 'memory not configured' }, 500);
-        }
-        const thread = await memory.getThreadById({ threadId: id });
-        if (!thread) {
-          return c.json({ error: 'not found' }, 404);
-        }
-        const metadata = { ...(thread.metadata as Record<string, unknown> | undefined) };
-        if (typeof body.archived === 'boolean') {
-          metadata.archived = body.archived;
-        }
-        await memory.updateThread({
-          id,
-          title:
-            typeof body.title === 'string' && body.title.trim()
-              ? body.title.trim()
-              : (thread.title ?? ''),
-          metadata,
-        });
-        return c.json({ ok: true });
-      },
-    }),
-
-    // Generate (and persist) an AI title for a thread from its first turns —
-    // written by hand because Memory's built-in generateTitle does not fire on
-    // this path. Part of the dead surface above (`bd mastra-chat-kit-e70`).
-    // Best-effort:
-    // on any model error it leaves the existing first-message fallback in place.
-    registerApiRoute('/threads/:id/title', {
-      method: 'POST',
-      handler: async (c) => {
-        const id = c.req.param('id');
-        const memory = await mastra.getAgent('chat').getMemory();
-        if (!memory) {
-          return c.json({ error: 'memory not configured' }, 500);
-        }
-        const thread = await memory.getThreadById({ threadId: id });
-        if (!thread) {
-          return c.json({ error: 'not found' }, 404);
-        }
-        const { messages } = await memory.recall({
-          threadId: id,
-          resourceId: LOCAL_RESOURCE,
-          perPage: false,
-        });
-        // Compact transcript of the opening turns — enough for a good title.
-        const transcript = messages
-          .slice(0, 6)
-          // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
-          .map((m) => `${(m as any).role}: ${messageText(m)}`)
-          .filter((line) => line.length > 3)
-          .join('\n')
-          .slice(0, 2000);
-        if (!transcript) {
-          return c.json({ title: thread.title ?? '' });
-        }
-        // Provider-appropriate title model (falls back to the first-message title
-        // when the configured provider isn't one this route can construct).
-        const titleGenModel = resolveTitleModel();
-        if (!titleGenModel) {
-          return c.json({ title: thread.title ?? '' });
-        }
-        let title = '';
-        try {
-          const { text } = await generateText({
-            model: titleGenModel,
-            maxRetries: 3,
-            system:
-              'Generate a concise 3-6 word title summarizing the user\'s request in this conversation. Output ONLY the plain title text — no markdown, no quotes, no "Title:" label.',
-            prompt: transcript,
-          });
-          title = text
-            .trim()
-            .replace(/^["']|["']$/g, '')
-            .slice(0, 80);
-        } catch {
-          // Title generation is best-effort; keep the existing fallback title.
-          return c.json({ title: thread.title ?? '' });
-        }
-        if (title) {
-          await memory.updateThread({
-            id,
-            title,
-            metadata: (thread.metadata as Record<string, unknown> | undefined) ?? {},
-          });
-        }
-        return c.json({ title });
-      },
-    }),
-
     // ──────────────────────────────────────────────────────────────────────
     // Agent Controller conversation history (the sidebar). The controller persists its
     // threads/messages to its own store (see lib/agent-controller.ts), so these read the
@@ -436,13 +148,11 @@ const serverConfig = {
     }),
 
     // Semantic search over the controller's conversations — matches message BODIES,
-    // not just titles. AgentController messages are embedded into the SAME fastembed
-    // vector index as the Single-Agent path (both drive `createDefaultMemory`'s
-    // semanticRecall), just under the controller resourceId. So we embed the query
-    // with fastembed (a LOCAL ONNX model — no API spend) and query the shared
-    // index filtered to CHAT_RESOURCE_ID, exactly like /threads/search. The user's
-    // turn is stored role="signal" but its text is embedded with `content`, so it
-    // matches too.
+    // not just titles. Controller messages are already embedded into the fastembed
+    // vector index by `createDefaultMemory`'s semanticRecall, under CHAT_RESOURCE_ID.
+    // So we embed the query with fastembed (a LOCAL ONNX model — no API spend) and
+    // query that shared index filtered to the same resource. The user's turn is
+    // stored role="signal" but its text is embedded with `content`, so it matches too.
     registerApiRoute('/agent-controller/threads/search', {
       method: 'GET',
       handler: async (c) => {

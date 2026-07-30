@@ -128,7 +128,7 @@ npx shadcn@latest add @mastra-chat-kit/chat
 > (tracked in `bd mastra-chat-kit-2jq`). Until then, build and serve `public/r`
 > locally — see [`docs/registry.md`](docs/registry.md).
 
-That lands **82 files**: 12 chat components, 20 `app/api/*` proxy routes plus the proxy lib, the `chat-engine` transport/controller client, our 5 vendored AI Elements, and the upstream AI Elements + shadcn/ui primitives they resolve to.
+That lands **32 files from this registry** — 10 chat components, 14 `app/api/*` proxy routes plus the proxy lib, the `chat-engine` controller client, and our 5 vendored AI Elements — plus the upstream AI Elements and shadcn/ui primitives they resolve to.
 
 Then mount the shell and point it at a server:
 

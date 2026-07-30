@@ -140,31 +140,6 @@
           "target": "lib/mastra-proxy.ts"
         },
         {
-          "path": "app/api/threads/route.ts",
-          "type": "registry:file",
-          "target": "app/api/threads/route.ts"
-        },
-        {
-          "path": "app/api/threads/search/route.ts",
-          "type": "registry:file",
-          "target": "app/api/threads/search/route.ts"
-        },
-        {
-          "path": "app/api/threads/[id]/route.ts",
-          "type": "registry:file",
-          "target": "app/api/threads/[id]/route.ts"
-        },
-        {
-          "path": "app/api/threads/[id]/messages/route.ts",
-          "type": "registry:file",
-          "target": "app/api/threads/[id]/messages/route.ts"
-        },
-        {
-          "path": "app/api/threads/[id]/title/route.ts",
-          "type": "registry:file",
-          "target": "app/api/threads/[id]/title/route.ts"
-        },
-        {
           "path": "app/api/agent-controller/stream/route.ts",
           "type": "registry:file",
           "target": "app/api/agent-controller/stream/route.ts"
