@@ -31,7 +31,16 @@ import {
   MessageContent,
   MessageResponse,
 } from '@/components/ai-elements/message';
+import {
+  Queue,
+  QueueItem,
+  QueueItemContent,
+  QueueItemDescription,
+  QueueItemIndicator,
+  QueueList,
+} from '@/components/ai-elements/queue';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
+import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion } from '@/components/ai-elements/suggestion';
 import { Task, TaskContent, TaskItem, TaskTrigger } from '@/components/ai-elements/task';
 import {
@@ -92,15 +101,18 @@ function MsgAvatar({ role }: { role: string }) {
 }
 
 /** Bot avatar + three bouncing dots — shown before the assistant reply streams. */
+/**
+ * Shown between `agent_start` and the first assistant token. The event map
+ * documents `agent_start` → the Shimmer element, so this renders Shimmer rather
+ * than hand-rolled dots — otherwise /events claims a mapping the UI never uses.
+ */
 function ThinkingIndicator() {
   return (
     <div className="flex items-center gap-3">
       {/* biome-ignore lint/a11y/useValidAriaRole: `role` is MsgAvatar's message-role prop, not an ARIA role */}
       <MsgAvatar role="assistant" />
-      <span className="flex items-center gap-1" aria-label="Assistant is responding" role="status">
-        <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
-        <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
-        <span className="typing-dot size-1.5 rounded-full bg-muted-foreground" />
+      <span aria-label="Assistant is responding" role="status">
+        <Shimmer className="text-muted-foreground text-sm">Thinking…</Shimmer>
       </span>
     </div>
   );
@@ -130,6 +142,7 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
     subagents,
     activeTools,
     error,
+    queuedFollowUps,
   } = transcript;
   const resultsById = collectToolResults(messages);
   // Subagent runs keyed by the parent `subagent` tool-call id, so a `subagent`
@@ -324,6 +337,26 @@ export function HarnessChat({ harness }: { harness: UseHarnessChat }) {
             {status === 'streaming' &&
               messages.filter((m) => m.role === 'user' || m.role === 'assistant').at(-1)?.role !==
                 'assistant' && <ThinkingIndicator />}
+
+            {/* Messages sent while a run was busy are queued server-side and replayed
+                when it settles (`follow_up_queued`). Without this the count is folded
+                into state and never shown, so the user gets no sign they landed. */}
+            {queuedFollowUps > 0 && (
+              <Queue className="px-2">
+                <QueueList>
+                  <QueueItem>
+                    <QueueItemIndicator />
+                    <QueueItemContent>
+                      <QueueItemDescription>
+                        {queuedFollowUps === 1
+                          ? '1 message queued — it will send when this run finishes'
+                          : `${queuedFollowUps} messages queued — they will send when this run finishes`}
+                      </QueueItemDescription>
+                    </QueueItemContent>
+                  </QueueItem>
+                </QueueList>
+              </Queue>
+            )}
 
             {/* Transient run status (harness `info` events). */}
             {info && !error && <p className="px-2 text-muted-foreground text-xs italic">{info}</p>}

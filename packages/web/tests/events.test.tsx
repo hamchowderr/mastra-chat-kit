@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import EventsPage from '@/app/events/page';
@@ -39,5 +42,37 @@ describe('EventsPage — harness event → element reference', () => {
     for (const e of HARNESS_EVENTS) {
       expect(Boolean(e.element) || Boolean(e.target)).toBe(true);
     }
+  });
+
+  // The map is a PROMISE: "this event drives that element". Naming an element the
+  // harness UI never imports turns /events into a docs lie — which is exactly what
+  // happened with `queue` and `shimmer` (both were rendered only by the since-deleted
+  // Agent-mode shell, so the harness folded `follow_up_queued` into state and then
+  // dropped it on the floor). Read the real sources so drift fails here, not in review.
+  it('every element the map names is actually rendered by the harness UI', () => {
+    const HARNESS_SOURCES = [
+      'components/chat/harness-chat.tsx',
+      'components/chat/harness-sidebar.tsx',
+      'components/chat/workbench-panel.tsx',
+      'components/chat/workbench-browser.tsx',
+      'components/chat/workbench-files.tsx',
+      'components/chat/workbench-memory.tsx',
+      'components/chat/workbench-schedules.tsx',
+      'components/chat/composer.tsx',
+      'components/chat/tool-views.tsx',
+    ];
+    const web = resolve(fileURLToPath(import.meta.url), '../..');
+    const imported = new Set<string>();
+    for (const rel of HARNESS_SOURCES) {
+      const src = readFileSync(resolve(web, rel), 'utf8');
+      for (const m of src.matchAll(/ai-elements\/([a-z-]+)/g)) imported.add(m[1]);
+    }
+
+    const claimed = [...new Set(HARNESS_EVENTS.map((e) => e.element).filter(Boolean))] as string[];
+    const unrendered = claimed.filter((el) => !imported.has(el));
+    expect(
+      unrendered,
+      `event map names elements the harness never renders: ${unrendered.join(', ')}`,
+    ).toEqual([]);
   });
 });
