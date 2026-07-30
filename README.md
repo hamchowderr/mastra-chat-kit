@@ -430,10 +430,7 @@ pnpm lint && pnpm test && pnpm --filter @mastra-chat-kit/web build
 
 ### Working against AIMock
 
-Two things that will cost you an hour if you don't know them:
-
-- **Mastra's model router only honours the AIMock base URL on the `anthropic/*` path.** An `openai/*` `CHAT_MODEL` silently bypasses the mock and calls the real API, so set `CHAT_MODEL=anthropic/claude-sonnet-4-6`.
-- **`USE_AIMOCK=true` as a shell variable won't take.** The server loads `.env` over the process environment — edit the file.
+**`USE_AIMOCK=true` has to be in `.env` — a shell variable won't take.** The server loads `packages/server/.env` *over* the process environment, so `USE_AIMOCK=true pnpm dev` silently runs against the real provider. (Same trap for `LOG_LEVEL`.) That single setting is all you need: `configureAIMock()` points every provider base URL at the mock and defaults the API keys to `mock`, so you don't add a key and you don't change `CHAT_MODEL` — verified with `openai/gpt-4.1-mini` and no `OPENAI_API_KEY` present at all.
 
 The fixtures match on `turnIndex` (assistant messages in the request), and Mastra's semantic recall pulls earlier threads into later ones, so anything turn-sensitive wants a freshly-wiped `packages/server/mastra.db`.
 
