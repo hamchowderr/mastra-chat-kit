@@ -1,7 +1,7 @@
 {
   "name": "@mastra-chat-kit/server",
   "version": "0.1.0",
-  "description": "Mastra server for mastra-chat-kit — Agent mode + Harness mode, Memory, AIMock-tested",
+  "description": "Mastra server for mastra-chat-kit — Agent mode + AgentController mode, Memory, AIMock-tested",
   "main": "index.js",
   "scripts": {
     "dev": "mastra dev",

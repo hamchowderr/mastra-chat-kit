@@ -31,12 +31,12 @@ const envSchema = z
     TURSO_DATABASE_URL: z.string().default('file:./mastra.db').transform(absoluteFileUrl),
     TURSO_AUTH_TOKEN: z.string().optional(),
 
-    // Root dir the harness agent's workspace (filesystem + shell sandbox) works
+    // Root dir the controller agent's workspace (filesystem + shell sandbox) works
     // in — it reads/writes files and runs commands here. Set an absolute path for
     // a stable location; a relative path is resolved to absolute at load.
     WORKSPACE_ROOT: z.string().default('./agent-workspace'),
 
-    // Browser slot for the harness workspace (@mastra/browser-viewer). It manages
+    // Browser slot for the controller workspace (@mastra/browser-viewer). It manages
     // a Playwright-driven Chrome and injects its CDP URL into the CLI the agent
     // shells out to — so `agent-browser <cmd>` in the sandbox drives the SAME
     // browser the native browser tools drive. Launch is lazy (nothing spawns at
@@ -63,7 +63,7 @@ const envSchema = z
     OPENAI_API_KEY: z.string().optional(),
     GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
 
-    // The model the chat agent uses (Single Agent + Agent Harness both wrap it).
+    // The model the chat agent uses (Single Agent + Agent Controller both wrap it).
     // `provider/model` form, resolved by Mastra's model router — set it to any provider
     // (see mastra.ai/models). Thread auto-titles derive a cheap model from this same
     // provider automatically (lib/memory.ts). Override to run a cheap model in dev.

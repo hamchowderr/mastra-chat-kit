@@ -9,7 +9,7 @@ import { listSchedules, startSchedule, stopSchedule } from '../../src/mastra/too
  * an InMemoryStore (which implements the `schedules` domain), no model calls, no spend.
  * Proves the acceptance criteria — create returns an id, the row persists + lists, and
  * it can be paused by id — by driving the SAME tool code the chat agent calls, with a
- * fabricated tool context (`ctx.mastra` + `ctx.agent`), exactly as the live harness does.
+ * fabricated tool context (`ctx.mastra` + `ctx.agent`), exactly as the live controller does.
  *
  * The cron is fixed far in the future so the scheduler tick never fires the agent
  * during the test; `mastra.shutdown()` stops the worker tick loop between cases.

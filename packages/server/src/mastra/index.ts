@@ -29,14 +29,14 @@ import {
   streamText,
 } from 'ai';
 import { chatAgent } from './agents/chat';
-import { doltConfigured, ensureDatabase } from './lib/dolt';
 import {
   CHAT_RESOURCE_ID,
+  getChatAgentController,
   getChatBrowser,
-  getChatHarness,
   getChatSession,
   WORKSPACE_ROOT,
-} from './lib/harness';
+} from './lib/agent-controller';
+import { doltConfigured, ensureDatabase } from './lib/dolt';
 import { getImage } from './lib/image-store';
 import {
   getSharedStore,
@@ -69,12 +69,12 @@ const mcpServer = new MCPServer({
 // libsql:// Turso URL with TURSO_AUTH_TOKEN. libSQL has native vector search (no
 // pgvector); only the observability OLAP domain uses DuckDB (see the composite
 // store below). To switch the whole kit to Postgres instead, see docs/postgres.md.
-// The ONE shared libSQL store — same instance the agents' Memory and the harness
+// The ONE shared libSQL store — same instance the agents' Memory and the controller
 // AgentController use, so threads/messages never split across DB files.
 // libSQL serves the default/editor/memory domains + vectors; DuckDB serves ONLY
 // the observability (OLAP) domain that Studio's Metrics/Logs query — libSQL can't
 // back those views on core 1.52, so they'd read "not available". Memory + the
-// harness use the same LibSQLStore (getSharedStore) directly, and the composite's
+// controller use the same LibSQLStore (getSharedStore) directly, and the composite's
 // `default` IS that instance, so threads/messages stay on one libSQL DB.
 const storage = new MastraCompositeStore({
   id: 'composite-storage',
@@ -165,7 +165,6 @@ function isOverloaded(err: unknown): boolean {
 // 'server' has already been declared"). `mastra build` doesn't hit it.
 const serverConfig = {
   apiRoutes: [
-
     // ──────────────────────────────────────────────────────────────────────
     // Chat-history sidebar — thread CRUD over Mastra Memory (single local user).
     // Titles fall back to the first user message (generateTitle doesn't fire via
@@ -422,15 +421,15 @@ const serverConfig = {
     }),
 
     // ──────────────────────────────────────────────────────────────────────
-    // Agent Harness conversation history (the sidebar). The harness persists its
-    // threads/messages to its own store (see lib/harness.ts), so these read the
+    // Agent Controller conversation history (the sidebar). The controller persists its
+    // threads/messages to its own store (see lib/agent-controller.ts), so these read the
     // live Session's thread domain directly — `session.thread.list()` /
     // `listMessages()` / `delete()` — no Memory involved. Title/search fall back
     // to the first user message (chat-app convention) until AI titling lands (698.11).
     // ──────────────────────────────────────────────────────────────────────
 
-    // List the harness's conversations (newest first) with a display title.
-    registerApiRoute('/harness/threads', {
+    // List the controller's conversations (newest first) with a display title.
+    registerApiRoute('/agent-controller/threads', {
       method: 'GET',
       handler: async (c) => {
         const session = await getChatSession();
@@ -477,15 +476,15 @@ const serverConfig = {
       },
     }),
 
-    // Semantic search over the harness's conversations — matches message BODIES,
-    // not just titles. Harness messages are embedded into the SAME fastembed
+    // Semantic search over the controller's conversations — matches message BODIES,
+    // not just titles. AgentController messages are embedded into the SAME fastembed
     // vector index as the Single-Agent path (both drive `createDefaultMemory`'s
-    // semanticRecall), just under the harness resourceId. So we embed the query
+    // semanticRecall), just under the controller resourceId. So we embed the query
     // with fastembed (a LOCAL ONNX model — no API spend) and query the shared
     // index filtered to CHAT_RESOURCE_ID, exactly like /threads/search. The user's
     // turn is stored role="signal" but its text is embedded with `content`, so it
     // matches too.
-    registerApiRoute('/harness/threads/search', {
+    registerApiRoute('/agent-controller/threads/search', {
       method: 'GET',
       handler: async (c) => {
         const q = (c.req.query('q') ?? '').trim();
@@ -515,7 +514,7 @@ const serverConfig = {
         if (seen.size === 0) {
           return c.json({ threads: [] });
         }
-        // Resolve display titles for the matched threads from the harness's own
+        // Resolve display titles for the matched threads from the controller's own
         // thread list (explicit title → first non-assistant message). Only threads
         // that still exist are returned.
         const session = await getChatSession();
@@ -529,7 +528,7 @@ const serverConfig = {
             const explicit = typeof t?.title === 'string' ? t.title.trim() : '';
             if (!explicit) {
               // No stored title yet — derive one from the first non-assistant turn
-              // (the user's role="signal" message), same as /harness/threads.
+              // (the user's role="signal" message), same as /agent-controller/threads.
               const msgs = await session.thread.listMessages({ threadId: id, limit: 8 });
               for (const m of msgs) {
                 if ((m as { role?: string }).role !== 'assistant') {
@@ -554,10 +553,10 @@ const serverConfig = {
       },
     }),
 
-    // Load one harness conversation's messages as v6 UIMessages (text-only
+    // Load one controller conversation's messages as v6 UIMessages (text-only
     // restore, same as the Single Agent path — richer parts rehydrate on the
     // live stream when the conversation continues).
-    registerApiRoute('/harness/threads/:id/messages', {
+    registerApiRoute('/agent-controller/threads/:id/messages', {
       method: 'GET',
       handler: async (c) => {
         const session = await getChatSession();
@@ -566,8 +565,8 @@ const serverConfig = {
       },
     }),
 
-    // Delete a harness conversation (hard delete; clears the binding if active).
-    registerApiRoute('/harness/threads/:id', {
+    // Delete a controller conversation (hard delete; clears the binding if active).
+    registerApiRoute('/agent-controller/threads/:id', {
       method: 'DELETE',
       handler: async (c) => {
         const session = await getChatSession();
@@ -576,11 +575,11 @@ const serverConfig = {
       },
     }),
 
-    // Archive/unarchive or rename a harness conversation. The AgentController's
+    // Archive/unarchive or rename a controller conversation. The AgentController's
     // public `session.thread.rename`/metadata are ACTIVE-thread scoped, but the
-    // harness's threads now live in the shared store, so the Memory can update any
+    // controller's threads now live in the shared store, so the Memory can update any
     // thread by id (same table) — the exact path the Single Agent sidebar uses.
-    registerApiRoute('/harness/threads/:id', {
+    registerApiRoute('/agent-controller/threads/:id', {
       method: 'PATCH',
       handler: async (c) => {
         const id = c.req.param('id');
@@ -609,12 +608,12 @@ const serverConfig = {
       },
     }),
 
-    // Agent Harness endpoint: POST /harness/stream → SSE of HarnessEvents.
-    // Body: { text: string, threadId?: string }. The Harness wraps the same
+    // Agent Controller endpoint: POST /agent-controller/stream → SSE of AgentControllerEvents.
+    // Body: { text: string, threadId?: string }. The AgentController wraps the same
     // chatAgent but emits the richer orchestration surface (sessions, modes,
     // approvals, subagents, tasks) the AI SDK UIMessage stream can't carry.
-    // The web `agent-harness` transport maps these events onto the same elements.
-    registerApiRoute('/harness/stream', {
+    // The web `agent-controller` transport maps these events onto the same elements.
+    registerApiRoute('/agent-controller/stream', {
       method: 'POST',
       handler: async (c) => {
         const { text, threadId, model, webSearch, files } = await c.req.json<{
@@ -725,10 +724,10 @@ const serverConfig = {
       },
     }),
 
-    // Agent Harness HITL: POST /harness/approve resolves a parked tool-approval
-    // gate. The matching /harness/stream call is suspended at the gate; responding
+    // Agent Controller HITL: POST /agent-controller/approve resolves a parked tool-approval
+    // gate. The matching /agent-controller/stream call is suspended at the gate; responding
     // here resumes it and the continuation events flow on that still-open SSE.
-    registerApiRoute('/harness/approve', {
+    registerApiRoute('/agent-controller/approve', {
       method: 'POST',
       handler: async (c) => {
         const { decision } = await c.req.json<{
@@ -750,15 +749,15 @@ const serverConfig = {
       },
     }),
 
-    // Agent Harness HITL: POST /harness/answer resolves a parked tool SUSPENSION —
+    // Agent Controller HITL: POST /agent-controller/answer resolves a parked tool SUSPENSION —
     // the agent-driven `ask_user` flow. When a request is ambiguous the agent calls
     // the built-in `ask_user`, which suspends the run (emitting `tool_suspended` with
-    // the question); the matching /harness/stream call is parked awaiting the answer.
+    // the question); the matching /agent-controller/stream call is parked awaiting the answer.
     // Posting the answer here resumes the SAME suspended tool and the continuation
     // events flow on the still-open SSE. `answer` is a string (free-text / single
     // choice) or string[] (multi-select labels); `toolCallId` selects which prompt to
     // resolve when several are pending (optional when only one is).
-    registerApiRoute('/harness/answer', {
+    registerApiRoute('/agent-controller/answer', {
       method: 'POST',
       handler: async (c) => {
         const { answer, toolCallId } = await c.req.json<{
@@ -777,24 +776,24 @@ const serverConfig = {
       },
     }),
 
-    // NOTE: modes (Chat / Plan) stay configured on the controller (see lib/harness.ts) and
+    // NOTE: modes (Chat / Plan) stay configured on the controller (see lib/agent-controller.ts) and
     // are exercised by the integration test, but there's no HTTP switch route — planning is
     // AGENT-DRIVEN (the agent calls the built-in submit_plan when a task warrants a plan), so
     // the UI has no manual mode switcher to back.
 
-    // Agent Harness goals: the agent's native objective mechanism (flagship demo). Goals
+    // Agent Controller goals: the agent's native objective mechanism (flagship demo). Goals
     // are AGENT-DRIVEN — the chat agent calls its own `setGoal` tool when it recognizes a
     // standing objective (see agents/chat.ts), which iterates toward it: after each turn a
     // judge scores the objective and the run loops (up to maxRuns) until it passes, emitting
     // `goal_evaluation` events the web folds into a goal card. These read/clear routes back
-    // the card (hydrate on reload + dismiss); they drive the SAME session as /harness/stream
+    // the card (hydrate on reload + dismiss); they drive the SAME session as /agent-controller/stream
     // via `controller.getCurrentAgent` (the mode-backing agent with the controller's storage).
 
     // GET the current objective for the session's active thread ({ objective: record|null }).
-    registerApiRoute('/harness/goal', {
+    registerApiRoute('/agent-controller/goal', {
       method: 'GET',
       handler: async (c) => {
-        const controller = await getChatHarness();
+        const controller = await getChatAgentController();
         const session = await getChatSession();
         const threadId = session.thread.getId();
         if (!threadId) {
@@ -807,10 +806,10 @@ const serverConfig = {
     }),
 
     // Clear the objective for the active thread (the agent stops goal-driven looping).
-    registerApiRoute('/harness/goal', {
+    registerApiRoute('/agent-controller/goal', {
       method: 'DELETE',
       handler: async (c) => {
-        const controller = await getChatHarness();
+        const controller = await getChatAgentController();
         const session = await getChatSession();
         const threadId = session.thread.getId();
         if (threadId) {
@@ -825,10 +824,10 @@ const serverConfig = {
     // LOAD (before the next run's `om_status` fills the live token windows), so a returning
     // user isn't met with an empty panel. Strips the `<thread id="…">` attribution wrappers
     // (present in resource scope) to plain text for display.
-    registerApiRoute('/harness/om', {
+    registerApiRoute('/agent-controller/om', {
       method: 'GET',
       handler: async (c) => {
-        const controller = await getChatHarness();
+        const controller = await getChatAgentController();
         const session = await getChatSession();
         const record = await controller.getObservationalMemoryRecord(session);
         const observations =
@@ -841,12 +840,12 @@ const serverConfig = {
       },
     }),
 
-    // List the recurring schedules the harness agent has set up (the Schedules
+    // List the recurring schedules the controller agent has set up (the Schedules
     // panel). Reads the native `mastra.schedules` service directly — the same
     // service the agent's start_schedule / stop_schedule tools write to — and
     // returns flat agent-schedule views. Read-only: creating/pausing is
     // AGENT-DRIVEN (the user asks the agent), so there's no mutate route here.
-    registerApiRoute('/harness/schedules', {
+    registerApiRoute('/agent-controller/schedules', {
       method: 'GET',
       handler: async (c) => {
         const rows = await mastra.schedules.list({ agentId: 'chat' });
@@ -881,7 +880,7 @@ const serverConfig = {
       },
     }),
 
-    // Workbench Files panel: read the harness agent's workspace (WORKSPACE_ROOT)
+    // Workbench Files panel: read the controller agent's workspace (WORKSPACE_ROOT)
     // directly off disk. GET /workspace/files → the file tree; GET /workspace/file
     // ?path=<rel> → one file's text (confined to WORKSPACE_ROOT by the reader).
     registerApiRoute('/workspace/files', {
@@ -903,7 +902,7 @@ const serverConfig = {
       },
     }),
 
-    // Workbench Browser panel: a live screencast (SSE) of the harness agent's Chrome
+    // Workbench Browser panel: a live screencast (SSE) of the controller agent's Chrome
     // (the @mastra/browser-viewer instance). Launches the browser on first view, then
     // forwards base64 JPEG frames + URL changes; the agent's browser tools drive the
     // SAME window, so the panel shows what the agent sees.

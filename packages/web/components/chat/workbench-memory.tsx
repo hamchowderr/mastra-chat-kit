@@ -1,11 +1,11 @@
 'use client';
 
 import { BrainIcon, EyeIcon, SparklesIcon, ZapIcon } from 'lucide-react';
-import type { HarnessMemory } from '@/lib/harness/events';
+import type { AgentControllerMemory } from '@/lib/agent-controller/events';
 import { cn } from '@/lib/utils';
 
 /**
- * Memory tab — a live view of the harness agent's **Observational Memory** (698.20/698.35).
+ * Memory tab — a live view of the controller agent's **Observational Memory** (698.20/698.35).
  * A background Observer distills durable facts from the conversation and a Reflector
  * compresses them, so the agent recalls context across chats. This surfaces what that
  * loop is doing, folded from the `om_*` events:
@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
  * The Observer/Reflector run on a background loop, so the lifecycle entries arrive as
  * they happen; `om_status` is the always-present snapshot.
  */
-export function WorkbenchMemory({ memory }: { memory: HarnessMemory | null }) {
+export function WorkbenchMemory({ memory }: { memory: AgentControllerMemory | null }) {
   const status = memory?.status ?? null;
   const hasContent = !!status || !!memory?.observations || (memory?.activity.length ?? 0) > 0;
 

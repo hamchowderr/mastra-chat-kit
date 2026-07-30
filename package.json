@@ -2,7 +2,7 @@
   "name": "mastra-chat-kit",
   "version": "0.1.0",
   "private": true,
-  "description": "One canonical AI chat layer — Vercel AI Elements + AI SDK v6 + Mastra — that exercises every AI Element and prop, works in Agent mode or Harness mode, and ships as an ai-elements registry.",
+  "description": "One canonical AI chat layer — Vercel AI Elements + AI SDK v6 + Mastra — that exercises every AI Element and prop, works in Agent mode or AgentController mode, and ships as an ai-elements registry.",
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "dev": "pnpm -r --parallel dev",

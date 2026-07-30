@@ -15,30 +15,30 @@ import { WorkbenchFiles } from '@/components/chat/workbench-files';
 import { WorkbenchMemory } from '@/components/chat/workbench-memory';
 import { WorkbenchSchedules } from '@/components/chat/workbench-schedules';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { HarnessWorkspace } from '@/lib/harness/events';
-import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
+import type { AgentControllerWorkspace } from '@/lib/agent-controller/events';
+import type { UseAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 import { cn } from '@/lib/utils';
 
 /**
- * The agent workbench — a collapsible right panel that surfaces what the harness
+ * The agent workbench — a collapsible right panel that surfaces what the controller
  * agent's Workspace is doing, on three tabs:
  *
  * - **Files** — the agent's filesystem (P3.3: served from `WORKSPACE_ROOT`).
  * - **Terminal** — live shell stdout/stderr, accumulated from `shell_output`.
  * - **Browser** — a live screencast of the agent's Chrome (P3.4: `startScreencast`).
  *
- * It shares the single harness session with `<HarnessChat>` (the hook is lifted to
+ * It shares the single controller session with `<AgentControllerChat>` (the hook is lifted to
  * the shell), so the panel reflects the same run the user is chatting with.
  */
 export function WorkbenchPanel({
-  harness,
+  controller,
   onCollapse,
 }: {
-  harness: UseHarnessChat;
+  controller: UseAgentControllerChat;
   onCollapse?: () => void;
 }) {
-  const { terminal, workspace, memory } = harness.transcript;
-  const { schedules } = harness;
+  const { terminal, workspace, memory } = controller.transcript;
+  const { schedules } = controller;
 
   return (
     // Flush to the window edge — the right rail is part of the recessed frame; the chat
@@ -69,7 +69,7 @@ export function WorkbenchPanel({
             <CalendarClockIcon />
             Schedules
           </TabsTrigger>
-          {/* Workspace status dot — reflects the harness workspace lifecycle. */}
+          {/* Workspace status dot — reflects the controller workspace lifecycle. */}
           <WorkspaceStatus workspace={workspace} className="ml-auto self-center" />
           {/* Collapse control lives in the panel header (not floating over it). */}
           <button
@@ -83,14 +83,14 @@ export function WorkbenchPanel({
         </TabsList>
 
         <TabsContent value="files" className="min-h-0 flex-1 overflow-hidden p-3">
-          <WorkbenchFiles harness={harness} />
+          <WorkbenchFiles controller={controller} />
         </TabsContent>
         <TabsContent value="terminal" className="min-h-0 flex-1 overflow-auto p-4">
           {terminal.output ? (
             <Terminal
               output={terminal.output}
               isStreaming={terminal.running}
-              onClear={harness.clearTerminal}
+              onClear={controller.clearTerminal}
             />
           ) : (
             <PanelPlaceholder>
@@ -121,7 +121,7 @@ function WorkspaceStatus({
   workspace,
   className,
 }: {
-  workspace: HarnessWorkspace | null;
+  workspace: AgentControllerWorkspace | null;
   className?: string;
 }) {
   if (!workspace) {

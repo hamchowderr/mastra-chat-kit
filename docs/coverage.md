@@ -1,7 +1,7 @@
-# Coverage Matrix — Mastra / Agent Harness → AI SDK → AI Elements
+# Coverage Matrix — Mastra / Agent Controller → AI SDK → AI Elements
 
 > **Companion references (re-grounded 2026-07-25):**
-> - [harness-events.md](./harness-events.md) — all **50** `AgentControllerEvent` types (25 consumed, 25 dropped; of the 25, **20 fire** in this kit's config (observational memory now enabled — rendering pending), 3 are gated on unshipped features, 2 are intentional).
+> - [agent-controller-events.md](./agent-controller-events.md) — all **50** `AgentControllerEvent` types (25 consumed, 25 dropped; of the 25, **20 fire** in this kit's config (observational memory now enabled — rendering pending), 3 are gated on unshipped features, 2 are intentional).
 > - [ai-elements.md](./ai-elements.md) — all **48** vendored AI Elements (22 live, 26 showroom).
 >
 > **Live, browsable version:** the app serves a wiring map at **`/status`** (from
@@ -14,7 +14,7 @@
 > `version: 'v5'|'v6'`, so the `ai@7` client runs against v6-shaped UIMessage parts.
 >
 > Purpose: prove that **everything an agent can emit has a place to render**, and track
-> exactly what is wired vs. still pending. This is the spec for the Agent Harness build and
+> exactly what is wired vs. still pending. This is the spec for the Agent Controller build and
 > for keeping the Showroom prop-complete.
 
 Legend — **Wired**: ✅ in the live Single Agent path · 🟡 shown in `/showcase` only (display, no live source yet) · ⛔ not rendered anywhere yet.
@@ -67,37 +67,37 @@ Finish-reason mapping: Mastra's extended `tripwire`/`retry` → AI SDK `other`; 
 
 ---
 
-## 3. Mastra **Agent Harness** event → element  (the bigger surface)
+## 3. Mastra **Agent Controller** event → element  (the bigger surface)
 
-The Harness emits **50** `AgentControllerEvent` types + a canonical `display_state_changed` snapshot.
-The web reducer currently **consumes 25 and drops 25** — see [harness-events.md](./harness-events.md)
+The AgentController emits **50** `AgentControllerEvent` types + a canonical `display_state_changed` snapshot.
+The web reducer currently **consumes 25 and drops 25** — see [agent-controller-events.md](./agent-controller-events.md)
 for the full per-event table, payloads, and target elements. The 25 dropped are not 25 gaps: **20
 fire in this kit's current config** (observational memory now enabled but unrendered, live tool
 streaming, `model_changed`), **3 are gated on a feature that isn't enabled** (extra threads —
 owned by a `698.x` issue), and **2 are intentionally off** (`state_changed`,
 `display_state_changed`). Subagents (`698.27`), modes (`698.28`), goals (`698.29`), the `ask_user`
 suspend flow (`698.30`), and native task tracking (`698.19`) have graduated to *consumed*; OM is
-enabled (`698.20`) with rendering pending (`698.35`). Most events do **not** fit a standard UIMessage part — they ride the Harness event stream
+enabled (`698.20`) with rendering pending (`698.35`). Most events do **not** fit a standard UIMessage part — they ride the AgentController event stream
 (or `data-*`). Every one has a natural element target.
 
-> ✅ **`mastra-chat-kit-vud` (fixed):** the harness tool flow works with OpenAI. The earlier "hangs on
+> ✅ **`mastra-chat-kit-vud` (fixed):** the controller tool flow works with OpenAI. The earlier "hangs on
 > any tool call" symptom was `TokenLimiter` in `defaultOutputProcessors` breaking tool-call streaming
 > (fixed in `d290068`), NOT an upstream bug. Tool calls are gated by default (`tool_approval_required`
 > → `Confirmation`).
 
-**Status:** the display path is now wired (server `POST /harness/stream` SSE → web `useHarnessChat`
-reducer → `HarnessChat` view on the same elements). Note: `display_state_changed` is intentionally
+**Status:** the display path is now wired (server `POST /agent-controller/stream` SSE → web `useAgentControllerChat`
+reducer → `AgentControllerChat` view on the same elements). Note: `display_state_changed` is intentionally
 NOT used over the wire — its `Map` fields (`activeTools`, `activeSubagents`, …) serialize to `{}` in
 JSON, so the UI is driven off the granular plain-object events instead. ✅ = wired & rendered, 🟡 =
 event mapped/streamed, ⛔ = not consumed yet.
 
-| Harness event / display-state | Element target | Wired |
+| AgentController event / display-state | Element target | Wired |
 |---|---|---|
-| `message_start/_update/_end` (`HarnessMessage`) | `Message` / `MessageResponse` | ✅ |
+| `message_start/_update/_end` (`AgentControllerMessage`) | `Message` / `MessageResponse` | ✅ |
 | message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ (handles the v4-nested `tool-invocation` shape core 1.52 emits — `698.26`) |
 | `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | ✅ (live input-streaming `<Tool>` via `activeTools`, suppressed once the settled message part lands — `698.25`) |
-| `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny wired → `POST /harness/approve`) |
-| `tool_suspended` + `tool_suspension_cancelled` / `pendingSuspension` | `AskUserPrompt` | ✅ (agent-driven `ask_user`; answer wired → `POST /harness/answer`, `698.30`) |
+| `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny wired → `POST /agent-controller/approve`) |
+| `tool_suspended` + `tool_suspension_cancelled` / `pendingSuspension` | `AskUserPrompt` | ✅ (agent-driven `ask_user`; answer wired → `POST /agent-controller/answer`, `698.30`) |
 | `shell_output` (stdout/stderr) | `Terminal` | ✅ (`698.24`) |
 | `subagent_start/_text_delta/_tool_*/_end` + `ActiveSubagentState` | `Agent` (+ nested `Tool`) | ✅ (`SubagentCard`, `698.27`) |
 | `task_updated` (`TaskItemSnapshot[]`) | `Task` / `Plan` / `ChainOfThought` | ✅ (`Task`; driven by the agent's native `TaskSignalProvider`, `698.19`) |
@@ -133,20 +133,20 @@ for HITL once `Confirmation` is wired to `addToolApprovalResponse`.
   `InlineCitation` carousel · `Plan` `isStreaming` + footer/action · `ChainOfThought` search results ·
   `Conversation` download
 
-**C. Agent Harness display path** — ✅ core wired (beads `sa5`, `8gm` closed):
-- server: `getChatHarness()` singleton + `POST /harness/stream` SSE (`src/mastra/lib/harness.ts`, route in `index.ts`)
-- web: `useHarnessChat` SSE consumer + `reduceHarnessEvent` reducer + `HarnessChat` view + Single Agent⇄Agent Harness toggle; shared `Composer` so the input never drifts
-- ✅ HITL approval: the Harness gates tool calls by default → `Confirmation` renders → approve/deny POSTs `/harness/approve` → `session.respondToToolApproval` resumes the parked run on the still-open SSE. Verified live (approve → tool runs → completes; decline → run ends).
+**C. Agent Controller display path** — ✅ core wired (beads `sa5`, `8gm` closed):
+- server: `getChatAgentController()` singleton + `POST /agent-controller/stream` SSE (`src/mastra/lib/agent-controller.ts`, route in `index.ts`)
+- web: `useAgentControllerChat` SSE consumer + `reduceAgentControllerEvent` reducer + `AgentControllerChat` view + Single Agent⇄Agent Controller toggle; shared `Composer` so the input never drifts
+- ✅ HITL approval: the AgentController gates tool calls by default → `Confirmation` renders → approve/deny POSTs `/agent-controller/approve` → `session.respondToToolApproval` resumes the parked run on the still-open SSE. Verified live (approve → tool runs → completes; decline → run ends).
 - ✅ live e2e: gate→approve→tool→answer round-trip proven via curl on the running server.
 - ✅ subagents (`698.27`), modes (`698.28`), goals (`698.29`), agent-driven `ask_user` (`698.30`), native task tracking (`698.19`), recurring schedules (`698.18`), workspace/shell (`698.24`) all wired + tested.
 - ✅ workspace on the agent (`698.31`) + native per-tool approval config (`698.21`): the shared `Workspace` (filesystem + sandbox + browser, one instance in `lib/workspace.ts`) is attached to `chatAgent` so Mastra Studio surfaces `workspaceId` + 12 `workspaceTools` (verified live via `/api/agents/chat`), matching the official template. Per-tool policy: `write_file`/`edit_file` `requireReadBeforeWrite`, `delete` `requireApproval`. It's a `DynamicArgument` so the UNGATED Single-Agent `/chat` transport opts out (`noWorkspace` request-context flag → verified live: a turn ran with no workspace tools); the controller shares the SAME instance (no double-provision) and HITL-gates everything; tests force it off (`AGENT_WORKSPACE=false`).
 - ✅ live tool-input streaming (`698.25`): the granular `tool_input_start`/`_delta`/`_end`/`tool_start` events fold into `transcript.activeTools` → an input-streaming `<Tool>`, SUPPRESSED the moment the settled `message_update` tool-call part with the same id lands (no double-render). Captured order: `tool_input_start → _delta×N → _end → tool_start → message_update[tool-invocation] → gate`, so the live state mainly shows on slow/large-arg generations. `reduce.test.ts` covers the merge (5 cases).
-- ✅ recurring schedules (`698.18`): `start_schedule` / `stop_schedule` / `list_schedules` tools wrap the native `mastra.schedules` service (persisted to libSQL; the scheduler auto-starts on first create and resumes persisted agent schedules on boot — no explicit `scheduler` config). `list_schedules` is auto-allowed (read-only); `start_schedule` / `stop_schedule` stay gated (a recurring background run is a real side effect → an intentional HITL gate). A read-only Schedules workbench tab renders the live list (`GET /harness/schedules`), refetched when a run settles. Create→persist→pause proven by the integration test over the real tool code + native service.
+- ✅ recurring schedules (`698.18`): `start_schedule` / `stop_schedule` / `list_schedules` tools wrap the native `mastra.schedules` service (persisted to libSQL; the scheduler auto-starts on first create and resumes persisted agent schedules on boot — no explicit `scheduler` config). `list_schedules` is auto-allowed (read-only); `start_schedule` / `stop_schedule` stay gated (a recurring background run is a real side effect → an intentional HITL gate). A read-only Schedules workbench tab renders the live list (`GET /agent-controller/schedules`), refetched when a run settles. Create→persist→pause proven by the integration test over the real tool code + native service.
 - ✅ native task tracking (`698.19`): the chat agent registers `TaskSignalProvider` (bundles the four task tools + `TaskStateProcessor`); a multi-step request → the agent calls `task_write` (auto-allowed — informational, no approval gate) → the processor emits `task_updated` → the `<Task>` element. Verified live vs OpenAI (agent laid out steps as a task list; no gate; the run then correctly gated on the real file write).
-- ✅ agent-driven `ask_user` (`698.30`): an ambiguous request → the agent calls the built-in `ask_user` (auto-allowed, no approval gate) → the run suspends (`tool_suspended`) → `AskUserPrompt` renders the question/options → the answer POSTs `/harness/answer` → `session.respondToToolSuspension` resumes the parked run on the still-open SSE. Verified live vs OpenAI (agent asked "which environment?" with 3 option chips; answering resumed the run to completion).
+- ✅ agent-driven `ask_user` (`698.30`): an ambiguous request → the agent calls the built-in `ask_user` (auto-allowed, no approval gate) → the run suspends (`tool_suspended`) → `AskUserPrompt` renders the question/options → the answer POSTs `/agent-controller/answer` → `session.respondToToolSuspension` resumes the parked run on the still-open SSE. Verified live vs OpenAI (agent asked "which environment?" with 3 option chips; answering resumed the run to completion).
 - ✅ observational memory (`698.20`): `observationalMemory` enabled on the shared memory (model gated on `env.CHAT_MODEL`, `scope: 'resource'` for cross-conversation, threshold lowered to 3000 tokens for demo visibility, env-toggle `OBSERVATIONAL_MEMORY` default-on / off in tests). Verified live vs OpenAI: `om_status` fires with real token tracking (crossed the threshold) and chat is unaffected. The Observer/Reflector run on a background loop; rendering their `om_*` events into a Memory panel is `698.35`.
-- ✅ harness sidebar semantic search (`698.16`): `/harness/threads/search` embeds the query with fastembed (local, no API spend) and queries the shared `memory_messages_384` vector index filtered to `CHAT_RESOURCE_ID`, matching message **bodies** (user `signal` turns + assistant replies) — not just titles. Harness messages are already embedded there via `createDefaultMemory`'s `semanticRecall`; the sidebar consumes it unchanged. Verified live on the running server (real embeddings, ranked results, zero spend).
-- the full harness capability surface (modes, goals, subagents, ask_user, task tracking, schedules, observational memory, workspace, live tool streaming) is now wired + tested.
+- ✅ controller sidebar semantic search (`698.16`): `/agent-controller/threads/search` embeds the query with fastembed (local, no API spend) and queries the shared `memory_messages_384` vector index filtered to `CHAT_RESOURCE_ID`, matching message **bodies** (user `signal` turns + assistant replies) — not just titles. AgentController messages are already embedded there via `createDefaultMemory`'s `semanticRecall`; the sidebar consumes it unchanged. Verified live on the running server (real embeddings, ranked results, zero spend).
+- the full controller capability surface (modes, goals, subagents, ask_user, task tracking, schedules, observational memory, workspace, live tool streaming) is now wired + tested.
 
 **D. Server honoring PromptInput body** (beads `mhr`): `model`, `webSearch`, attachments/file parts.
 
@@ -160,16 +160,16 @@ single-agent route uses `handleChatStream` with `sendReasoning:true` + `sendSour
 `defaultOptions.maxSteps` (and a `messageMetadata` usage hook + per-request `model`) to surface
 reasoning/sources, loop after tools, drive `<Context>`, and honor the model picker.
 
-| Element | Single Agent | Agent Harness | How it's produced |
+| Element | Single Agent | Agent Controller | How it's produced |
 |---|---|---|---|
 | Response (text) | ✅ | ✅ | model text |
 | Reasoning | ✅ | ✅ | Anthropic extended thinking |
 | Tool | ✅ | ✅ | getWeather / searchKnowledge / generateImage |
 | Sources + InlineCitation | ✅ | ✅ | `searchKnowledge` results mapped via `tool-views` |
 | Image | ✅ | ✅ | `generateImage` tool (OpenAI `gpt-image-1-mini`, WebP/low) |
-| Confirmation | — | ✅ | Harness approval gate (every tool) |
-| Task | — | ✅ | Harness `task_write` → `task_updated` |
-| Plan | — | ✅ | Harness `submit_plan` → `{title, plan}` |
+| Confirmation | — | ✅ | AgentController approval gate (every tool) |
+| Task | — | ✅ | AgentController `task_write` → `task_updated` |
+| Plan | — | ✅ | AgentController `submit_plan` → `{title, plan}` |
 | ChainOfThought | — | ✅ | the real tool-call sequence (`StepTrace`) |
 
 **Image architecture (important):** a full image base64 (~2MB PNG) overflows the model context and

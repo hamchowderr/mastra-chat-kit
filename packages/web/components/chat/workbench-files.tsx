@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import type { BundledLanguage } from 'shiki';
 import { CodeBlock } from '@/components/ai-elements/code-block';
 import { FileTree, FileTreeFile, FileTreeFolder } from '@/components/ai-elements/file-tree';
-import type { UseHarnessChat } from '@/lib/harness/use-harness-chat';
+import type { UseAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 import { cn } from '@/lib/utils';
 
 type FileNode = {
@@ -56,13 +56,13 @@ function collectFilePaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<
 }
 
 /**
- * Files tab — a live view of the harness agent's workspace (`WORKSPACE_ROOT`),
+ * Files tab — a live view of the controller agent's workspace (`WORKSPACE_ROOT`),
  * served straight off disk by `/api/workspace/*`. It keeps itself in sync
  * automatically — reloading on mount, polling while the agent is running (so writes
  * appear as they happen), and once more when the run finishes — so there's no manual
  * refresh to think about. Selecting a file loads its text into a CodeBlock.
  */
-export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
+export function WorkbenchFiles({ controller }: { controller: UseAgentControllerChat }) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [loadingTree, setLoadingTree] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -93,13 +93,13 @@ export function WorkbenchFiles({ harness }: { harness: UseHarnessChat }) {
   // cleanup also fires the final reload on the streaming→ready transition, so the
   // tree settles on the finished state. No manual refresh needed.
   useEffect(() => {
-    if (harness.status !== 'streaming') return;
+    if (controller.status !== 'streaming') return;
     const id = setInterval(loadTree, 2000);
     return () => {
       clearInterval(id);
       loadTree();
     };
-  }, [harness.status, loadTree]);
+  }, [controller.status, loadTree]);
 
   const selectPath = useCallback(
     async (p: string) => {

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 type Status = 'idle' | 'connecting' | 'live' | 'error';
 
 /**
- * Browser tab — a live screencast of the harness agent's Chrome (the
+ * Browser tab — a live screencast of the controller agent's Chrome (the
  * `@mastra/browser-viewer` instance), streamed as base64 JPEG frames over SSE
  * from `/api/browser/screencast`.
  *

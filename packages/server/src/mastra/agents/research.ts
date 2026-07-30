@@ -5,7 +5,7 @@ import { searchKnowledge } from './chat';
 /**
  * # Research Subagent (mastra-chat-kit)
  *
- * A research **specialist** the harness agent delegates to via the built-in `subagent`
+ * A research **specialist** the controller agent delegates to via the built-in `subagent`
  * tool (`agentType: 'research'`). Like the code specialist it runs `forked: false` — a
  * fresh agent built from THIS definition (its own instructions / model / tools), not a
  * clone of the parent.

@@ -3,7 +3,7 @@
  *
  * Two groups of shots:
  *   1. STATIC  — the empty chat and the /events map. No model calls.
- *   2. LIVE    — real Harness sessions driven to a specific UI state (a pending tool
+ *   2. LIVE    — real AgentController sessions driven to a specific UI state (a pending tool
  *                approval, a subagent delegation, a task checklist, a populated
  *                workbench). These DO drive the agent, so run the server against
  *                AIMock for deterministic, zero-spend output.
@@ -56,7 +56,7 @@ async function shot(name) {
  * Start a genuinely isolated session.
  *
  * "New chat" alone is NOT enough. A scenario that parks at an un-approved gate
- * leaves its harness run open on the live SSE, and the next message can land on
+ * leaves its controller run open on the live SSE, and the next message can land on
  * that same session — which produced a capture showing weather output under a
  * "use the code subagent" prompt. Reloading drops the SSE so each scenario gets
  * a clean controller.
@@ -114,7 +114,7 @@ async function settle(pattern, timeout = 45_000) {
 console.log('static shots');
 for (const s of [
   { url: '/', out: 'empty-state.png', waitText: /on your mind/i },
-  { url: '/events', out: 'events.png', waitText: /Harness events/i },
+  { url: '/events', out: 'events.png', waitText: /AgentController events/i },
 ]) {
   await page.goto(`${BASE}${s.url}`, { waitUntil: 'domcontentloaded' });
   await page
@@ -127,14 +127,14 @@ for (const s of [
 }
 
 // ── 2. LIVE ──────────────────────────────────────────────────────────────────
-// Each entry drives one Harness capability to the state worth showing.
+// Each entry drives one AgentController capability to the state worth showing.
 // ORDER MATTERS — this sequence is empirically the one that works; reordering it
 // broke all three captures. Two reasons:
 //   1. The fixtures match on `turnIndex` (assistant messages in the request), and
 //      Mastra's semantic recall pulls earlier threads into later ones, so history
 //      accumulated by earlier scenarios can push a later one past turn 0 and
 //      silently resolve the "final answer" fixture instead of the tool call.
-//   2. A scenario left parked at an un-approved gate keeps its harness run open;
+//   2. A scenario left parked at an un-approved gate keeps its controller run open;
 //      the next message can queue as a follow-up on that session rather than
 //      starting clean.
 // Always run against a freshly-wiped packages/server/mastra.db.

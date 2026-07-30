@@ -4,7 +4,7 @@ import { env } from '../../lib/env';
 /**
  * # Writer Subagent (mastra-chat-kit)
  *
- * A writing **specialist** the harness agent delegates to via the built-in `subagent`
+ * A writing **specialist** the controller agent delegates to via the built-in `subagent`
  * tool (`agentType: 'writer'`). `forked: false` — a real specialist built from THIS
  * definition, not a clone of the parent.
  *

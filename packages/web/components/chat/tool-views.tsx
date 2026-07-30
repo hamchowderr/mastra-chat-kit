@@ -37,12 +37,12 @@ import {
   TerminalHeader,
   TerminalTitle,
 } from '@/components/ai-elements/terminal';
-import type { HarnessGoal, PendingSuspension } from '@/lib/harness/events';
+import type { AgentControllerGoal, PendingSuspension } from '@/lib/agent-controller/events';
 import { cn } from '@/lib/utils';
 
 /**
  * Shared renderers that turn real agent TOOL output into the matching AI Elements,
- * used by BOTH the Single Agent and Agent Harness chat views so they never drift.
+ * used by BOTH the Single Agent and Agent Controller chat views so they never drift.
  * Each takes the real data a tool produced — no static/example props.
  */
 
@@ -158,10 +158,10 @@ export function PlanCard({ title, plan }: { title?: string; plan: string }) {
 /**
  * Goal-run card: the objective the agent is iterating toward, its progress against the
  * run budget, the judge's verdict, and the latest judge reason. Driven by `goal_evaluation`
- * events (see reduceHarnessEvent); seeded optimistically by setGoal. `onClear` renders a
+ * events (see reduceAgentControllerEvent); seeded optimistically by setGoal. `onClear` renders a
  * clear control. States: passed (judge complete) / paused (waiting for the user) / working.
  */
-export function GoalCard({ goal, onClear }: { goal: HarnessGoal; onClear?: () => void }) {
+export function GoalCard({ goal, onClear }: { goal: AgentControllerGoal; onClear?: () => void }) {
   const passed = goal.passed === true || goal.status === 'done';
   const waiting = goal.waitingForUser === true;
   const paused = !passed && (waiting || goal.status === 'paused' || goal.maxRunsReached === true);
@@ -262,7 +262,7 @@ export function GoalCard({ goal, onClear }: { goal: HarnessGoal; onClear?: () =>
  * suspended awaiting the answer (see the `tool_suspended` reducer). Renders one of
  * three shapes from the suspend payload — free-text (a textarea), single-select
  * (choice buttons that answer on click), or multi-select (toggle chips + Send). The
- * answer resumes the suspended tool (POST /api/harness/answer) and the run continues
+ * answer resumes the suspended tool (POST /api/agent-controller/answer) and the run continues
  * on the still-open SSE. Focuses the input on mount so answering is immediate.
  */
 export function AskUserPrompt({

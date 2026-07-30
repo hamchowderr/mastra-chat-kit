@@ -1,5 +1,5 @@
 /**
- * Read-only view of the harness agent's workspace directory (`WORKSPACE_ROOT`)
+ * Read-only view of the controller agent's workspace directory (`WORKSPACE_ROOT`)
  * for the web Files panel. We walk the real folder on disk directly rather than
  * reconstruct it from tool calls, so the panel reflects ground truth regardless
  * of how files got there (agent tools, seeds, or the user).
@@ -10,7 +10,7 @@
 
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { WORKSPACE_ROOT } from './harness';
+import { WORKSPACE_ROOT } from './agent-controller';
 
 export type FileNode = {
   name: string;

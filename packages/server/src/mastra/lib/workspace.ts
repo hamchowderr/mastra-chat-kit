@@ -5,7 +5,7 @@
  *   - the chat Agent (`chatAgent.workspace`) — so Mastra Studio surfaces the workspace
  *     + its tools on the registered agent, matching the official template-agent-harness
  *     (698.31), and
- *   - the AgentController harness (`createChatHarness`) — the session that drives our
+ *   - the AgentController (`createChatAgentController`) — the session that drives our
  *     custom UI.
  *
  * Sharing ONE instance (rather than constructing one per surface) is what "no double
@@ -18,7 +18,7 @@
  * ALSO gated by the controller's global approval (HITL) — these declarative controls are
  * what protects a workspace used OUTSIDE the controller (e.g. Studio), and encode intent.
  *
- * This module deliberately imports neither the agent nor the harness, so both can import
+ * This module deliberately imports neither the agent nor the controller, so both can import
  * it without a cycle.
  */
 
@@ -62,7 +62,7 @@ let workspaceSingleton: Workspace | null = null;
 /**
  * The process-wide shared workspace. Lazily constructed; the browser launches lazily on
  * first use, so importing this stays cheap. Tests never call this — they build their own
- * throwaway workspace via `createChatHarness` and gate the agent's workspace off (env
+ * throwaway workspace via `createChatAgentController` and gate the agent's workspace off (env
  * `AGENT_WORKSPACE=false`), keeping runs hermetic.
  */
 export function getChatWorkspace(): Workspace {

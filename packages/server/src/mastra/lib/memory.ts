@@ -34,12 +34,12 @@ import { Memory } from '@mastra/memory';
 import { env } from '../../lib/env';
 
 // ONE shared libSQL store instance for the whole server — the Mastra instance,
-// every agent's Memory, AND the harness AgentController all use THIS so
+// every agent's Memory, AND the AgentController all use THIS so
 // threads/messages land in a single DB. Passing it explicitly (rather than
 // letting Memory fall back to its own relative `file:mastra.db`) is what keeps
-// the agent's writes and the harness's `session.thread.list()` reads in the same
+// the agent's writes and the controller's `session.thread.list()` reads in the same
 // file — otherwise they split (the agent writes to src/mastra/public/mastra.db
-// under `mastra dev` while the harness reads the absolutized ./mastra.db).
+// under `mastra dev` while the controller reads the absolutized ./mastra.db).
 let sharedStore: LibSQLStore | null = null;
 export function getSharedStore(): LibSQLStore {
   if (!sharedStore) {
@@ -119,7 +119,7 @@ export function resolveTitleModelId(): string {
 export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TEMPLATE): Memory {
   return new Memory({
     // Explicit shared store (NOT Memory's relative-path default) so the agent's
-    // threads/messages persist to the same DB the harness reads. See getSharedStore.
+    // threads/messages persist to the same DB the controller reads. See getSharedStore.
     storage: getSharedStore(),
     embedder: fastembed,
     vector: getSharedVector(),
@@ -143,13 +143,13 @@ export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TE
         instructions:
           'Generate a concise 3-6 word title summarizing the user\'s request in this conversation. Output ONLY the plain title text — no markdown, no quotes, no "Title:" label.',
       },
-      // Observational Memory (harness showcase) — a background Observer distills durable
+      // Observational Memory (controller showcase) — a background Observer distills durable
       // facts from the conversation and a Reflector compresses them, so the agent recalls
       // context ACROSS conversations (scope: 'resource'), not just within a thread. It runs
       // its own model (uses env.CHAT_MODEL rather than the default Google model, so a single
       // provider key suffices). ALWAYS ON — it's core to the kit, not a user option — except
       // under NODE_ENV=test, where the Observer/Reflector need real structured output AIMock
-      // can't stand in for. Emits the om_* events the harness forwards (Memory panel).
+      // can't stand in for. Emits the om_* events the controller forwards (Memory panel).
       ...(env.NODE_ENV !== 'test'
         ? {
             observationalMemory: {

@@ -4,7 +4,7 @@ import { env } from '../../lib/env';
 /**
  * # Code Subagent (mastra-chat-kit)
  *
- * A coding **subagent** the single harness agent delegates to via the built-in
+ * A coding **subagent** the single controller agent delegates to via the built-in
  * `subagent` tool (`agentType: 'code'`). It is NOT a top-level agent — the kit
  * runs ONE agent, which spawns focused subagents on demand (a fresh instance per
  * `task`). This mirrors the official `template-agent-harness` single-agent design.
@@ -57,6 +57,6 @@ Rules:
   // forked as a workaround. On the CURRENT core it no longer reproduces — verified
   // with the browser both unlaunched AND launched — so we run the real specialist.
   // Guarded by tests/integration/subagent-browser-repro.test.ts (flips red if a core
-  // upgrade regresses it). See docs/harness-events.md.
+  // upgrade regresses it). See docs/agent-controller-events.md.
   forked: false,
 };

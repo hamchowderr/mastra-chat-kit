@@ -76,7 +76,7 @@ export const defaultInputProcessors: InputProcessorOrWorkflow[] = [
 
 export const defaultOutputProcessors: OutputProcessorOrWorkflow[] = [
   // NONE by default — see the "Why there is NO default OUTPUT processor" note above.
-  // TokenLimiter/CostGuard in this slot break streaming (hang the harness on tool calls).
+  // TokenLimiter/CostGuard in this slot break streaming (hang the controller on tool calls).
   // --- OPT-IN: model-backed / behavior-changing output processors ---
   // Stop system-prompt / instruction leakage in responses (one extra LLM call):
   // new SystemPromptScrubber({ model: 'anthropic/claude-haiku-4-5' }),

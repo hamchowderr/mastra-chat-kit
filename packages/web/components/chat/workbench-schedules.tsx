@@ -1,21 +1,21 @@
 'use client';
 
 import { CalendarClockIcon, ClockIcon, PauseIcon, RepeatIcon } from 'lucide-react';
-import type { HarnessSchedule } from '@/lib/harness/events';
+import type { AgentControllerSchedule } from '@/lib/agent-controller/events';
 import { cn } from '@/lib/utils';
 
 /**
- * Schedules tab — the recurring schedules the harness agent has set up via its
+ * Schedules tab — the recurring schedules the controller agent has set up via its
  * native `mastra.schedules` tools (698.18). Read-only and agent-driven: the user
  * asks the agent to schedule/cancel something (start_schedule / stop_schedule),
  * and this panel reflects the result — no manual create/pause controls, matching
- * how the rest of the harness surfaces capabilities.
+ * how the rest of the controller surfaces capabilities.
  *
- * The list is fetched from `/api/harness/schedules` on mount and refetched when a
- * run settles (see `useHarnessChat.refreshSchedules`), so a schedule the agent
+ * The list is fetched from `/api/agent-controller/schedules` on mount and refetched when a
+ * run settles (see `useAgentControllerChat.refreshSchedules`), so a schedule the agent
  * just created appears without a reload.
  */
-export function WorkbenchSchedules({ schedules }: { schedules: HarnessSchedule[] }) {
+export function WorkbenchSchedules({ schedules }: { schedules: AgentControllerSchedule[] }) {
   if (schedules.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
@@ -56,7 +56,7 @@ export function WorkbenchSchedules({ schedules }: { schedules: HarnessSchedule[]
 }
 
 /** One schedule: its prompt, cron cadence, status, and next-run time. */
-function ScheduleCard({ schedule }: { schedule: HarnessSchedule }) {
+function ScheduleCard({ schedule }: { schedule: AgentControllerSchedule }) {
   const paused = schedule.status === 'paused';
   return (
     // Outer radius (rounded-xl = 12px) − 8px padding → inner chips use rounded-md (6px).

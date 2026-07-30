@@ -30,7 +30,7 @@ on:
       - 'packages/web/scripts/registry-smoke.mjs'
       - 'packages/web/components/chat/**'
       - 'packages/web/components/ai-elements/**'
-      - 'packages/web/lib/harness/**'
+      - 'packages/web/lib/agent-controller/**'
       - 'packages/web/lib/transports/**'
       - 'packages/web/lib/mastra-proxy.ts'
       - 'packages/web/app/api/**'

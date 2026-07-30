@@ -16,7 +16,7 @@ export default defineConfig({
     hookTimeout: 30_000,
     env: {
       // NODE_ENV=test gates OM + the agent workspace OFF (see lib/memory.ts + agents/chat.ts)
-      // so AIMock runs stay hermetic — the harness controller still supplies its own workspace.
+      // so AIMock runs stay hermetic — the controller still supplies its own workspace.
       NODE_ENV: 'test',
       USE_AIMOCK: 'true',
       AIMOCK_URL: 'http://127.0.0.1:4010',

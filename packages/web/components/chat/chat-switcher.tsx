@@ -2,10 +2,10 @@
 
 import { PanelLeftIcon, PanelRightIcon } from 'lucide-react';
 import { useState } from 'react';
-import { HarnessChat } from '@/components/chat/harness-chat';
-import { HarnessSidebar } from '@/components/chat/harness-sidebar';
+import { AgentControllerChat } from '@/components/chat/agent-controller-chat';
+import { AgentControllerSidebar } from '@/components/chat/agent-controller-sidebar';
 import { WorkbenchPanel } from '@/components/chat/workbench-panel';
-import { useHarnessChat } from '@/lib/harness/use-harness-chat';
+import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 
 /**
  * The app shell — sidebar │ chat │ workbench, no top header bar so the chat runs
@@ -13,7 +13,7 @@ import { useHarnessChat } from '@/lib/harness/use-harness-chat';
  * floats top-left when the sidebar is collapsed, so it's always reachable); the
  * workbench toggle floats in the chat's empty top-right gutter.
  *
- * One harness session (an `AgentController` with a real Workspace: filesystem +
+ * One controller session (an `AgentController` with a real Workspace: filesystem +
  * shell sandbox + browser) backs all three panes, so history, transcript, and the
  * workbench's Files/Terminal/Browser reflect the same run.
  */
@@ -21,12 +21,12 @@ export function ChatSwitcher() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   // Workbench starts CLOSED so the default view is a clean chat, not an IDE.
   const [rightCollapsed, setRightCollapsed] = useState(true);
-  const harness = useHarnessChat();
+  const controller = useAgentControllerChat();
 
   // New chat: clear the transcript, then focus the composer so it's obviously
   // responsive — from an already-empty chat there'd otherwise be no visible change.
   const handleNew = () => {
-    harness.reset();
+    controller.reset();
     requestAnimationFrame(() => {
       document
         .querySelector<HTMLTextAreaElement>('textarea[data-slot="input-group-control"]')
@@ -38,11 +38,11 @@ export function ChatSwitcher() {
     // Recessed frame: the shell + both rails share the sidebar tone; the chat floats inset
     // as a raised rounded panel (the "inset" layout — clean, subtle separation).
     <div className="relative flex h-dvh overflow-hidden bg-sidebar">
-      <HarnessSidebar
-        activeThreadId={harness.activeThreadId}
-        onSelect={harness.openThread}
+      <AgentControllerSidebar
+        activeThreadId={controller.activeThreadId}
+        onSelect={controller.openThread}
         onNew={handleNew}
-        refreshSignal={harness.refreshSignal}
+        refreshSignal={controller.refreshSignal}
         collapsed={leftCollapsed}
         onToggleCollapse={() => setLeftCollapsed((v) => !v)}
       />
@@ -64,7 +64,7 @@ export function ChatSwitcher() {
         {/* The chat is the raised, floating panel: inset margin + rounded + border + soft
             shadow, over the recessed sidebar-tone frame. */}
         <div className="m-1.5 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-sm">
-          <HarnessChat harness={harness} />
+          <AgentControllerChat controller={controller} />
         </div>
 
         {/* Only when the panel is CLOSED does the toggle float in the chat's empty
@@ -82,7 +82,7 @@ export function ChatSwitcher() {
         )}
 
         {!rightCollapsed && (
-          <WorkbenchPanel harness={harness} onCollapse={() => setRightCollapsed(true)} />
+          <WorkbenchPanel controller={controller} onCollapse={() => setRightCollapsed(true)} />
         )}
       </div>
     </div>

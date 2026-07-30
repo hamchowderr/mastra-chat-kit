@@ -12,9 +12,9 @@ our own copies of only the few we had to patch.
 
 | Item | Type | What it is |
 |---|---|---|
-| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, **plus the harness sidebar and the 4-tab workbench** (browser, files, memory, schedules). **This is what you install.** |
-| `chat-engine` | lib | Swappable transport + harness client (`lib/transports`, `lib/harness`). |
-| `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `harness/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
+| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, **plus the controller sidebar and the 4-tab workbench** (browser, files, memory, schedules). **This is what you install.** |
+| `chat-engine` | lib | Swappable transport + controller client (`lib/transports`, `lib/agent-controller`). |
+| `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `agent-controller/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
 | `context` | component | AI Elements context/usage with `Partial<LanguageModelUsage>`. |
@@ -115,7 +115,7 @@ leaves them with Base UI primitives they weren't written for (`openDelay` /
 signatures). That is why Radix is the supported base.
 
 In every configuration measured, **0 errors landed in this kit's own files**
-(`components/chat`, `lib/harness`, `lib/transports`, `app/api`).
+(`components/chat`, `lib/agent-controller`, `lib/transports`, `app/api`).
 
 > For the record, the two upstream elements that import `@radix-ui/…`
 > (`reasoning`, `chain-of-thought`) are *not* the problem — they use only
@@ -150,14 +150,14 @@ fresh `init --base radix` project (shadcn CLI 4.16.0, 2026-07-29):
 |---|---|---|
 | `components/chat/*.tsx` | 12 | this registry |
 | `app/api/**/route.ts` | 20 | this registry |
-| `lib/harness`, `lib/transports`, `mastra-proxy` | 4 | this registry |
+| `lib/agent-controller`, `lib/transports`, `mastra-proxy` | 4 | this registry |
 | `components/ai-elements/*.tsx` | 23 | 5 ours + 18 from Vercel |
 | `components/ui/*.tsx` | 23 | the default shadcn registry |
 | **Total** | **82** | |
 
 > Upstream counts drift as Vercel and shadcn change; `bd mastra-chat-kit-7zt`
 > turns this measurement into a scheduled check. (An earlier hand-count of 61
-> predates shipping the harness half.)
+> predates shipping the controller half.)
 
 ### Wire it to a Mastra server
 
@@ -181,21 +181,21 @@ this contract — the routes proxy 1:1:
 | `POST /api/threads/:id/title` | `POST /threads/:id/title` |
 | `GET /api/images/:id` | `GET /images/:id` |
 
-Harness mode needs the rest of the surface — the workbench panels and
-`use-harness-chat` call all of these:
+AgentController mode needs the rest of the surface — the workbench panels and
+`use-agent-controller-chat` call all of these:
 
 | Next route (installed) | → Mastra server endpoint |
 |---|---|
-| `/api/harness/stream` | `/harness/stream` (SSE) |
-| `POST /api/harness/approve` | `POST /harness/approve` (per-tool approval) |
-| `POST /api/harness/answer` | `POST /harness/answer` (`ask_user` reply) |
-| `GET`/`DELETE /api/harness/goal` | `GET`/`DELETE /harness/goal` (read + dismiss; the agent *sets* goals via its own `setGoal` tool, not a web POST) |
-| `GET /api/harness/om` | `GET /harness/om` (observational memory) |
-| `GET /api/harness/schedules` | `GET /harness/schedules` |
-| `GET /api/harness/threads` | `GET /harness/threads` |
-| `GET /api/harness/threads/search?q=` | `GET /harness/threads/search?q=` |
-| `GET`/`DELETE /api/harness/threads/:id` | `GET`/`DELETE /harness/threads/:id` |
-| `GET /api/harness/threads/:id/messages` | `GET /harness/threads/:id/messages` |
+| `/api/agent-controller/stream` | `/agent-controller/stream` (SSE) |
+| `POST /api/agent-controller/approve` | `POST /agent-controller/approve` (per-tool approval) |
+| `POST /api/agent-controller/answer` | `POST /agent-controller/answer` (`ask_user` reply) |
+| `GET`/`DELETE /api/agent-controller/goal` | `GET`/`DELETE /agent-controller/goal` (read + dismiss; the agent *sets* goals via its own `setGoal` tool, not a web POST) |
+| `GET /api/agent-controller/om` | `GET /agent-controller/om` (observational memory) |
+| `GET /api/agent-controller/schedules` | `GET /agent-controller/schedules` |
+| `GET /api/agent-controller/threads` | `GET /agent-controller/threads` |
+| `GET /api/agent-controller/threads/search?q=` | `GET /agent-controller/threads/search?q=` |
+| `GET`/`DELETE /api/agent-controller/threads/:id` | `GET`/`DELETE /agent-controller/threads/:id` |
+| `GET /api/agent-controller/threads/:id/messages` | `GET /agent-controller/threads/:id/messages` |
 | `GET /api/workspace/files` | `GET /workspace/files` |
 | `GET /api/workspace/file?path=` | `GET /workspace/file?path=` |
 | `/api/browser/screencast` | `/browser/screencast` (SSE frames) |
@@ -204,7 +204,7 @@ Harness mode needs the rest of the surface — the workbench panels and
 > `/api/agents/*` shape. The kit's `packages/server` registers every route above
 > with `registerApiRoute()`; treat it as the reference implementation.
 
-Then mount `<ChatSwitcher />` (the Harness shell — sidebar │ chat │ workbench;
+Then mount `<ChatSwitcher />` (the AgentController shell — sidebar │ chat │ workbench;
 it is not a mode toggle — there is only one engine)
 from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
 `<Toaster />` in your root layout if you want notifications.

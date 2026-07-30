@@ -2,9 +2,9 @@
 
 # 💬 mastra-chat-kit
 
-### The Mastra Agent Harness, wired to Vercel AI Elements.
+### The Mastra Agent Controller, wired to Vercel AI Elements.
 
-**A chat frontend + agent backend where the hard part is already done: Mastra's Agent Harness emits ~50 orchestration events that a plain chat stream cannot carry — tool approvals, subagents, goals, plan modes, task tracking, observational memory, schedules, a live sandboxed workspace — and this kit maps every one of them onto the AI Element that renders it.**
+**A chat frontend + agent backend where the hard part is already done: Mastra's Agent Controller emits ~50 orchestration events that a plain chat stream cannot carry — tool approvals, subagents, goals, plan modes, task tracking, observational memory, schedules, a live sandboxed workspace — and this kit maps every one of them onto the AI Element that renders it.**
 
 Ships as a **shadcn registry**, so any project installs the same chat layer with one command instead of re-deriving the wiring.
 
@@ -17,7 +17,7 @@ Ships as a **shadcn registry**, so any project installs the same chat layer with
 
 </div>
 
-![The kit running Harness mode — conversation sidebar, the chat, and the agent workbench open on Files](docs/workbench.png)
+![The kit running AgentController mode — conversation sidebar, the chat, and the agent workbench open on Files](docs/workbench.png)
 
 <div align="center"><sub>Sidebar │ chat │ workbench. The right rail is the agent's live workspace — Files, Terminal, Browser, Memory, Schedules.</sub></div>
 
@@ -25,7 +25,7 @@ Ships as a **shadcn registry**, so any project installs the same chat layer with
 
 ## 💬 What a session looks like
 
-The thing that makes this a *harness* and not a chat box: **the agent's work is visible and gated.** Tools do not silently run — they surface as a card and wait.
+The thing that makes this a *controller* and not a chat box: **the agent's work is visible and gated.** Tools do not silently run — they surface as a card and wait.
 
 <details open>
 <summary><b>"What's the weather in Los Angeles?"</b> — a tool call, paused for approval</summary>
@@ -34,13 +34,13 @@ The thing that makes this a *harness* and not a chat box: **the agent's work is 
 
 ![A pending tool approval — the reasoning steps, the getWeather tool mid-run, and the approval card with its real arguments](docs/approval.png)
 
-Three things are on screen at once, each a different AI Element driven by a different harness event:
+Three things are on screen at once, each a different AI Element driven by a different controller event:
 
 1. **Steps** — the agent's reasoning trace (`Called getWeather`)
 2. **A live tool chip** — `getWeather` with its status, whose arguments streamed in token by token before the call settled
 3. **The approval gate** — `Run getWeather?` with the exact arguments, and **Approve / Reject**
 
-Nothing has executed yet. The harness run is parked server-side on an open SSE connection; approving resumes that same session, and the tool result flows back into the transcript.
+Nothing has executed yet. The controller run is parked server-side on an open SSE connection; approving resumes that same session, and the tool result flows back into the transcript.
 
 </details>
 
@@ -62,7 +62,7 @@ Same pattern for **research** (browse + search + cite) and **writer** (long-form
 ## 🎯 Why mastra-chat-kit?
 
 - **✋ Approval-gated by default.** Every side-effecting tool pauses for approve / decline before it runs. HITL is the default posture, not a feature you bolt on.
-- **🔌 ~50 harness events, already wired.** The gap between "an agent streams text" and "an agent shows you a plan, asks a question, delegates, and tracks its steps" is a lot of event plumbing. That's the part this kit is.
+- **🔌 ~50 controller events, already wired.** The gap between "an agent streams text" and "an agent shows you a plan, asks a question, delegates, and tracks its steps" is a lot of event plumbing. That's the part this kit is.
 - **🧩 One chat layer, installed not copied.** `shadcn add` pulls the canonical shell into any project. Fixes flow out to consumers instead of drifting across forks.
 - **🎭 Testable before it costs anything.** Unit, integration, component, and e2e tiers all run against deterministic AIMock fixtures. Real provider keys are absent by design, so an accidental live call fails loudly rather than billing you.
 - **📦 Zero-friction storage.** Memory, threads, observability, and vector search all run on libSQL — a local `file:` DB in dev with no Docker and no server, a Turso URL in prod.
@@ -70,7 +70,7 @@ Same pattern for **research** (browse + search + cite) and **writer** (long-form
 
 ---
 
-## 🧰 Harness capabilities
+## 🧰 AgentController capabilities
 
 Every capability is **agent-driven** — no manual buttons; the agent calls the right tool when it recognises the intent. Open **`/events`** in the app for the full event map with a copy-paste prompt per capability.
 
@@ -88,7 +88,7 @@ Every capability is **agent-driven** — no manual buttons; the agent calls the 
 | **Live tool streaming** | Tool arguments stream into an input-streaming Tool before the call settles. | *(fires on any tool call)* |
 | **Semantic search** | The sidebar searches message bodies via a local embedding index. | *type in the sidebar search* |
 
-![The in-app /events page — all 50 harness events mapped to the AI Element each drives, with a copy-paste prompt to trigger it live](docs/events.png)
+![The in-app /events page — all 50 controller events mapped to the AI Element each drives, with a copy-paste prompt to trigger it live](docs/events.png)
 
 ---
 
@@ -128,12 +128,12 @@ npx shadcn@latest add @mastra-chat-kit/chat
 > (tracked in `bd mastra-chat-kit-2jq`). Until then, build and serve `public/r`
 > locally — see [`docs/registry.md`](docs/registry.md).
 
-That lands **82 files**: 12 chat components, 20 `app/api/*` proxy routes plus the proxy lib, the `chat-engine` transport/harness client, our 5 vendored AI Elements, and the upstream AI Elements + shadcn/ui primitives they resolve to.
+That lands **82 files**: 12 chat components, 20 `app/api/*` proxy routes plus the proxy lib, the `chat-engine` transport/controller client, our 5 vendored AI Elements, and the upstream AI Elements + shadcn/ui primitives they resolve to.
 
 Then mount the shell and point it at a server:
 
 ```tsx
-import { ChatSwitcher } from '@/components/chat/chat-switcher';   // Harness mode
+import { ChatSwitcher } from '@/components/chat/chat-switcher';   // AgentController mode
 ```
 
 ```bash
@@ -145,7 +145,7 @@ The UI is **pure frontend** — it talks to a Mastra server over the same-origin
 
 ---
 
-## 🎛️ One engine: the Agent Harness
+## 🎛️ One engine: the Agent Controller
 
 There is one engine, and everything in this kit comes from it.
 
@@ -153,25 +153,25 @@ There is one engine, and everything in this kit comes from it.
 |---|---|
 | **Component** | `<ChatSwitcher />` — sidebar │ chat │ workbench |
 | **Backend** | `AgentController` → `Session`; commands in, events out |
-| **Route** | `POST /harness/stream` (SSE) + `POST /harness/approve` |
-| **Web client** | `useHarnessChat` hook (command POST + SSE) |
+| **Route** | `POST /agent-controller/stream` (SSE) + `POST /agent-controller/approve` |
+| **Web client** | `useAgentControllerChat` hook (command POST + SSE) |
 | **Wire format** | `AgentControllerEvent`s → `AgentControllerDisplayState` |
 
-It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (Shipped originally as `Harness`, renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `harness` name for its routes and files.)
+It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (Shipped originally as `AgentController`, renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `controller` name for its routes and files.)
 
 > **Previously there were two.** A second "Agent mode" wrapped a bare `agent.stream` with no session, approvals, subagents, or workbench. It was mounted nowhere, had no e2e coverage, and its only unit test rendered an empty shell — so a consumer installing it would have been the first person to run it. It was removed rather than shipped unverified (`bd mastra-chat-kit-eg1`).
 
-**→ [`docs/modes.md`](docs/modes.md)** covers the harness in full, using Mastra's exact vocabulary.
+**→ [`docs/modes.md`](docs/modes.md)** covers the controller in full, using Mastra's exact vocabulary.
 
 ---
 
 ## 🧠 How it works
 
 ```
-   Browser  ·  AI Elements + useHarnessChat  ·  packages/web (Next.js 16, :3000)
+   Browser  ·  AI Elements + useAgentControllerChat  ·  packages/web (Next.js 16, :3000)
         │                                                                │
         ▼                                                                │
-   POST /harness/stream  (SSE)  ·  POST /harness/approve                 │
+   POST /agent-controller/stream  (SSE)  ·  POST /agent-controller/approve                 │
         │                                                                │
         ▼                                                                │
    AgentController → Session                                             │
@@ -187,7 +187,7 @@ It runs on Mastra's `AgentController` — the session controller Mastra's docs d
         memory · threads · observability · semantic recall  ◀───────────┘
 ```
 
-The harness wraps the `chatAgent`. Storage, threads, observability, and vector recall land in one libSQL database; embeddings run locally via `fastembed` (no embedding API).
+The controller wraps the `chatAgent`. Storage, threads, observability, and vector recall land in one libSQL database; embeddings run locally via `fastembed` (no embedding API).
 
 ---
 
@@ -214,11 +214,11 @@ cp packages/server/.env.example packages/server/.env
 pnpm dev
 ```
 
-Open `http://localhost:3000` for the chat and `/events` for the harness event → element map, with a copy-paste prompt per capability.
+Open `http://localhost:3000` for the chat and `/events` for the controller event → element map, with a copy-paste prompt per capability.
 
 ![The chat on first open — conversation sidebar, suggested prompts, and the composer with its model and web-search controls](docs/empty-state.png)
 
-<div align="center"><sub>First open. The suggested prompts each trigger a different harness capability; the workbench opens from the control in the top-right gutter.</sub></div>
+<div align="center"><sub>First open. The suggested prompts each trigger a different controller capability; the workbench opens from the control in the top-right gutter.</sub></div>
 
 **Zero-cost dev.** Run against AIMock instead of a real provider:
 
@@ -239,7 +239,7 @@ Every image in this README is generated from the running app, not mocked up:
 node packages/web/scripts/screenshot.mjs
 ```
 
-It drives real Harness sessions and captures the resulting UI. Read the header comment first — the live captures depend on a **freshly-wiped `packages/server/mastra.db`** and on scenario order, because the AIMock fixtures match on `turnIndex` (assistant messages in the request) and Mastra's semantic recall pulls earlier threads into later ones. The script refuses to write an image whose transcript shows bleed-through from another scenario rather than emitting a misleading one.
+It drives real AgentController sessions and captures the resulting UI. Read the header comment first — the live captures depend on a **freshly-wiped `packages/server/mastra.db`** and on scenario order, because the AIMock fixtures match on `turnIndex` (assistant messages in the request) and Mastra's semantic recall pulls earlier threads into later ones. The script refuses to write an image whose transcript shows bleed-through from another scenario rather than emitting a misleading one.
 
 ---
 
@@ -249,9 +249,9 @@ Every tier is **AIMock-backed, zero LLM spend** — real provider keys are inten
 
 | Tier | Command | What it covers |
 |---|---|---|
-| **unit + integration** | `pnpm --filter server test` | Agent + Harness flows via [AIMock](https://aimock.copilotkit.dev) — a `globalSetup` boots the mock on :4010 |
+| **unit + integration** | `pnpm --filter server test` | Agent + AgentController flows via [AIMock](https://aimock.copilotkit.dev) — a `globalSetup` boots the mock on :4010 |
 | **evals** | `pnpm --filter server eval` | `@mastra/evals` scorers (run with `USE_AIMOCK=true`) |
-| **component** | `pnpm --filter web test` | Harness reducer, transport + chat views, element rendering (Vitest + RTL) |
+| **component** | `pnpm --filter web test` | AgentController reducer, transport + chat views, element rendering (Vitest + RTL) |
 | **e2e** | `pnpm test:e2e` | Full chat flow (Playwright, AIMock-backed) |
 
 `pnpm test` runs the unit/integration + component tiers across both packages. CI runs lint, both test suites, and a production web build on every PR — no secrets, no spend.
@@ -270,19 +270,19 @@ packages/
 │  └─ src/
 │     ├─ lib/env.ts           Zod-validated env — crashes on bad config
 │     └─ mastra/
-│        ├─ index.ts          Boot: env → AIMock → Mastra; Agent + Harness routes
-│        ├─ agents/           chat · code · research · writer  (harness spawns the specialists)
+│        ├─ index.ts          Boot: env → AIMock → Mastra; Agent + AgentController routes
+│        ├─ agents/           chat · code · research · writer  (controller spawns the specialists)
 │        ├─ lib/
-│        │  ├─ harness.ts       AgentController + Session (Harness mode)
+│        │  ├─ controller.ts       AgentController + Session (AgentController mode)
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
 │        │  └─ dolt.ts          optional versioned data, Git-style (mysql2)
 │        └─ tools/            agent tools (getWeather, dolt, image, schedules …)
 └─ web/                      Next.js 16 App Router + AI Elements (:3000)
-   ├─ app/                     chat (/) + /events — the harness-event → element map
+   ├─ app/                     chat (/) + /events — the controller-event → element map
    ├─ components/chat/         canonical shell · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
-   ├─ lib/harness/             use-harness-chat.ts + events — Harness-mode SSE client
-   ├─ lib/harness-event-map.ts the 50 events → elements + prompts (drives /events)
+   ├─ lib/agent-controller/             use-agent-controller-chat.ts + events — AgentController-mode SSE client
+   ├─ lib/agent-controller-event-map.ts the 50 events → elements + prompts (drives /events)
    └─ scripts/                 gen-registry.mjs (registry manifest) · screenshot.mjs
 ```
 
@@ -377,7 +377,7 @@ Vercel · Netlify · Cloudflare, via Mastra's deployers (added as `deployer:` on
 <details>
 <summary><b>Does installing the registry give me the agent too?</b></summary>
 
-No. The registry is **frontend-only** — chat components, the transport/harness client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it.
+No. The registry is **frontend-only** — chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it.
 
 You bring a Mastra server that speaks the kit's endpoint contract. `packages/server` in this repo is the reference implementation; a stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 20-endpoint contract is in [`docs/registry.md`](docs/registry.md).
 </details>
@@ -397,9 +397,9 @@ Yes — that's the default posture for tests and it works for dev too. Every tes
 </details>
 
 <details>
-<summary><b>Why is it called "harness" if Mastra renamed it to AgentController?</b></summary>
+<summary><b>Why is it called "controller" if Mastra renamed it to AgentController?</b></summary>
 
-It shipped as `Harness` and was renamed to `AgentController` in `@mastra/core@1.47.0`. The kit keeps `harness` in its route paths, filenames, and component names — renaming them would break every consumer's installed files for no functional gain. The Mastra class it wraps is `AgentController`.
+It shipped as `AgentController` and was renamed to `AgentController` in `@mastra/core@1.47.0`. The kit keeps `controller` in its route paths, filenames, and component names — renaming them would break every consumer's installed files for no functional gain. The Mastra class it wraps is `AgentController`.
 </details>
 
 <details>
@@ -436,7 +436,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 - 🌐 **Publish the registry** — host `@mastra-chat-kit` so any project can `shadcn add` the chat layer (`bd mastra-chat-kit-2jq`).
 - 🔍 **Scheduled install smoke test** — catch upstream drift and deploy breakage before consumers do (`bd mastra-chat-kit-7zt`).
 - 🧩 **Upstream the AI Elements patches** — contribute the 5 vendored fixes back to `vercel/ai-elements` (`bd mastra-chat-kit-k5f`).
-- 🔁 **More clients** — an IPC/desktop client (Electron) alongside the Agent transport and the Harness SSE hook.
+- 🔁 **More clients** — an IPC/desktop client (Electron) alongside the Agent transport and the AgentController SSE hook.
 - 🧾 **Real-provider smoke tier** — a small opt-in script that runs against a live model, gated behind an explicit key.
 
 ---
@@ -446,7 +446,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 **Mastra**
 - [Get started](https://mastra.ai/docs) · [Agent reference](https://mastra.ai/reference/agents/agent)
 - **[Model Router](https://mastra.ai/models)** — 600+ models across 40+ providers via one `provider/model` string · **[Environment variables](https://mastra.ai/models/environment-variables)** — which key each provider needs
-- **[Agent Harness / AgentController](https://mastra.ai/reference/agent-controller/agent-controller-class)** — the session controller Harness mode runs on · [announcement](https://mastra.ai/blog/announcing-agent-harness)
+- **[Agent Controller / AgentController](https://mastra.ai/reference/agent-controller/agent-controller-class)** — the session controller AgentController mode runs on · [announcement](https://mastra.ai/blog/announcing-agent-controller)
 - [Memory](https://mastra.ai/docs/memory/overview) · [Signals](https://mastra.ai/docs/agents/signals) — goals, task tracking, and observational memory all ride on the signal system
 
 **Vercel AI SDK**
@@ -454,7 +454,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 
 **This repo**
 - [`docs/registry.md`](docs/registry.md) — what ships, the install prerequisites, the server contract
-- [`docs/harness-events.md`](docs/harness-events.md) — every harness event → the element it drives (also live at **`/events`**)
+- [`docs/agent-controller-events.md`](docs/agent-controller-events.md) — every controller event → the element it drives (also live at **`/events`**)
 - [`docs/coverage.md`](docs/coverage.md) · [`docs/modes.md`](docs/modes.md) · [`docs/ai-elements.md`](docs/ai-elements.md) · [`docs/postgres.md`](docs/postgres.md)
 
 ---

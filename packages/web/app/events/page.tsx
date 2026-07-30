@@ -4,25 +4,25 @@ import { CheckIcon, CopyIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
+  AGENT_CONTROLLER_EVENTS,
+  type AgentControllerEventRow,
   AI_ELEMENTS_DIR,
   type EventGroup,
   elementSourceUrl,
   eventCounts,
   GROUP_ORDER,
-  HARNESS_EVENTS,
-  type HarnessEventRow,
-} from '@/lib/harness-event-map';
+} from '@/lib/agent-controller-event-map';
 import { cn } from '@/lib/utils';
 
 type Filter = 'all' | 'consumed' | 'dropped';
 
 /**
- * /events — the in-product map of the Agent Harness event stream. Every one of the 50
- * `AgentControllerEvent` types the harness emits over `POST /harness/stream`, whether
+ * /events — the in-product map of the Agent Controller event stream. Every one of the 50
+ * `AgentControllerEvent` types the controller emits over `POST /agent-controller/stream`, whether
  * this kit's reducer consumes it today, and the AI Element (or surface) it drives. Where a
  * prompt can trigger an event, it ships a copy button so you can paste it into the chat and
- * watch it happen live. The honest, browsable companion to docs/harness-events.md, kept in
- * sync via lib/harness-event-map.ts.
+ * watch it happen live. The honest, browsable companion to docs/agent-controller-events.md, kept in
+ * sync via lib/agent-controller-event-map.ts.
  */
 export default function EventsPage() {
   const [filter, setFilter] = useState<Filter>('all');
@@ -31,8 +31,8 @@ export default function EventsPage() {
   const visible = useMemo(
     () =>
       filter === 'all'
-        ? HARNESS_EVENTS
-        : HARNESS_EVENTS.filter((e) => (filter === 'consumed' ? e.consumed : !e.consumed)),
+        ? AGENT_CONTROLLER_EVENTS
+        : AGENT_CONTROLLER_EVENTS.filter((e) => (filter === 'consumed' ? e.consumed : !e.consumed)),
     [filter],
   );
 
@@ -42,15 +42,15 @@ export default function EventsPage() {
         <Link href="/" className="text-muted-foreground hover:text-foreground">
           ← Chat
         </Link>
-        <span className="font-medium text-foreground">Harness Events</span>
+        <span className="font-medium text-foreground">AgentController Events</span>
       </nav>
 
       <header className="mb-6">
-        <h1 className="font-bold text-2xl">Harness events → AI Elements</h1>
+        <h1 className="font-bold text-2xl">AgentController events → AI Elements</h1>
         <p className="mt-1 max-w-2xl text-pretty text-muted-foreground text-sm">
-          The Agent Harness streams <strong>{counts.total}</strong> event types over{' '}
-          <code className="text-xs">POST /harness/stream</code>. This kit&rsquo;s reducer folds{' '}
-          <strong>{counts.consumed}</strong> of them into the transcript today; the other{' '}
+          The Agent Controller streams <strong>{counts.total}</strong> event types over{' '}
+          <code className="text-xs">POST /agent-controller/stream</code>. This kit&rsquo;s reducer
+          folds <strong>{counts.consumed}</strong> of them into the transcript today; the other{' '}
           <strong>{counts.dropped}</strong>
           {' are on the wire but unrendered (mostly by design — see each row’s note). '}
           Where an event is user-triggerable, copy its prompt into the chat to watch it happen live;
@@ -127,7 +127,7 @@ function SummaryTile({
   );
 }
 
-function GroupSection({ group, rows }: { group: EventGroup; rows: HarnessEventRow[] }) {
+function GroupSection({ group, rows }: { group: EventGroup; rows: AgentControllerEventRow[] }) {
   return (
     <section className="mt-8">
       <h2 className="mb-3 border-border border-b pb-1 font-bold text-lg">
@@ -142,7 +142,7 @@ function GroupSection({ group, rows }: { group: EventGroup; rows: HarnessEventRo
   );
 }
 
-function EventRow({ row }: { row: HarnessEventRow }) {
+function EventRow({ row }: { row: AgentControllerEventRow }) {
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-start sm:gap-4">
       {/* Left: event type + number. */}
@@ -188,7 +188,7 @@ function ConsumedChip({ consumed }: { consumed: boolean }) {
 }
 
 /** The event's target: an AI Element (with a source link) or a plain surface label. */
-function TargetLine({ row }: { row: HarnessEventRow }) {
+function TargetLine({ row }: { row: AgentControllerEventRow }) {
   if (!row.element) {
     return (
       <p className="text-muted-foreground text-xs">
@@ -225,7 +225,7 @@ function TargetLine({ row }: { row: HarnessEventRow }) {
 
 /**
  * A copy-paste prompt for triggering an event live. Copies the prompt to the clipboard
- * (paste it into the chat in Harness mode) and shows the text so you know what you'll send.
+ * (paste it into the chat in AgentController mode) and shows the text so you know what you'll send.
  */
 function CopyPrompt({ prompt }: { prompt: string }) {
   const [copied, setCopied] = useState(false);

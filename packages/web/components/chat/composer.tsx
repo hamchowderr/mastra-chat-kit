@@ -86,7 +86,7 @@ function AttachmentsDisplay() {
 /**
  * The ONE chat composer — full PromptInput surface (attachments + drag-drop,
  * action menu, web-search toggle, model selector, submit). Shared by BOTH the
- * Single Agent and Agent Harness chat views so the input never drifts between
+ * Single Agent and Agent Controller chat views so the input never drifts between
  * engines — only the transport behind `onSend` changes.
  */
 export function Composer({
@@ -101,7 +101,7 @@ export function Composer({
   className?: string;
   /** Rendered in the footer, right of the tools (e.g. the live token-usage Context). */
   footerExtra?: ReactNode;
-  /** Rendered at the START of the tools row (e.g. the harness mode switcher). */
+  /** Rendered at the START of the tools row (e.g. the controller mode switcher). */
   toolsExtra?: ReactNode;
 }) {
   const [text, setText] = useState('');

@@ -1,7 +1,7 @@
-# The Agent Harness
+# The Agent Controller
 
 > **Agent mode was removed.** This kit previously shipped a second, bare-`agent.stream`
-> mode alongside the harness. It was mounted nowhere, had zero e2e coverage, and its only
+> mode alongside the controller. It was mounted nowhere, had zero e2e coverage, and its only
 > unit test rendered an empty shell, so it was dropped rather than shipped unverified —
 > see `bd mastra-chat-kit-eg1`. Everything below describes the one remaining engine.
 
@@ -11,22 +11,22 @@ ways. Only the client-side wiring and the server route change; the components do
 This doc defines both, using Mastra's own vocabulary.
 
 > **A note on names.** Mastra's session controller was originally shipped as
-> **`Harness`** and was renamed to **`AgentController`** (module
-> `@mastra/core/agent-controller`) in `@mastra/core@1.47.0`; `Harness` remains a
+> **`AgentController`** and was renamed to **`AgentController`** (module
+> `@mastra/core/agent-controller`) in `@mastra/core@1.47.0`; `AgentController` remains a
 > deprecated alias. The current Mastra docs call it **AgentController** exclusively.
-> This kit still uses the `harness` name for its routes (`/harness/stream`), files
-> (`lib/harness.ts`, `lib/harness/`), and the "Harness mode" label — so throughout
-> this repo, **"Harness mode" means "driven by Mastra's AgentController."**
+> This kit still uses the `controller` name for its routes (`/agent-controller/stream`), files
+> (`lib/agent-controller.ts`, `lib/agent-controller/`), and the "AgentController mode" label — so throughout
+> this repo, **"AgentController mode" means "driven by Mastra's AgentController."**
 
 ## TL;DR
 
-| | 🟢 Agent mode | 🟣 Harness mode |
+| | 🟢 Agent mode | 🟣 AgentController mode |
 |---|---|---|
 | Mastra primitive | the **Agent** class directly (`agent.stream`) | the **AgentController** (a Session per conversation) |
 | Shape | stateless request → response stream | stateful session: modes, approvals, subagents |
-| Server route | `POST /chat/:agentId` | `POST /harness/stream` (SSE) + `POST /harness/approve` |
+| Server route | `POST /chat/:agentId` | `POST /agent-controller/stream` (SSE) + `POST /agent-controller/approve` |
 | Wire format | AI SDK `UIMessage` parts | `AgentControllerEvent`s → `AgentControllerDisplayState` |
-| Web client | `useChat` + `singleAgentTransport` | `useHarnessChat` hook |
+| Web client | `useChat` + `singleAgentTransport` | `useAgentControllerChat` hook |
 | Reach for it when | plain streaming chat | you need modes / tool approvals / subagents / model-switch / follow-ups |
 
 ---
@@ -52,9 +52,9 @@ orchestration.
 
 ---
 
-## Harness mode — Mastra's AgentController
+## AgentController mode — Mastra's AgentController
 
-Harness mode is built on Mastra's **AgentController** — *"a session controller for
+AgentController mode is built on Mastra's **AgentController** — *"a session controller for
 building interactive agent applications that handles the runtime concerns that sit
 between your UI and the agent loop: managing conversation threads, switching between
 agent modes, persisting state, gating tool execution with approvals, and
@@ -74,7 +74,7 @@ the orchestration surface a plain `UIMessage` stream can't carry.
 - **Tool approvals (HITL)** — *"require confirmation for risky operations like file
   writes or deployments,"* with the ability to *"grant session-wide exceptions, and
   handle interactive tool suspension."* A tool call **suspends** the run and emits an
-  approval request; the UI responds `approve` / `decline` (see `/harness/approve`).
+  approval request; the UI responds `approve` / `decline` (see `/agent-controller/approve`).
 - **Subagents** — *"focused child agents with constrained tools for subtasks,
   optionally forking the parent conversation."*
 - **Display state** — the AgentController emits coalesced **`AgentControllerDisplayState`**
@@ -82,11 +82,11 @@ the orchestration surface a plain `UIMessage` stream can't carry.
 
 ### How the kit wires it
 
-**Server** (`packages/server/src/mastra/lib/harness.ts` + `index.ts`):
+**Server** (`packages/server/src/mastra/lib/agent-controller.ts` + `index.ts`):
 `getChatSession()` builds/reuses an `AgentController` (one `default` mode wrapping
 `chatAgent`, plus the required `Workspace`) and gets-or-creates its `Session`. The
-route `POST /harness/stream` subscribes to the Session, sends the user message, and
-streams each `AgentControllerEvent` as SSE; `POST /harness/approve` resolves a parked
+route `POST /agent-controller/stream` subscribes to the Session, sends the user message, and
+streams each `AgentControllerEvent` as SSE; `POST /agent-controller/approve` resolves a parked
 tool-approval gate on the same Session.
 
 The `Workspace` is what makes this a batteries-included agent, not just a chat loop.
@@ -101,12 +101,12 @@ It bundles three capabilities, each of which auto-derives its own approval-gated
   launches **lazily** on first browser tool use — nothing spawns at boot. Configure via
   `BROWSER_CLI` / `BROWSER_HEADLESS` / `BROWSER_EXECUTABLE_PATH`.
 
-**Web** (`packages/web/lib/harness/`): the `useHarnessChat` hook mirrors `useChat`'s
+**Web** (`packages/web/lib/agent-controller/`): the `useAgentControllerChat` hook mirrors `useChat`'s
 `{ messages, sendMessage, status }` shape but speaks the SSE protocol, folding each
-event into a transcript (`reduceHarnessEvent` in `lib/harness/events.ts`). The chat
+event into a transcript (`reduceAgentControllerEvent` in `lib/agent-controller/events.ts`). The chat
 shell renders that transcript onto the **same** AI Elements as Agent mode.
 
-Use Harness mode when you need any of: **modes**, **tool approvals**, **subagents**,
+Use AgentController mode when you need any of: **modes**, **tool approvals**, **subagents**,
 **model switching**, or **queued follow-ups**.
 
 ---
@@ -116,7 +116,7 @@ Use Harness mode when you need any of: **modes**, **tool approvals**, **subagent
 - **Just streaming a chat?** → Agent mode. Less moving parts, stateless, standard
   AI SDK `useChat`.
 - **Need to gate tools behind approval, run subagents, switch modes/models mid-chat,
-  or queue follow-ups?** → Harness mode.
+  or queue follow-ups?** → AgentController mode.
 
 Both share one backend agent and one UI — swapping between them is a client-wiring
 change, not a rewrite.

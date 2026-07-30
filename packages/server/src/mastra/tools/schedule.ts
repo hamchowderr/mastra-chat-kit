@@ -2,7 +2,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 /**
- * # Recurring schedules (harness parity)
+ * # Recurring schedules (controller parity)
  *
  * Wraps Mastra's native `mastra.schedules` service — cron-driven, persisted
  * agent schedules — as three agent tools, mirroring the official
@@ -20,7 +20,7 @@ import { z } from 'zod';
  * `scheduler` config is required.
  *
  * `ctx.mastra` is the registered Mastra instance (chatAgent is registered on it),
- * so `ctx.mastra.schedules` is the same service the `/harness/schedules` route
+ * so `ctx.mastra.schedules` is the same service the `/agent-controller/schedules` route
  * reads. Guarded: outside a Mastra-backed run (`ctx.mastra` absent) the tools
  * return a clear error rather than throwing an opaque one.
  */

@@ -171,15 +171,18 @@ for (const name of [...LOCAL_ELEMENTS]) {
   });
 }
 
-// 2) chat-engine: the kit-specific transports/harness lib (not lib/utils).
-const ENGINE_FILES = ['lib/harness/events.ts', 'lib/harness/use-harness-chat.ts'];
+// 2) chat-engine: the kit-specific transports/controller lib (not lib/utils).
+const ENGINE_FILES = [
+  'lib/agent-controller/events.ts',
+  'lib/agent-controller/use-agent-controller-chat.ts',
+];
 {
   const c = classify(ENGINE_FILES);
   items.push({
     name: 'chat-engine',
     type: 'registry:lib',
     title: 'Chat Engine',
-    description: 'Swappable transport + harness client for Agent mode and Harness mode.',
+    description: 'Swappable transport + controller client for Agent mode and AgentController mode.',
     dependencies: c.npm,
     registryDependencies: regDeps(c, 'chat-engine'),
     files: ENGINE_FILES.map((f) => ({ path: f, type: 'registry:lib', target: f })),
@@ -192,24 +195,24 @@ const ENGINE_FILES = ['lib/harness/events.ts', 'lib/harness/use-harness-chat.ts'
 // explicit targets so they land at the exact app/ paths the components expect.
 const ROUTE_FILES = [
   'lib/mastra-proxy.ts',
-  // Conversation history for the harness sidebar.
+  // Conversation history for the controller sidebar.
   'app/api/threads/route.ts',
   'app/api/threads/search/route.ts',
   'app/api/threads/[id]/route.ts',
   'app/api/threads/[id]/messages/route.ts',
   'app/api/threads/[id]/title/route.ts',
-  // Harness mode. use-harness-chat.ts fetches ALL of these — shipping only
-  // stream+approve left Harness mode dead on arrival for consumers (bd b5y).
-  'app/api/harness/stream/route.ts',
-  'app/api/harness/approve/route.ts',
-  'app/api/harness/answer/route.ts',
-  'app/api/harness/goal/route.ts',
-  'app/api/harness/om/route.ts',
-  'app/api/harness/schedules/route.ts',
-  'app/api/harness/threads/route.ts',
-  'app/api/harness/threads/search/route.ts',
-  'app/api/harness/threads/[id]/route.ts',
-  'app/api/harness/threads/[id]/messages/route.ts',
+  // AgentController mode. use-agent-controller-chat.ts fetches ALL of these — shipping only
+  // stream+approve left AgentController mode dead on arrival for consumers (bd b5y).
+  'app/api/agent-controller/stream/route.ts',
+  'app/api/agent-controller/approve/route.ts',
+  'app/api/agent-controller/answer/route.ts',
+  'app/api/agent-controller/goal/route.ts',
+  'app/api/agent-controller/om/route.ts',
+  'app/api/agent-controller/schedules/route.ts',
+  'app/api/agent-controller/threads/route.ts',
+  'app/api/agent-controller/threads/search/route.ts',
+  'app/api/agent-controller/threads/[id]/route.ts',
+  'app/api/agent-controller/threads/[id]/messages/route.ts',
   // Workbench panels (files viewer + live browser screencast).
   'app/api/workspace/file/route.ts',
   'app/api/workspace/files/route.ts',
@@ -223,7 +226,7 @@ const ROUTE_FILES = [
     type: 'registry:block',
     title: 'Chat Routes (Mastra proxy)',
     description:
-      'Same-origin Next route handlers + proxy that forward chat/threads/harness/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.',
+      'Same-origin Next route handlers + proxy that forward chat/threads/agent-controller/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.',
     dependencies: c.npm,
     registryDependencies: regDeps(c, 'chat-routes'),
     files: ROUTE_FILES.map((f) => ({ path: f, type: 'registry:file', target: f })),
@@ -234,12 +237,12 @@ const ROUTE_FILES = [
 const CHAT_FILES = [
   'components/chat/chat-switcher.tsx',
   'components/chat/composer.tsx',
-  'components/chat/harness-chat.tsx',
+  'components/chat/agent-controller-chat.tsx',
   'components/chat/tool-views.tsx',
-  // Harness mode's own shell. chat-switcher.tsx imports harness-sidebar and
+  // AgentController mode's own shell. chat-switcher.tsx imports agent-controller-sidebar and
   // workbench-panel directly, and workbench-panel pulls the four panels — so
   // omitting them shipped a chat-switcher that could not compile (bd b5y).
-  'components/chat/harness-sidebar.tsx',
+  'components/chat/agent-controller-sidebar.tsx',
   'components/chat/workbench-panel.tsx',
   'components/chat/workbench-browser.tsx',
   'components/chat/workbench-files.tsx',
@@ -253,7 +256,7 @@ const CHAT_FILES = [
     type: 'registry:block',
     title: 'Mastra Chat',
     description:
-      'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.',
+      'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/AgentController modes.',
     dependencies: c.npm,
     // Appended explicitly (the import-trace can't discover these):
     // - chat-routes: the UI calls those endpoints via fetch, not import.

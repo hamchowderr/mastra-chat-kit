@@ -1,6 +1,6 @@
 # template-mastra-base
 
-A production-ready Mastra agent starter. A chat/harness agent + a coding agent, Docker, CI — everything you need to ship a Mastra agent without building the scaffold yourself.
+A production-ready Mastra agent starter. A chat/controller agent + a coding agent, Docker, CI — everything you need to ship a Mastra agent without building the scaffold yourself.
 
 ---
 
@@ -122,7 +122,7 @@ template-mastra-base/
 │   └── mastra/
 │       ├── index.ts                # Entry point: env → AIMock → Mastra instance
 │       ├── agents/
-│       │   ├── chat.ts             # Chat/harness agent (workspace + tools)
+│       │   ├── chat.ts             # Chat/controller agent (workspace + tools)
 │       │   └── code.ts             # Coding agent over the workspace sandbox
 │       ├── lib/
 │       │   └── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
@@ -153,7 +153,7 @@ template-mastra-base/
 | `npm run build` | Bundle for production (output → `.mastra/output/`) |
 | `npm run start` | Start production server (no Studio) |
 | `npm run typecheck` | TypeScript type check (zero-emit) |
-| `npm run setup:browser` | Download the Chromium the harness Browser panel drives (run once after install) |
+| `npm run setup:browser` | Download the Chromium the controller Browser panel drives (run once after install) |
 
 ---
 
