@@ -231,8 +231,6 @@ pnpm --filter @mastra-chat-kit/server dev:mock    # AIMock on :4010
 # then set USE_AIMOCK=true in packages/server/.env and start the server
 ```
 
-> **Two gotchas if you go the AIMock route.** Mastra's model router only honours the AIMock base URL on the `anthropic/*` path, so set `CHAT_MODEL=anthropic/claude-sonnet-4-6`. And setting `USE_AIMOCK=true` as a shell variable won't take — the server loads `.env` over the process environment, so edit the file.
-
 > **Loading env in dev:** a plain `.env` works everywhere. We inject secrets with **[Infisical](https://infisical.com)** instead of a committed file — `infisical run --path=/<project> -- pnpm dev` — so nothing sensitive lands on disk.
 
 ---
@@ -429,6 +427,15 @@ Before opening a PR, run what CI runs:
 ```bash
 pnpm lint && pnpm test && pnpm --filter @mastra-chat-kit/web build
 ```
+
+### Working against AIMock
+
+Two things that will cost you an hour if you don't know them:
+
+- **Mastra's model router only honours the AIMock base URL on the `anthropic/*` path.** An `openai/*` `CHAT_MODEL` silently bypasses the mock and calls the real API, so set `CHAT_MODEL=anthropic/claude-sonnet-4-6`.
+- **`USE_AIMOCK=true` as a shell variable won't take.** The server loads `.env` over the process environment — edit the file.
+
+The fixtures match on `turnIndex` (assistant messages in the request), and Mastra's semantic recall pulls earlier threads into later ones, so anything turn-sensitive wants a freshly-wiped `packages/server/mastra.db`.
 
 ---
 
