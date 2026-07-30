@@ -1,0 +1,71 @@
+name: Registry smoke
+
+# The registry is a live product with an external dependency, and nothing else
+# in CI detects when either side breaks:
+#
+#   - the `chat` item declares full-URL registryDependencies against ai-sdk.dev,
+#     so a rename or outage there breaks NEW installs while existing ones (which
+#     copied the source at install time) look fine
+#   - public/r is gitignored and regenerated on deploy, so a broken build
+#     silently 404s every consumer
+#
+# This installs the kit into a throwaway project end to end and fails loudly.
+# Scheduled so upstream drift surfaces here rather than in someone's terminal.
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # daily, 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      hosted_url:
+        description: 'Also assert a deployed registry answers (e.g. https://mastra-chat-kit.vercel.app)'
+        required: false
+        type: string
+  pull_request:
+    # Only the surfaces that can break an install — this job is slow, so it
+    # does not run on every PR.
+    paths:
+      - 'packages/web/registry.json'
+      - 'packages/web/scripts/gen-registry.mjs'
+      - 'packages/web/scripts/registry-smoke.mjs'
+      - 'packages/web/components/chat/**'
+      - 'packages/web/components/ai-elements/**'
+      - 'packages/web/lib/harness/**'
+      - 'packages/web/lib/transports/**'
+      - 'packages/web/lib/mastra-proxy.ts'
+      - 'packages/web/app/api/**'
+      - '.github/workflows/registry-smoke.yml'
+
+# A scheduled run and a push-triggered one racing each other just burns minutes.
+concurrency:
+  group: registry-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    name: Install into a clean project
+    runs-on: ubuntu-latest
+    # Scaffolds a Next app and builds it — npm install dominates the runtime.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No pnpm install: the smoke script only needs node plus `npx shadcn`,
+      # and the throwaway consumer brings its own dependencies.
+      - name: Install the registry into a throwaway project
+        run: node packages/web/scripts/registry-smoke.mjs ${{ inputs.hosted_url && format('--hosted {0}', inputs.hosted_url) || '' }}
+
+      # Failure notification is GitHub's default for scheduled workflows (the
+      # repo owner is emailed). Kept explicit so the log states the consequence
+      # rather than leaving a bare non-zero exit.
+      - name: Explain the failure
+        if: failure()
+        run: |
+          echo "::error title=Registry install is broken::A clean 'shadcn add @mastra-chat-kit/chat' no longer installs and builds."
+          echo "The step output above names which upstream dependency 404'd, or which"
+          echo "assertion about the installed tree failed. Consumers hit this on their"
+          echo "next install, so treat it as user-facing."
