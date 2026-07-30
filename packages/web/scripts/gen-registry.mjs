@@ -84,7 +84,8 @@ function classify(relFiles) {
         /* cn() — shadcn init provides this; not a registry dep */
       } else if (key.startsWith('lib/')) lib.add('chat-engine');
       else if (key.startsWith('components/chat/')) {
-        /* internal to the chat block */
+        /* Sibling in the chat block. NOT assumed present — validate() below
+           asserts it's actually shipped. Assuming it was the b5y bug. */
       }
     }
   }
@@ -170,13 +171,28 @@ const ENGINE_FILES = [
 const ROUTE_FILES = [
   'lib/mastra-proxy.ts',
   'app/api/chat/[agentId]/route.ts',
+  // Agent-mode threads (chat-sidebar + chat).
   'app/api/threads/route.ts',
   'app/api/threads/search/route.ts',
   'app/api/threads/[id]/route.ts',
   'app/api/threads/[id]/messages/route.ts',
   'app/api/threads/[id]/title/route.ts',
-  'app/api/harness/approve/route.ts',
+  // Harness mode. use-harness-chat.ts fetches ALL of these — shipping only
+  // stream+approve left Harness mode dead on arrival for consumers (bd b5y).
   'app/api/harness/stream/route.ts',
+  'app/api/harness/approve/route.ts',
+  'app/api/harness/answer/route.ts',
+  'app/api/harness/goal/route.ts',
+  'app/api/harness/om/route.ts',
+  'app/api/harness/schedules/route.ts',
+  'app/api/harness/threads/route.ts',
+  'app/api/harness/threads/search/route.ts',
+  'app/api/harness/threads/[id]/route.ts',
+  'app/api/harness/threads/[id]/messages/route.ts',
+  // Workbench panels (files viewer + live browser screencast).
+  'app/api/workspace/file/route.ts',
+  'app/api/workspace/files/route.ts',
+  'app/api/browser/screencast/route.ts',
   'app/api/images/[id]/route.ts',
 ];
 {
@@ -201,6 +217,15 @@ const CHAT_FILES = [
   'components/chat/composer.tsx',
   'components/chat/harness-chat.tsx',
   'components/chat/tool-views.tsx',
+  // Harness mode's own shell. chat-switcher.tsx imports harness-sidebar and
+  // workbench-panel directly, and workbench-panel pulls the four panels — so
+  // omitting them shipped a chat-switcher that could not compile (bd b5y).
+  'components/chat/harness-sidebar.tsx',
+  'components/chat/workbench-panel.tsx',
+  'components/chat/workbench-browser.tsx',
+  'components/chat/workbench-files.tsx',
+  'components/chat/workbench-memory.tsx',
+  'components/chat/workbench-schedules.tsx',
 ];
 {
   const c = classify(CHAT_FILES);
@@ -219,6 +244,78 @@ const CHAT_FILES = [
     files: CHAT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
   });
 }
+
+/**
+ * Fail the build if the manifest is internally inconsistent — the two ways it
+ * silently drifted before (bd mastra-chat-kit-b5y):
+ *
+ *   1. A shipped file imports a local module nobody ships → consumer gets
+ *      module-not-found on first build.
+ *   2. A shipped file fetches an `/api/*` path whose route handler isn't
+ *      shipped → the UI renders but every call 404s.
+ *
+ * Files under `components/ui/` and `components/ai-elements/` are exempt from (1):
+ * those arrive via registryDependencies, not our own `files`.
+ */
+function validate(allItems) {
+  const shipped = new Set(allItems.flatMap((it) => it.files.map((f) => f.path)));
+  const shippedKeys = new Set([...shipped].map((p) => p.replace(/\.tsx?$/, '')));
+  const errors = [];
+
+  // (1) every local import resolves to something we ship
+  for (const rel of shipped) {
+    for (const spec of parseImports(resolve(WEB, rel))) {
+      let key = null;
+      if (spec.startsWith('@/')) key = spec.slice(2);
+      else if (spec.startsWith('.'))
+        key = toPosix(relative(WEB, resolve(dirname(resolve(WEB, rel)), spec)));
+      else continue; // bare npm specifier — covered by `dependencies`
+      if (shippedKeys.has(key)) continue;
+      if (key === 'lib/utils') continue; // shadcn init provides cn()
+      if (key.startsWith('components/ui/')) continue; // registryDependency
+      if (key.startsWith('components/ai-elements/')) continue; // registryDependency
+      errors.push(`${rel} imports "${spec}" -> ${key}, which no registry item ships`);
+    }
+  }
+
+  // (2) every /api/* the UI fetches has a shipped route handler
+  const routeSegs = [...shipped]
+    .filter((p) => p.startsWith('app/api/') && p.endsWith('/route.ts'))
+    .map((p) => p.slice('app/'.length, -'/route.ts'.length).split('/'));
+  const isDynamic = (s) => s.startsWith('[') || s.startsWith('${') || s.startsWith(':');
+  const hasRoute = (segs) =>
+    routeSegs.some(
+      (r) =>
+        r.length === segs.length &&
+        r.every((rs, i) => rs === segs[i] || isDynamic(rs) || isDynamic(segs[i])),
+    );
+
+  // Strip comments first: JSDoc routinely names endpoints as backticked globs
+  // (`/api/workspace/*`), which are prose, not calls.
+  const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  for (const rel of shipped) {
+    const src = stripComments(readFileSync(resolve(WEB, rel), 'utf8'));
+    for (const m of src.matchAll(/["'`](\/api\/[^"'`\s]*)["'`]|["'`](\/api\/[^"'`\s]*)\?/g)) {
+      const raw = (m[1] ?? m[2]).split('?')[0].replace(/\/$/, '');
+      if (raw.includes('*')) continue; // glob in prose, not a real path
+      const segs = raw.slice(1).split('/'); // drop leading "/" -> ['api', …]
+      if (!hasRoute(segs))
+        errors.push(`${rel} fetches "${raw}", but no registry item ships its route handler`);
+    }
+  }
+
+  if (errors.length) {
+    console.error(`\n❌ registry manifest is inconsistent (${errors.length}):\n`);
+    for (const e of [...new Set(errors)].sort()) console.error(`  • ${e}`);
+    console.error(
+      '\nAdd the missing file to ROUTE_FILES / CHAT_FILES, or stop shipping the file that references it.\n',
+    );
+    process.exit(1);
+  }
+}
+
+validate(items);
 
 const registry = {
   $schema: 'https://ui.shadcn.com/schema/registry.json',

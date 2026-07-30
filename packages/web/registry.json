@@ -47,7 +47,6 @@
       "title": "Context",
       "description": "AI Elements context/usage display (Partial usage type).",
       "dependencies": [
-        "ai",
         "tokenlens"
       ],
       "registryDependencies": [
@@ -156,14 +155,69 @@
           "target": "app/api/threads/[id]/title/route.ts"
         },
         {
+          "path": "app/api/harness/stream/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/stream/route.ts"
+        },
+        {
           "path": "app/api/harness/approve/route.ts",
           "type": "registry:file",
           "target": "app/api/harness/approve/route.ts"
         },
         {
-          "path": "app/api/harness/stream/route.ts",
+          "path": "app/api/harness/answer/route.ts",
           "type": "registry:file",
-          "target": "app/api/harness/stream/route.ts"
+          "target": "app/api/harness/answer/route.ts"
+        },
+        {
+          "path": "app/api/harness/goal/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/goal/route.ts"
+        },
+        {
+          "path": "app/api/harness/om/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/om/route.ts"
+        },
+        {
+          "path": "app/api/harness/schedules/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/schedules/route.ts"
+        },
+        {
+          "path": "app/api/harness/threads/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/threads/route.ts"
+        },
+        {
+          "path": "app/api/harness/threads/search/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/threads/search/route.ts"
+        },
+        {
+          "path": "app/api/harness/threads/[id]/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/threads/[id]/route.ts"
+        },
+        {
+          "path": "app/api/harness/threads/[id]/messages/route.ts",
+          "type": "registry:file",
+          "target": "app/api/harness/threads/[id]/messages/route.ts"
+        },
+        {
+          "path": "app/api/workspace/file/route.ts",
+          "type": "registry:file",
+          "target": "app/api/workspace/file/route.ts"
+        },
+        {
+          "path": "app/api/workspace/files/route.ts",
+          "type": "registry:file",
+          "target": "app/api/workspace/files/route.ts"
+        },
+        {
+          "path": "app/api/browser/screencast/route.ts",
+          "type": "registry:file",
+          "target": "app/api/browser/screencast/route.ts"
         },
         {
           "path": "app/api/images/[id]/route.ts",
@@ -181,16 +235,19 @@
         "@ai-sdk/react",
         "ai",
         "lucide-react",
+        "shiki",
         "sonner"
       ],
       "registryDependencies": [
         "dialog",
         "dropdown-menu",
+        "tabs",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/context",
         "@mastra-chat-kit/image",
         "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/agent.json",
         "https://ai-sdk.dev/elements/api/registry/attachments.json",
         "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
         "https://ai-sdk.dev/elements/api/registry/confirmation.json",
@@ -242,6 +299,36 @@
           "path": "components/chat/tool-views.tsx",
           "type": "registry:component",
           "target": "components/chat/tool-views.tsx"
+        },
+        {
+          "path": "components/chat/harness-sidebar.tsx",
+          "type": "registry:component",
+          "target": "components/chat/harness-sidebar.tsx"
+        },
+        {
+          "path": "components/chat/workbench-panel.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-panel.tsx"
+        },
+        {
+          "path": "components/chat/workbench-browser.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-browser.tsx"
+        },
+        {
+          "path": "components/chat/workbench-files.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-files.tsx"
+        },
+        {
+          "path": "components/chat/workbench-memory.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-memory.tsx"
+        },
+        {
+          "path": "components/chat/workbench-schedules.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-schedules.tsx"
         }
       ]
     }

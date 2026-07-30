@@ -12,9 +12,9 @@ our own copies of only the few we had to patch.
 
 | Item | Type | What it is |
 |---|---|---|
-| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, Agent/Harness modes. **This is what you install.** |
+| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, Agent/Harness modes, **plus the harness sidebar and the 4-tab workbench** (browser, files, memory, schedules). **This is what you install.** |
 | `chat-engine` | lib | Swappable transport + harness client (`lib/transports`, `lib/harness`). |
-| `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server. Pulled in automatically by `chat`. |
+| `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `harness/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
 | `context` | component | AI Elements context/usage with `Partial<LanguageModelUsage>`. |
@@ -74,8 +74,16 @@ npx shadcn@latest add @mastra-chat-kit/chat
 shadcn resolves the dependency graph automatically: our 4 vendored components +
 `chat-engine` + `chat-routes` from `@mastra-chat-kit`, the other AI Elements from
 Vercel, and the shadcn/ui primitives from the default registry. (Individual items
-also install, e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.) Installing
-`chat` lays down **61 files** — the UI plus the `app/api/*` proxy routes.
+also install, e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.)
+
+Installing `chat` lays down **40 files from this registry** — 12 chat components,
+21 `app/api/*` proxy routes + the proxy lib, 3 `chat-engine` files, and the 4
+vendored elements — plus whatever the upstream AI Elements and shadcn/ui
+primitives resolve to on top.
+
+> The end-to-end total depends on upstream and is only trustworthy when measured
+> by a real install; `bd mastra-chat-kit-7zt` automates that. (A previous
+> hand-count of 61 predates shipping the harness half and is no longer accurate.)
 
 ### Wire it to a Mastra server
 
@@ -98,9 +106,30 @@ this contract — the routes proxy 1:1:
 | `GET /api/threads/:id/messages` | `GET /threads/:id/messages` |
 | `GET`/`DELETE /api/threads/:id` | `GET`/`DELETE /threads/:id` |
 | `POST /api/threads/:id/title` | `POST /threads/:id/title` |
-| `POST /api/harness/approve` | `POST /harness/approve` |
-| `/api/harness/stream` | `/harness/stream` (SSE) |
 | `GET /api/images/:id` | `GET /images/:id` |
+
+Harness mode needs the rest of the surface — the workbench panels and
+`use-harness-chat` call all of these:
+
+| Next route (installed) | → Mastra server endpoint |
+|---|---|
+| `/api/harness/stream` | `/harness/stream` (SSE) |
+| `POST /api/harness/approve` | `POST /harness/approve` (per-tool approval) |
+| `POST /api/harness/answer` | `POST /harness/answer` (`ask_user` reply) |
+| `GET`/`DELETE /api/harness/goal` | `GET`/`DELETE /harness/goal` (read + dismiss; the agent *sets* goals via its own `setGoal` tool, not a web POST) |
+| `GET /api/harness/om` | `GET /harness/om` (observational memory) |
+| `GET /api/harness/schedules` | `GET /harness/schedules` |
+| `GET /api/harness/threads` | `GET /harness/threads` |
+| `GET /api/harness/threads/search?q=` | `GET /harness/threads/search?q=` |
+| `GET`/`DELETE /api/harness/threads/:id` | `GET`/`DELETE /harness/threads/:id` |
+| `GET /api/harness/threads/:id/messages` | `GET /harness/threads/:id/messages` |
+| `GET /api/workspace/files` | `GET /workspace/files` |
+| `GET /api/workspace/file?path=` | `GET /workspace/file?path=` |
+| `/api/browser/screencast` | `/browser/screencast` (SSE frames) |
+
+> A stock `mastra dev` server does **not** expose these — it serves Mastra's own
+> `/api/agents/*` shape. The kit's `packages/server` registers every route above
+> with `registerApiRoute()`; treat it as the reference implementation.
 
 Then mount `<ChatSwitcher />` (Agent/Harness toggle) or `<Chat agentId="…" />`
 from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
