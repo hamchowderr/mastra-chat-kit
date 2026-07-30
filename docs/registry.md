@@ -12,22 +12,23 @@ our own copies of only the few we had to patch.
 
 | Item | Type | What it is |
 |---|---|---|
-| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, Agent/Harness modes, **plus the harness sidebar and the 4-tab workbench** (browser, files, memory, schedules). **This is what you install.** |
+| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, **plus the harness sidebar and the 4-tab workbench** (browser, files, memory, schedules). Contains both `chat.tsx` (Agent mode) and `chat-switcher.tsx` (the Harness shell). **This is what you install.** |
 | `chat-engine` | lib | Swappable transport + harness client (`lib/transports`, `lib/harness`). |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `harness/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
 | `context` | component | AI Elements context/usage with `Partial<LanguageModelUsage>`. |
 | `tool` | component | AI Elements tool display, rewired to our local `code-block`. |
+| `agent` | component | AI Elements agent/tool roster with a strict-TS fit — a `Tool` `description` may be a function, so it's narrowed before render. |
 
 Everything else (`message`, `conversation`, `reasoning`, `prompt-input`, …) is
 pulled straight from Vercel's registry at install time, and shadcn/ui primitives
 (`button`, `dialog`, …) from the default shadcn registry.
 
-### Why only 4 components are vendored
+### Why only 5 components are vendored
 
 Vercel AI Elements is consumed shadcn-style (source copied into your repo). We
-keep all of it tracking upstream **except** three files we had to patch, plus
+keep all of it tracking upstream **except** four files we had to patch, plus
 `tool` (its file is unchanged — we only repoint its dependency at our patched
 `code-block`):
 
@@ -36,11 +37,15 @@ keep all of it tracking upstream **except** three files we had to patch, plus
   React hydration mismatch. We gate highlighting on mount.
 - **`image`** — `uint8Array` made optional; the element renders from `base64`.
 - **`context`** — `usage` relaxed to `Partial<…>`; it reads only flat fields.
+- **`agent`** — a `Tool`'s `description` can be a *function*, which is not a
+  `ReactNode`; upstream renders it directly, so a consumer install failed
+  `next build`. We narrow it to a string first. (Found by `bd
+  mastra-chat-kit-l3f` — the fix already existed in this repo but wasn't shipped.)
 
 These are tracked in `bd mastra-chat-kit-k5f` to upstream to Vercel; once merged
 we drop the overrides and depend 100% on upstream.
 
-**Attribution:** the 4 redistributed files are adapted from Vercel AI Elements
+**Attribution:** the 5 redistributed files are adapted from Vercel AI Elements
 (Apache-2.0, © 2023 Vercel) — see [`packages/web/NOTICE`](../packages/web/NOTICE)
 for the per-file change statements required by the License.
 
@@ -133,7 +138,7 @@ Then install the whole chat layer:
 npx shadcn@latest add @mastra-chat-kit/chat
 ```
 
-shadcn resolves the dependency graph automatically: our 4 vendored components +
+shadcn resolves the dependency graph automatically: our 5 vendored components +
 `chat-engine` + `chat-routes` from `@mastra-chat-kit`, the other AI Elements from
 Vercel, and the shadcn/ui primitives from the default registry. (Individual items
 also install, e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.)
@@ -146,7 +151,7 @@ fresh `init --base radix` project (shadcn CLI 4.16.0, 2026-07-29):
 | `components/chat/*.tsx` | 12 | this registry |
 | `app/api/**/route.ts` | 20 | this registry |
 | `lib/harness`, `lib/transports`, `mastra-proxy` | 4 | this registry |
-| `components/ai-elements/*.tsx` | 23 | 4 ours + 19 from Vercel |
+| `components/ai-elements/*.tsx` | 23 | 5 ours + 18 from Vercel |
 | `components/ui/*.tsx` | 23 | the default shadcn registry |
 | **Total** | **82** | |
 
@@ -200,7 +205,8 @@ Harness mode needs the rest of the surface — the workbench panels and
 > `/api/agents/*` shape. The kit's `packages/server` registers every route above
 > with `registerApiRoute()`; treat it as the reference implementation.
 
-Then mount `<ChatSwitcher />` (Agent/Harness toggle) or `<Chat agentId="…" />`
+Then mount `<ChatSwitcher />` (the Harness shell — sidebar │ chat │ workbench;
+it is not a mode toggle) or `<Chat agentId="…" />` (the leaner Agent-mode shell)
 from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
 `<Toaster />` in your root layout if you want notifications.
 
