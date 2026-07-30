@@ -48,11 +48,32 @@ for the per-file change statements required by the License.
 
 ### Prerequisites
 
-A shadcn-initialized project **on the Radix base**:
+A shadcn-initialized project on the **Radix base** with the **Lucide** icon
+library. Both are required:
 
 ```bash
-npx shadcn@latest init --base radix     # the --base flag is REQUIRED
+npx shadcn@latest init --base radix
 ```
+
+Then confirm `components.json` says `"iconLibrary": "lucide"` — set it if the
+preset you picked chose something else, and re-run `shadcn add spinner --overwrite`
+if you already installed:
+
+```json
+{ "iconLibrary": "lucide" }
+```
+
+> **Why Lucide matters.** Every component in this kit imports from `lucide-react`.
+> There is also a concrete break: on a `hugeicons` project, shadcn's own
+> `ui/spinner.tsx` renders `<HugeiconsIcon strokeWidth={…}>` while typing its props
+> as `React.ComponentProps<"svg">`, where `strokeWidth` is `string | number` — it
+> does not fit HugeiconsIcon's `number`, and `next build` fails. Reproduced in a
+> bare shadcn project with none of this kit installed, so it is a shadcn issue, not
+> ours — but Lucide sidesteps it.
+
+**Verified end-to-end** (shadcn CLI 4.16.0, Next 16.2.6, 2026-07-29): a fresh
+`init --base radix` project with `iconLibrary: lucide`, after
+`shadcn add @mastra-chat-kit/chat`, gives **0 type errors and `next build` exits 0**.
 
 > **Do not run a bare `npx shadcn@latest init`.** Since CLI 4.x the default is
 > Base UI, not Radix — `--defaults` resolves to `--preset=base-nova` (verified on
@@ -77,22 +98,19 @@ What does *not* survive the transform is the **upstream AI Elements** we depend
 on. Measured on shadcn CLI 4.16.0 / Next 16.2.6 (2026-07-29), `tsc --noEmit`
 after `shadcn add @mastra-chat-kit/chat` into a freshly-`init`ed project:
 
-| Consumer base | Type errors | Where they are |
+| Consumer setup | Type errors | Where |
 |---|---|---|
-| `radix-maia` | **2** | 1 upstream AI Element, 1 shadcn `ui/spinner` |
-| `base-nova` | **14** | all 14 in upstream AI Elements |
-| — | **0** | in `components/chat`, `lib/harness`, `lib/transports`, `app/api` — on *either* base |
+| `radix` + Lucide | **0** | — builds clean, `next build` exits 0 |
+| `radix` + `hugeicons` | 1 | shadcn's own `ui/spinner` (not ours; see above) |
+| `base-nova` (Base UI) | 14 | all in upstream Vercel AI Elements |
 
 Vercel's elements are authored against Radix; on a Base UI project the transform
 leaves them with Base UI primitives they weren't written for (`openDelay` /
 `closeDelay` props that no longer exist, `BaseUIEvent` vs `Event` handler
-signatures). Radix is therefore the base we author against, test against, and
-support — 2 upstream errors instead of 14.
+signatures). That is why Radix is the supported base.
 
-> ⚠️ **Neither base builds clean today.** Those 2 remaining errors on the
-> supported path are enough to fail `next build`, in Vercel's
-> `ai-elements/agent.tsx` and shadcn's own `ui/spinner.tsx` — neither is a file
-> this kit ships. Tracked in `bd mastra-chat-kit-l3f`.
+In every configuration measured, **0 errors landed in this kit's own files**
+(`components/chat`, `lib/harness`, `lib/transports`, `app/api`).
 
 > For the record, the two upstream elements that import `@radix-ui/…`
 > (`reasoning`, `chain-of-thought`) are *not* the problem — they use only

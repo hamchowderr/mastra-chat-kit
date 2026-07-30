@@ -85,6 +85,28 @@
       ]
     },
     {
+      "name": "agent",
+      "type": "registry:component",
+      "title": "Agent",
+      "description": "AI Elements agent/tool roster with a strict-TS fit: a Tool `description` can be a function, which is not a ReactNode, so it is narrowed before render.",
+      "dependencies": [
+        "ai",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "accordion",
+        "badge",
+        "@mastra-chat-kit/code-block"
+      ],
+      "files": [
+        {
+          "path": "components/ai-elements/agent.tsx",
+          "type": "registry:component",
+          "target": "components/ai-elements/agent.tsx"
+        }
+      ]
+    },
+    {
       "name": "chat-engine",
       "type": "registry:lib",
       "title": "Chat Engine",
@@ -242,12 +264,12 @@
         "dialog",
         "dropdown-menu",
         "tabs",
+        "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/context",
         "@mastra-chat-kit/image",
         "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
-        "https://ai-sdk.dev/elements/api/registry/agent.json",
         "https://ai-sdk.dev/elements/api/registry/attachments.json",
         "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
         "https://ai-sdk.dev/elements/api/registry/confirmation.json",
@@ -331,7 +353,7 @@
           "target": "components/chat/workbench-schedules.tsx"
         }
       ],
-      "docs": "⚠️  This kit is supported on the RADIX base.\n\n    npx shadcn@latest init --base radix\n\nA bare `shadcn init` puts you on Base UI (since CLI 4.x, --defaults resolves to\n--preset=base-nova). This kit's OWN components port fine either way — the CLI\nrewrites `asChild` to Base UI's `render` prop during install. The problem is the\nupstream Vercel AI Elements this kit depends on: they are authored against Radix\nand do not survive that transform.\n\nMeasured on CLI 4.16.0 / Next 16.2.6 after a clean install (`tsc --noEmit`):\n    radix base  ->  2 type errors\n    base UI     -> 14 type errors\nBoth counts are entirely in upstream files; 0 errors are in this kit's own code.\n\nKNOWN ISSUE: even on Radix, those 2 upstream errors currently fail `next build`\n(Vercel's ai-elements/agent.tsx and shadcn's ui/spinner.tsx). Tracked upstream of\nyou — see https://mastra-chat-kit.vercel.app.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit.vercel.app for the full endpoint contract."
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit.vercel.app for the full endpoint contract."
     }
   ]
 }

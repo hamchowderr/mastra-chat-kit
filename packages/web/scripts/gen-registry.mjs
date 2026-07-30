@@ -19,7 +19,7 @@ const HOMEPAGE = 'https://mastra-chat-kit.vercel.app';
 const UPSTREAM = (name) => `https://ai-sdk.dev/elements/api/registry/${name}.json`;
 
 // AI Elements we ship ourselves (everything else comes from Vercel upstream).
-const LOCAL_ELEMENTS = new Set(['code-block', 'image', 'context', 'tool']);
+const LOCAL_ELEMENTS = new Set(['code-block', 'image', 'context', 'tool', 'agent']);
 
 // Host-provided packages — never list as registry npm dependencies.
 const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
@@ -118,24 +118,22 @@ function regDeps(c, selfName) {
 // Printed by the shadcn CLI after install (registry-item `docs` field). The base
 // mismatch is invisible until it surfaces as a type error deep in a trigger, so
 // say it where a consumer who never opened our docs will still see it (bd og7).
-const RADIX_NOTICE = `⚠️  This kit is supported on the RADIX base.
+const RADIX_NOTICE = `This kit needs TWO things in your project. Check both:
 
-    npx shadcn@latest init --base radix
+  1. The RADIX base       ->  npx shadcn@latest init --base radix
+  2. The LUCIDE icon set  ->  "iconLibrary": "lucide" in components.json
 
-A bare \`shadcn init\` puts you on Base UI (since CLI 4.x, --defaults resolves to
---preset=base-nova). This kit's OWN components port fine either way — the CLI
-rewrites \`asChild\` to Base UI's \`render\` prop during install. The problem is the
-upstream Vercel AI Elements this kit depends on: they are authored against Radix
-and do not survive that transform.
+With both, a fresh install typechecks with 0 errors and \`next build\` exits 0
+(verified on shadcn CLI 4.16.0 / Next 16.2.6).
 
-Measured on CLI 4.16.0 / Next 16.2.6 after a clean install (\`tsc --noEmit\`):
-    radix base  ->  2 type errors
-    base UI     -> 14 type errors
-Both counts are entirely in upstream files; 0 errors are in this kit's own code.
-
-KNOWN ISSUE: even on Radix, those 2 upstream errors currently fail \`next build\`
-(Vercel's ai-elements/agent.tsx and shadcn's ui/spinner.tsx). Tracked upstream of
-you — see ${HOMEPAGE}.
+If either is wrong:
+  • Base UI instead of Radix (a bare \`init\` gives you this — --defaults resolves
+    to --preset=base-nova) -> 14 type errors. This kit's own components port fine
+    either way (the CLI rewrites \`asChild\` to Base UI's \`render\`), but the upstream
+    Vercel AI Elements it depends on are Radix-authored and don't survive that.
+  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own
+    ui/spinner.tsx. Fix: set iconLibrary to lucide, then
+    \`shadcn add spinner --overwrite\`.
 
 Then set MASTRA_SERVER_URL to point at your Mastra server (default
 http://localhost:4111). See ${HOMEPAGE} for the full endpoint contract.`;
@@ -148,6 +146,7 @@ const ELEMENT_TITLES = {
   image: 'Image',
   context: 'Context',
   tool: 'Tool',
+  agent: 'Agent',
 };
 const ELEMENT_DESCS = {
   'code-block':
@@ -155,6 +154,8 @@ const ELEMENT_DESCS = {
   image: 'AI Elements image; renders from base64 (uint8Array optional).',
   context: 'AI Elements context/usage display (Partial usage type).',
   tool: 'AI Elements tool call display, wired to the local SSR-safe code block.',
+  agent:
+    'AI Elements agent/tool roster with a strict-TS fit: a Tool `description` can be a function, which is not a ReactNode, so it is narrowed before render.',
 };
 for (const name of [...LOCAL_ELEMENTS]) {
   const file = elPath(name);
