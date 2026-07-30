@@ -115,6 +115,31 @@ function regDeps(c, selfName) {
   ];
 }
 
+// Printed by the shadcn CLI after install (registry-item `docs` field). The base
+// mismatch is invisible until it surfaces as a type error deep in a trigger, so
+// say it where a consumer who never opened our docs will still see it (bd og7).
+const RADIX_NOTICE = `⚠️  This kit is supported on the RADIX base.
+
+    npx shadcn@latest init --base radix
+
+A bare \`shadcn init\` puts you on Base UI (since CLI 4.x, --defaults resolves to
+--preset=base-nova). This kit's OWN components port fine either way — the CLI
+rewrites \`asChild\` to Base UI's \`render\` prop during install. The problem is the
+upstream Vercel AI Elements this kit depends on: they are authored against Radix
+and do not survive that transform.
+
+Measured on CLI 4.16.0 / Next 16.2.6 after a clean install (\`tsc --noEmit\`):
+    radix base  ->  2 type errors
+    base UI     -> 14 type errors
+Both counts are entirely in upstream files; 0 errors are in this kit's own code.
+
+KNOWN ISSUE: even on Radix, those 2 upstream errors currently fail \`next build\`
+(Vercel's ai-elements/agent.tsx and shadcn's ui/spinner.tsx). Tracked upstream of
+you — see ${HOMEPAGE}.
+
+Then set MASTRA_SERVER_URL to point at your Mastra server (default
+http://localhost:4111). See ${HOMEPAGE} for the full endpoint contract.`;
+
 const items = [];
 
 // 1) The 4 vendored AI Elements (3 patched + tool rewired to our code-block).
@@ -242,6 +267,7 @@ const CHAT_FILES = [
     //   which the app mounts in its layout — ship it so consumers have it.
     registryDependencies: [...regDeps(c, 'chat'), 'sonner', NS('chat-routes')],
     files: CHAT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
+    docs: RADIX_NOTICE,
   });
 }
 

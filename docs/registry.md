@@ -48,12 +48,56 @@ for the per-file change statements required by the License.
 
 ### Prerequisites
 
-A standard shadcn-initialized project — run `npx shadcn@latest init` first. That
-provides the theme the chat layer assumes: the full token set (incl. `sidebar-*`),
-the `@theme inline` mapping, `tw-animate-css`, and `@custom-variant dark`. The
-components use only **standard** shadcn tokens, so they inherit your chosen
-`baseColor` — the registry deliberately ships **no** `cssVars` (it won't override
-your palette).
+A shadcn-initialized project **on the Radix base**:
+
+```bash
+npx shadcn@latest init --base radix     # the --base flag is REQUIRED
+```
+
+> **Do not run a bare `npx shadcn@latest init`.** Since CLI 4.x the default is
+> Base UI, not Radix — `--defaults` resolves to `--preset=base-nova` (verified on
+> 4.16.0, 2026-07-29). This kit is authored against Radix and will not build on a
+> Base UI project. See [Why Radix is required](#why-radix-is-required).
+
+That provides the theme the chat layer assumes: the full token set (incl.
+`sidebar-*`), the `@theme inline` mapping, `tw-animate-css`, and
+`@custom-variant dark`. The components use only **standard** shadcn tokens, so
+they inherit your chosen `baseColor` — the registry deliberately ships **no**
+`cssVars` (it won't override your palette).
+
+#### Why Radix is required
+
+The kit's own files import **zero** Radix packages directly, and — measured, not
+assumed — **our own components install cleanly onto either base.** The shadcn CLI
+rewrites `asChild` into Base UI's `render` prop during `add`, so
+`<DropdownMenuTrigger asChild>` in our source becomes
+`<DropdownMenuTrigger render={…}>` on a Base UI project, and typechecks.
+
+What does *not* survive the transform is the **upstream AI Elements** we depend
+on. Measured on shadcn CLI 4.16.0 / Next 16.2.6 (2026-07-29), `tsc --noEmit`
+after `shadcn add @mastra-chat-kit/chat` into a freshly-`init`ed project:
+
+| Consumer base | Type errors | Where they are |
+|---|---|---|
+| `radix-maia` | **2** | 1 upstream AI Element, 1 shadcn `ui/spinner` |
+| `base-nova` | **14** | all 14 in upstream AI Elements |
+| — | **0** | in `components/chat`, `lib/harness`, `lib/transports`, `app/api` — on *either* base |
+
+Vercel's elements are authored against Radix; on a Base UI project the transform
+leaves them with Base UI primitives they weren't written for (`openDelay` /
+`closeDelay` props that no longer exist, `BaseUIEvent` vs `Event` handler
+signatures). Radix is therefore the base we author against, test against, and
+support — 2 upstream errors instead of 14.
+
+> ⚠️ **Neither base builds clean today.** Those 2 remaining errors on the
+> supported path are enough to fail `next build`, in Vercel's
+> `ai-elements/agent.tsx` and shadcn's own `ui/spinner.tsx` — neither is a file
+> this kit ships. Tracked in `bd mastra-chat-kit-l3f`.
+
+> For the record, the two upstream elements that import `@radix-ui/…`
+> (`reasoning`, `chain-of-thought`) are *not* the problem — they use only
+> `@radix-ui/react-use-controllable-state`, a base-agnostic hook that Vercel's
+> registry items already declare in their own `dependencies`.
 
 In the consumer project's `components.json`, add the namespace:
 
@@ -76,14 +120,21 @@ shadcn resolves the dependency graph automatically: our 4 vendored components +
 Vercel, and the shadcn/ui primitives from the default registry. (Individual items
 also install, e.g. `npx shadcn@latest add @mastra-chat-kit/code-block`.)
 
-Installing `chat` lays down **40 files from this registry** — 12 chat components,
-21 `app/api/*` proxy routes + the proxy lib, 3 `chat-engine` files, and the 4
-vendored elements — plus whatever the upstream AI Elements and shadcn/ui
-primitives resolve to on top.
+Installing `chat` lays down **82 files** — measured by a real install into a
+fresh `init --base radix` project (shadcn CLI 4.16.0, 2026-07-29):
 
-> The end-to-end total depends on upstream and is only trustworthy when measured
-> by a real install; `bd mastra-chat-kit-7zt` automates that. (A previous
-> hand-count of 61 predates shipping the harness half and is no longer accurate.)
+| | Files | From |
+|---|---|---|
+| `components/chat/*.tsx` | 12 | this registry |
+| `app/api/**/route.ts` | 20 | this registry |
+| `lib/harness`, `lib/transports`, `mastra-proxy` | 4 | this registry |
+| `components/ai-elements/*.tsx` | 23 | 4 ours + 19 from Vercel |
+| `components/ui/*.tsx` | 23 | the default shadcn registry |
+| **Total** | **82** | |
+
+> Upstream counts drift as Vercel and shadcn change; `bd mastra-chat-kit-7zt`
+> turns this measurement into a scheduled check. (An earlier hand-count of 61
+> predates shipping the harness half.)
 
 ### Wire it to a Mastra server
 

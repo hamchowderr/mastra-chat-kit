@@ -330,7 +330,8 @@
           "type": "registry:component",
           "target": "components/chat/workbench-schedules.tsx"
         }
-      ]
+      ],
+      "docs": "⚠️  This kit is supported on the RADIX base.\n\n    npx shadcn@latest init --base radix\n\nA bare `shadcn init` puts you on Base UI (since CLI 4.x, --defaults resolves to\n--preset=base-nova). This kit's OWN components port fine either way — the CLI\nrewrites `asChild` to Base UI's `render` prop during install. The problem is the\nupstream Vercel AI Elements this kit depends on: they are authored against Radix\nand do not survive that transform.\n\nMeasured on CLI 4.16.0 / Next 16.2.6 after a clean install (`tsc --noEmit`):\n    radix base  ->  2 type errors\n    base UI     -> 14 type errors\nBoth counts are entirely in upstream files; 0 errors are in this kit's own code.\n\nKNOWN ISSUE: even on Radix, those 2 upstream errors currently fail `next build`\n(Vercel's ai-elements/agent.tsx and shadcn's ui/spinner.tsx). Tracked upstream of\nyou — see https://mastra-chat-kit.vercel.app.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit.vercel.app for the full endpoint contract."
     }
   ]
 }
