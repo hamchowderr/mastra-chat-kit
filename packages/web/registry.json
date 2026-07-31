@@ -123,6 +123,16 @@
           "path": "lib/agent-controller/use-agent-controller-chat.ts",
           "type": "registry:lib",
           "target": "lib/agent-controller/use-agent-controller-chat.ts"
+        },
+        {
+          "path": "lib/agent-controller/use-threads.ts",
+          "type": "registry:lib",
+          "target": "lib/agent-controller/use-threads.ts"
+        },
+        {
+          "path": "lib/agent-controller/use-workspace.ts",
+          "type": "registry:lib",
+          "target": "lib/agent-controller/use-workspace.ts"
         }
       ]
     },

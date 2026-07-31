@@ -172,9 +172,14 @@ for (const name of [...LOCAL_ELEMENTS]) {
 }
 
 // 2) chat-engine: the kit-specific transports/controller lib (not lib/utils).
+// The engine is everything a chat UI needs that ISN'T a look: the SSE transport,
+// the transcript reducer, and the data hooks that own every /api/* call. A skin
+// built on these is pure rendering — see bd h27 / 23d.
 const ENGINE_FILES = [
   'lib/agent-controller/events.ts',
   'lib/agent-controller/use-agent-controller-chat.ts',
+  'lib/agent-controller/use-threads.ts',
+  'lib/agent-controller/use-workspace.ts',
 ];
 {
   const c = classify(ENGINE_FILES);
