@@ -51,7 +51,7 @@ Nothing has executed yet. The controller run is parked server-side on an open SS
 
 The chat agent recognises the intent and hands off to the **code** subagent — a real specialist with its own instructions, model, and tools, including a shell it can actually run commands in. The subagent's file write lands in the shared workspace, so the workbench's **Files** tab reflects it live, and the **Terminal** tab shows the shell output the run produced.
 
-Same pattern for **research** (browse + search + cite) and **writer** (long-form drafting).
+Same pattern for **research** (browse + search + cite), **writer** (long-form drafting), **review** (read-only audit), and **data** (versioned SQL).
 
 </details>
 
@@ -79,7 +79,7 @@ Every capability is **agent-driven** — no manual buttons; the agent calls the 
 | **Tool approvals (HITL)** | Every side-effecting tool pauses for approve / decline before it runs. | *"What's the weather in Tokyo?"* |
 | **Modes** (Chat / Plan) | The agent proposes a plan, then switches to Chat to execute it on approval. | *"Propose a plan to add a dark-mode toggle, then wait for approval."* |
 | **Goals** | A standing objective the agent iterates toward; a judge scores each turn until it passes. | *"Keep refining a haiku about the ocean until it's excellent."* |
-| **Subagents** | Delegates to a specialist — **code** (build/run in the sandbox), **research** (browse + search + cite), **writer** (long-form) — each with its own instructions, model, and tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
+| **Subagents** | Delegates to a specialist — **code** (build/run in the sandbox), **research** (browse + search + cite), **writer** (long-form), **review** (read-only audit), **data** (versioned SQL, when Dolt is on) — each with its own instructions, model, and tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
 | **ask_user** | On a genuinely ambiguous request the agent asks *you* a question and resumes with the answer. | *"Deploy my app."* |
 | **Task tracking** | Multi-step work rendered as a live checklist. | *"Plan and build a tiny counter in tracked steps."* |
 | **Observational memory** | A background Observer distills durable facts across chats (the Memory panel). | *have a short back-and-forth* |
@@ -171,9 +171,9 @@ inherits your project's own shadcn theme.
 
 ---
 
-## 🎛️ One engine: the Agent Controller
+## 🎛️ The engine: Mastra's Agent Controller
 
-There is one engine, and everything in this kit comes from it.
+Every capability above comes from one place.
 
 | | |
 |---|---|
@@ -183,9 +183,7 @@ There is one engine, and everything in this kit comes from it.
 | **Web client** | `useAgentControllerChat` hook (command POST + SSE) |
 | **Wire format** | `AgentControllerEvent`s → `AgentControllerDisplayState` |
 
-It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (Shipped originally as `AgentController`, renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `controller` name for its routes and files.)
-
-> **Previously there were two.** A second "Agent mode" wrapped a bare `agent.stream` with no session, approvals, subagents, or workbench. It was mounted nowhere, had no e2e coverage, and its only unit test rendered an empty shell — so a consumer installing it would have been the first person to run it. It was removed rather than shipped unverified (`bd mastra-chat-kit-eg1`).
+It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."*
 
 **→ [`docs/agent-controller.md`](docs/agent-controller.md)** covers the controller in full, using Mastra's exact vocabulary.
 
@@ -297,7 +295,7 @@ packages/
 │     ├─ lib/env.ts           Zod-validated env — crashes on bad config
 │     └─ mastra/
 │        ├─ index.ts          Boot: env → AIMock → Mastra; AgentController routes
-│        ├─ agents/           chat · code · research · writer  (controller spawns the specialists)
+│        ├─ agents/           chat · code · research · writer · reviewer · data  (spawned as specialists)
 │        ├─ lib/
 │        │  ├─ agent-controller.ts  AgentController + Session
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
@@ -424,9 +422,9 @@ Yes — that's the default posture for tests and it works for dev too. Every tes
 </details>
 
 <details>
-<summary><b>Why is it called "controller" if Mastra renamed it to AgentController?</b></summary>
+<summary><b>Can I use a different chat UI?</b></summary>
 
-It shipped as `AgentController` and was renamed to `AgentController` in `@mastra/core@1.47.0`. The kit keeps `controller` in its route paths, filenames, and component names — renaming them would break every consumer's installed files for no functional gain. The Mastra class it wraps is `AgentController`.
+Yes. The engine (`chat-engine`) is UI-free — it owns the SSE transport, the transcript reducer, and every `/api/*` call, and imports nothing but React. A skin is rendering over one hook, so `chat` and `chat-minimal` both drive the same session and neither depends on the other. Colors and fonts need no work at all: the registry ships no `cssVars`, so any skin inherits your project's shadcn theme. See [`docs/registry.md`](docs/registry.md) for how to author one.
 </details>
 
 <details>
