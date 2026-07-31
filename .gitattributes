@@ -1,0 +1,17 @@
+# Check out LF on every platform.
+#
+# Without this, core.autocrlf=true gives Windows working trees CRLF while Biome's
+# formatter enforces LF — so `pnpm lint` fails on ~24 untouched files immediately
+# after any clone or branch switch, and `biome format --write .` has to be re-run
+# every time. CI runs on Linux and never sees it. See bd mastra-chat-kit-b5g.
+#
+# Git already stores LF (autocrlf normalised on commit), so this changes what lands
+# in the working tree, not repository content.
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.db  binary
