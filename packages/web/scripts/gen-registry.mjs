@@ -322,6 +322,40 @@ function validate(allItems) {
     }
   }
 
+  // (3) the reverse of (2): every shipped route handler has a caller.
+  //
+  // (2) alone is one-directional, which is how five dead /api/threads* proxies
+  // stayed in a PUBLISHED registry after the sidebar that called them was deleted
+  // (bd e70) — consumers installed routes nothing fetched, against a resource id
+  // the shipped UI never reads. A route with no caller is either dead or a missing
+  // caller; both are bugs worth failing the build over.
+  const fetched = new Set();
+  for (const rel of shipped) {
+    const src = stripComments(readFileSync(resolve(WEB, rel), 'utf8'));
+    for (const m of src.matchAll(/["'`](\/api\/[^"'`\s]*)/g)) {
+      const raw = m[1].split('?')[0].replace(/\/$/, '');
+      if (raw.includes('*')) continue;
+      fetched.add(raw.slice(1).split('/').join('/'));
+    }
+  }
+  const isCalled = (segs) =>
+    [...fetched].some((f) => {
+      const fs = f.split('/');
+      return (
+        fs.length === segs.length &&
+        fs.every((s, i) => s === segs[i] || isDynamic(s) || isDynamic(segs[i]))
+      );
+    });
+  for (const segs of routeSegs) {
+    // A route file is only reachable from the browser via a fetch in shipped
+    // source; the proxy lib itself is called with a SERVER path, not /api/*.
+    if (!isCalled(segs)) {
+      errors.push(
+        `app/${segs.join('/')}/route.ts is shipped, but no shipped file fetches "/${segs.join('/')}"`,
+      );
+    }
+  }
+
   if (errors.length) {
     console.error(`\n❌ registry manifest is inconsistent (${errors.length}):\n`);
     for (const e of [...new Set(errors)].sort()) console.error(`  • ${e}`);
