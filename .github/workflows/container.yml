@@ -1,0 +1,75 @@
+name: Container
+
+# Nothing else in CI builds the server image, and that gap shipped real bugs:
+# the branch that moved the build context to the repo root was pushed in a state
+# where `docker build` could not complete at all, and where packages/server/.env —
+# real API keys — was baked into an image layer, because `.dockerignore` matches
+# with Go filepath.Match rather than gitignore semantics and every bare rule
+# silently stopped covering nested paths.
+#
+# Linting the ignore rules is not enough (scripts/check-dockerignore.mjs does that
+# on every run). Reasoning about Docker's matching is exactly what failed. So this
+# builds the real image and looks inside it.
+#
+# The image is built and discarded — never tagged for or pushed to a registry — so
+# a layer cannot escape the runner even if a future change reintroduces a leak.
+
+on:
+  pull_request:
+    # ~15 minutes of build, so it runs only when something that can change the
+    # image changes. Everything the image is made of is listed here.
+    paths:
+      - 'packages/server/Dockerfile'
+      - '.dockerignore'
+      - 'packages/server/docker-compose*.yml'
+      - 'packages/server/package.json'
+      - 'packages/server/scripts/**'
+      - 'pnpm-lock.yaml'
+      - 'scripts/verify-container-image.mjs'
+      - '.github/workflows/container.yml'
+  workflow_dispatch:
+
+# No `schedule`: unlike the registry, this has no external dependency that drifts
+# on its own, so a nightly run would burn 15 minutes to re-prove the same commit.
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build the image and prove it is clean
+    runs-on: ubuntu-latest
+    # The build installs the workspace, runs `mastra build --studio` and downloads
+    # Chromium. Locally that is ~12 min; 30 leaves headroom without hanging forever.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Context is the REPO ROOT, matching packages/server/docker-compose.yml —
+      # building from packages/server instead would test a different image than the
+      # one that actually deploys.
+      - name: Build the server image
+        run: docker build -f packages/server/Dockerfile -t mastra-chat-kit-server:ci .
+
+      # Asserts the image carries no .env, no Windows host symlinks and no local
+      # databases; that the entrypoint, Studio and Chromium are present; that it
+      # runs as uid 1001; and that the container boots to healthy with /health,
+      # / and /api/agents all answering.
+      #
+      # Placeholder credentials only. Booting the server never calls a model, so no
+      # real key is needed — and `secrets.*` is deliberately never referenced here,
+      # holding the same "zero API spend, no secrets" line as ci.yml.
+      - name: Verify the built image
+        run: node scripts/verify-container-image.mjs mastra-chat-kit-server:ci
+
+      - name: Explain the failure
+        if: failure()
+        run: |
+          echo "::error title=The server container is not shippable::Either the image failed to build, or it contains something it must not."
+          echo "The step output above names each problem. The two that have bitten"
+          echo "this repo before, both caused by .dockerignore rules that stopped"
+          echo "matching at depth when the build context moved to the repo root:"
+          echo "  - a .env baked into a layer (secrets leave with the image)"
+          echo "  - the host's node_modules copied over the container's own install"
+          echo "Docker is not gitignore: a nested rule needs a '**/' prefix."
