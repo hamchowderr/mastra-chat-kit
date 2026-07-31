@@ -23,6 +23,20 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # createDefaultMemory() always wires `embedder: fastembed`, so every run that
+      # builds a Memory pulls the bge-small ONNX model (~130MB) into ~/.cache/mastra.
+      # Uncached, that download has been failing mid-flight — observed as both
+      # "ZlibError: zlib: unexpected end of file" (truncated) and "Tokenizer file not
+      # found" (never finished), after which Mastra logs "Failed to probe embedder for
+      # dimension, falling back to default". Nothing fails, because no test asserts on
+      # embeddings — so a genuinely broken embedder is invisible here. Caching removes
+      # the repeated download and the corruption with it.
+      - name: Cache the fastembed model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mastra/fastembed-models
+          key: fastembed-${{ runner.os }}-bge-small-en-v1.5
+
       - name: Lint (biome)
         run: pnpm lint
 
