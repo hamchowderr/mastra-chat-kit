@@ -395,6 +395,15 @@ Vercel · Netlify · Cloudflare, via Mastra's deployers (added as `deployer:` on
 **Mastra Cloud — managed.**
 `mastra auth`, then `mastra deploy --org <id> --project <name>` — gateway auto-seeded, managed libSQL provisioned. Deploy the Next.js web separately.
 
+**Building the image yourself.** The build context is the **repo root**, not `packages/server` — the image installs from the workspace `pnpm-lock.yaml` so it can't drift onto versions dev and CI never used:
+
+```bash
+docker build -f packages/server/Dockerfile -t mastra-chat-kit-server .
+pnpm verify:image mastra-chat-kit-server   # asserts the image is clean and boots
+```
+
+Because the context is the repo root, every nested rule in `.dockerignore` needs a `**/` prefix. **Docker is not gitignore** — it matches with Go `filepath.Match`, so a bare `.env` or `node_modules` covers only the context root. Getting that wrong once baked `packages/server/.env` into an image layer and copied the host's `node_modules` over the container's own install. `pnpm check:dockerignore` catches a rule regression in milliseconds; the `Container` workflow builds the real image whenever anything it's made of changes, and asserts the result contains no secrets, no host files, and actually serves.
+
 ---
 
 ## ❓ FAQ
