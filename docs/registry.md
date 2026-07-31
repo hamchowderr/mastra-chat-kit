@@ -12,8 +12,10 @@ our own copies of only the few we had to patch.
 
 | Item | Type | What it is |
 |---|---|---|
-| `chat` | block | The canonical shell — conversation, composer, history sidebar, tool renderers, **plus the controller sidebar and the 4-tab workbench** (browser, files, memory, schedules). **This is what you install.** |
-| `chat-engine` | lib | Swappable transport + controller client (`lib/transports`, `lib/agent-controller`). |
+| `chat` | block | **The full skin** — history sidebar │ conversation │ the 4-tab workbench (browser, files, memory, schedules). **Install this for the complete experience.** |
+| `chat-minimal` | block | **A second skin** — conversation + composer + approvals only, no sidebar or workbench. For embedding an agent in a corner of an existing app. |
+| `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
+| `chat-engine` | lib | The engine: Agent Controller SSE client, transcript reducer, and the data hooks that own every `/api/*` call. UI-free — imports only React. |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `agent-controller/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
@@ -24,6 +26,35 @@ our own copies of only the few we had to patch.
 Everything else (`message`, `conversation`, `reasoning`, `prompt-input`, …) is
 pulled straight from Vercel's registry at install time, and shadcn/ui primitives
 (`button`, `dialog`, …) from the default shadcn registry.
+
+### Skins: one engine, different looks
+
+The look and the engine are separate items, so you can swap the first without
+losing the second:
+
+```bash
+npx shadcn@latest add @mastra-chat-kit/chat           # full shell
+npx shadcn@latest add @mastra-chat-kit/chat-minimal   # embeddable
+```
+
+Both drive the **same** `AgentController` session — same threads, same tool
+approvals, same subagents, same workspace. They differ only in layout.
+
+**To author a third skin:** render over `useAgentControllerChat()` from
+`chat-engine`, reuse `chat-tool-views` for tool output, and add it to
+`gen-registry.mjs` with `registryDependencies: [chat-engine, chat-routes,
+chat-tool-views]`. Two rules the build enforces for you:
+
+- **Skins must never import each other.** Anything two skins share belongs in
+  `chat-tool-views` (or the engine). `validate()` check (4) fails the build if an
+  item imports a file another item ships without declaring that dependency.
+- **Approvals and `ask_user` are not optional.** Every tool is gated and
+  `ask_user` suspends the run, so a skin without `<Confirmation>` and
+  `<AskUserPrompt>` leaves the agent parked with no way to continue. Layout is a
+  choice; those two are the contract.
+
+Colors and fonts need no work at all — the registry ships **no** `cssVars`, so any
+skin inherits the consuming project's own shadcn theme.
 
 ### Why only 5 components are vendored
 

@@ -11,7 +11,7 @@ import {
   Trash2Icon,
   XIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -80,7 +80,6 @@ export function AgentControllerSidebar({
     debouncedSearch,
     searchHits,
     searching,
-    refresh,
     archive,
     rename,
     remove,
