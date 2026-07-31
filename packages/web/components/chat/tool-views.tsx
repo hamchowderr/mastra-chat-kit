@@ -38,6 +38,7 @@ import {
   TerminalTitle,
 } from '@/components/ai-elements/terminal';
 import type { AgentControllerGoal, PendingSuspension } from '@/lib/agent-controller/events';
+import { useGeneratedImage } from '@/lib/agent-controller/use-workspace';
 import { cn } from '@/lib/utils';
 
 /**
@@ -103,27 +104,9 @@ export function GeneratedImage({
   mediaType?: string;
   prompt?: string;
 }) {
-  const [data, setData] = useState<{ base64: string; mediaType: string } | null>(
-    base64 ? { base64, mediaType } : null,
-  );
-
-  useEffect(() => {
-    if (data || !imageId) {
-      return;
-    }
-    let active = true;
-    fetch(`/api/images/${imageId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (active && d?.base64) {
-          setData({ base64: d.base64, mediaType: d.mediaType ?? mediaType });
-        }
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [imageId, data, mediaType]);
+  // The id→bytes fetch lives in the engine (bd h27) so any skin rendering a
+  // generated image gets it without restating the /api/images contract.
+  const data = useGeneratedImage({ imageId, base64, mediaType });
 
   if (!data?.base64) {
     return <p className="text-muted-foreground text-xs">Loading generated image…</p>;

@@ -24,8 +24,11 @@ import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
+import { dataSubagent } from '../agents/data';
 import { researchSubagent } from '../agents/research';
+import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
+import { doltConfigured } from './dolt';
 import { createDefaultMemory, getSharedStore } from './memory';
 import {
   createBrowser,
@@ -123,10 +126,25 @@ export function createChatAgentController(opts?: {
     // ONE agent, a ROSTER of native specialist subagents: the controller auto-creates
     // the built-in `subagent` tool from these definitions, so the chat agent can spawn a
     // fresh, focused specialist per task — agentType 'code' (build/run in the sandbox),
-    // 'research' (browse + search + cite), or 'writer' (draft long-form). Each is a real
-    // `forked:false` specialist (its own instructions/model/tools); callers may still
-    // request a `forked` (self-clone) subagent per-invocation for parallel subtasks.
-    subagents: [codeSubagent, researchSubagent, writerSubagent],
+    // 'research' (browse + search + cite), 'writer' (draft long-form), 'review'
+    // (read-only audit), and 'data' (versioned SQL). Each is a real `forked:false`
+    // specialist (its own instructions/model/tools); callers may still request a
+    // `forked` (self-clone) subagent per-invocation for parallel subtasks.
+    //
+    // Between them the roster covers the three ways to scope a subagent: inherit the
+    // whole workspace (code), narrow it (review — `allowedWorkspaceTools`), or bring
+    // tools the parent doesn't have (data — its own `tools`).
+    //
+    // `data` is CONDITIONAL: Dolt is opt-in and off by default, and a specialist whose
+    // every tool call fails against an absent database is worse than no specialist —
+    // the subagent tool's auto-generated description would still advertise it.
+    subagents: [
+      codeSubagent,
+      researchSubagent,
+      writerSubagent,
+      reviewerSubagent,
+      ...(doltConfigured ? [dataSubagent] : []),
+    ],
     // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.

@@ -11,7 +11,7 @@ import {
   Trash2Icon,
   XIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -28,26 +28,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { type SearchHit, type ThreadItem, useThreads } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
-
-type ThreadItem = {
-  id: string;
-  title: string;
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-type SearchHit = { id: string; title: string; snippet: string; score: number };
-
-/** Debounce any fast-changing value (search input) without an extra dependency. */
-function useDebounced<T>(value: T, ms: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return debounced;
-}
 
 const DAY = 86_400_000;
 const GROUP_ORDER = ['Today', 'Yesterday', 'Previous 7 days', 'Previous 30 days', 'Older'] as const;
@@ -83,60 +65,25 @@ export function AgentControllerSidebar({
   collapsed: boolean;
   onToggleCollapse: () => void;
 }) {
-  const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ThreadItem | null>(null);
 
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounced(search.trim(), 250);
-  const isSearching = debouncedSearch.length >= 2;
-  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch('/api/agent-controller/threads', { cache: 'no-store' });
-      const data = (await res.json()) as { threads?: ThreadItem[] };
-      setThreads(data.threads ?? []);
-    } catch {
-      // Sidebar is non-critical; a failed refresh just keeps the last list.
-    }
-  }, []);
-
-  // Reload the list on mount and whenever a turn finishes upstream.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshSignal is an intentional refetch trigger, not read in the body.
-  useEffect(() => {
-    void refresh();
-  }, [refresh, refreshSignal]);
-
-  // Debounced title/first-message search.
-  useEffect(() => {
-    if (!isSearching) {
-      setSearchHits([]);
-      return;
-    }
-    let cancelled = false;
-    setSearching(true);
-    fetch(`/api/agent-controller/threads/search?q=${encodeURIComponent(debouncedSearch)}`, {
-      cache: 'no-store',
-    })
-      .then((r) => r.json())
-      .then((data: { threads?: SearchHit[] }) => {
-        if (!cancelled) setSearchHits(data.threads ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setSearchHits([]);
-      })
-      .finally(() => {
-        if (!cancelled) setSearching(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearch, isSearching]);
-
-  const active = useMemo(() => threads.filter((t) => !t.archived), [threads]);
-  const archived = useMemo(() => threads.filter((t) => t.archived), [threads]);
+  // All thread data + mutations live in the engine so a second skin inherits them
+  // (bd h27). This component owns only presentation — including the toasts below,
+  // which is why the hook returns a boolean instead of notifying by itself.
+  const {
+    active,
+    archived,
+    search,
+    setSearch,
+    isSearching,
+    debouncedSearch,
+    searchHits,
+    searching,
+    archive,
+    rename,
+    remove,
+  } = useThreads({ refreshSignal });
 
   // Active chats grouped by last-activity day, in fixed order.
   const groups = useMemo(() => {
@@ -154,24 +101,17 @@ export function AgentControllerSidebar({
   }, [active]);
 
   const handleArchive = async (t: ThreadItem, nextArchived: boolean) => {
-    setThreads((prev) => prev.map((x) => (x.id === t.id ? { ...x, archived: nextArchived } : x)));
-    try {
-      const res = await fetch(`/api/agent-controller/threads/${t.id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ archived: nextArchived }),
-      });
-      if (!res.ok) throw new Error(`archive failed (${res.status})`);
-      if (nextArchived) {
-        toast.success('Conversation archived', {
-          action: { label: 'Undo', onClick: () => handleArchive(t, false) },
-        });
-      } else {
-        toast.success('Conversation restored');
-      }
-    } catch {
+    const ok = await archive(t, nextArchived);
+    if (!ok) {
       toast.error(nextArchived ? 'Failed to archive' : 'Failed to restore');
-      void refresh();
+      return;
+    }
+    if (nextArchived) {
+      toast.success('Conversation archived', {
+        action: { label: 'Undo', onClick: () => handleArchive(t, false) },
+      });
+    } else {
+      toast.success('Conversation restored');
     }
   };
 
@@ -180,32 +120,20 @@ export function AgentControllerSidebar({
     if (!next || next === t.title) {
       return;
     }
-    setThreads((prev) => prev.map((x) => (x.id === t.id ? { ...x, title: next } : x)));
-    try {
-      const res = await fetch(`/api/agent-controller/threads/${t.id}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: next }),
-      });
-      if (!res.ok) throw new Error(`rename failed (${res.status})`);
+    if (await rename(t, next)) {
       toast.success('Conversation renamed');
-    } catch {
+    } else {
       toast.error('Failed to rename');
-      void refresh();
     }
   };
 
   const handleDelete = async (t: ThreadItem) => {
     setPendingDelete(null);
-    setThreads((prev) => prev.filter((x) => x.id !== t.id));
-    try {
-      const res = await fetch(`/api/agent-controller/threads/${t.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error(`delete failed (${res.status})`);
+    if (await remove(t)) {
       toast.success('Conversation deleted');
       if (t.id === activeThreadId) onNew();
-    } catch {
+    } else {
       toast.error('Failed to delete');
-      void refresh();
     }
   };
 

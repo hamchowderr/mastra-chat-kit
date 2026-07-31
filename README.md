@@ -51,7 +51,7 @@ Nothing has executed yet. The controller run is parked server-side on an open SS
 
 The chat agent recognises the intent and hands off to the **code** subagent — a real specialist with its own instructions, model, and tools, including a shell it can actually run commands in. The subagent's file write lands in the shared workspace, so the workbench's **Files** tab reflects it live, and the **Terminal** tab shows the shell output the run produced.
 
-Same pattern for **research** (browse + search + cite) and **writer** (long-form drafting).
+Same pattern for **research** (browse + search + cite), **writer** (long-form drafting), **review** (read-only audit), and **data** (versioned SQL).
 
 </details>
 
@@ -79,7 +79,7 @@ Every capability is **agent-driven** — no manual buttons; the agent calls the 
 | **Tool approvals (HITL)** | Every side-effecting tool pauses for approve / decline before it runs. | *"What's the weather in Tokyo?"* |
 | **Modes** (Chat / Plan) | The agent proposes a plan, then switches to Chat to execute it on approval. | *"Propose a plan to add a dark-mode toggle, then wait for approval."* |
 | **Goals** | A standing objective the agent iterates toward; a judge scores each turn until it passes. | *"Keep refining a haiku about the ocean until it's excellent."* |
-| **Subagents** | Delegates to a specialist — **code** (build/run in the sandbox), **research** (browse + search + cite), **writer** (long-form) — each with its own instructions, model, and tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
+| **Subagents** | Delegates to a specialist — **code** (build/run in the sandbox), **research** (browse + search + cite), **writer** (long-form), **review** (read-only audit), **data** (versioned SQL, when Dolt is on) — each with its own instructions, model, and tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
 | **ask_user** | On a genuinely ambiguous request the agent asks *you* a question and resumes with the answer. | *"Deploy my app."* |
 | **Task tracking** | Multi-step work rendered as a live checklist. | *"Plan and build a tiny counter in tracked steps."* |
 | **Observational memory** | A background Observer distills durable facts across chats (the Memory panel). | *have a short back-and-forth* |
@@ -121,19 +121,21 @@ Add the namespace to `components.json`, then install:
 ```
 
 ```bash
-npx shadcn@latest add @mastra-chat-kit/chat
+npx shadcn@latest add @mastra-chat-kit/chat           # the full shell
+npx shadcn@latest add @mastra-chat-kit/chat-minimal   # or the embeddable one
 ```
 
-> ⚠️ **The hosted registry is not live yet.** That URL 404s until the deploy lands
-> (tracked in `bd mastra-chat-kit-2jq`). Until then, build and serve `public/r`
-> locally — see [`docs/registry.md`](docs/registry.md).
+`chat` lands **34 files from this registry** — 9 shell components, the shared tool
+renderers, 14 `app/api/*` proxy routes plus the proxy lib, the 4-file `chat-engine`,
+and our 5 vendored AI Elements — plus the upstream AI Elements and shadcn/ui
+primitives they resolve to.
 
-That lands **32 files from this registry** — 10 chat components, 14 `app/api/*` proxy routes plus the proxy lib, the `chat-engine` controller client, and our 5 vendored AI Elements — plus the upstream AI Elements and shadcn/ui primitives they resolve to.
-
-Then mount the shell and point it at a server:
+Then mount a shell and point it at a server:
 
 ```tsx
-import { ChatSwitcher } from '@/components/chat/chat-switcher';
+import { ChatSwitcher } from '@/components/chat/chat-switcher';    // sidebar │ chat │ workbench
+// or
+import { MinimalChat } from '@/components/chat-minimal/minimal-chat'; // just the conversation
 ```
 
 ```bash
@@ -141,13 +143,37 @@ import { ChatSwitcher } from '@/components/chat/chat-switcher';
 MASTRA_SERVER_URL=http://localhost:4111
 ```
 
-The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 20-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+
+### One engine, swappable skins
+
+The look and the engine are separate registry items, so you can change the first
+without losing the second:
+
+| Item | What it is |
+|---|---|
+| `chat-engine` | The brains — SSE client, transcript reducer, and the hooks that own every `/api/*` call. **UI-free: imports only React.** |
+| `chat-tool-views` | Shared renderers turning real tool output into elements. Used by every skin. |
+| `chat` · `chat-minimal` | Just the looks. Neither depends on the other. |
+
+Both skins drive the **same** `AgentController` session — same threads, same tool
+approvals, same subagents, same workspace. A third skin is one file rendering over
+`useAgentControllerChat()`; `docs/registry.md` covers how, and the build fails if a
+skin imports another skin or forgets a shared dependency.
+
+Colors and fonts need no work: the registry ships **no** `cssVars`, so every skin
+inherits your project's own shadcn theme.
+
+> **Being straight about this:** `chat` and `chat-minimal` differ in *layout*, not
+> yet in *visual style* — both render messages through the same AI Elements at
+> default styling. The engine/skin split is real and tested; a skin with its own
+> visual identity is still to come.
 
 ---
 
-## 🎛️ One engine: the Agent Controller
+## 🎛️ The engine: Mastra's Agent Controller
 
-There is one engine, and everything in this kit comes from it.
+Every capability above comes from one place.
 
 | | |
 |---|---|
@@ -157,9 +183,7 @@ There is one engine, and everything in this kit comes from it.
 | **Web client** | `useAgentControllerChat` hook (command POST + SSE) |
 | **Wire format** | `AgentControllerEvent`s → `AgentControllerDisplayState` |
 
-It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."* (Shipped originally as `AgentController`, renamed to `AgentController` in `@mastra/core@1.47.0`; this kit keeps the `controller` name for its routes and files.)
-
-> **Previously there were two.** A second "Agent mode" wrapped a bare `agent.stream` with no session, approvals, subagents, or workbench. It was mounted nowhere, had no e2e coverage, and its only unit test rendered an empty shell — so a consumer installing it would have been the first person to run it. It was removed rather than shipped unverified (`bd mastra-chat-kit-eg1`).
+It runs on Mastra's `AgentController` — the session controller Mastra's docs describe as handling *"managing conversation threads, switching between agent modes, persisting state, gating tool execution with approvals, and coordinating subagents."*
 
 **→ [`docs/agent-controller.md`](docs/agent-controller.md)** covers the controller in full, using Mastra's exact vocabulary.
 
@@ -271,7 +295,7 @@ packages/
 │     ├─ lib/env.ts           Zod-validated env — crashes on bad config
 │     └─ mastra/
 │        ├─ index.ts          Boot: env → AIMock → Mastra; AgentController routes
-│        ├─ agents/           chat · code · research · writer  (controller spawns the specialists)
+│        ├─ agents/           chat · code · research · writer · reviewer · data  (spawned as specialists)
 │        ├─ lib/
 │        │  ├─ agent-controller.ts  AgentController + Session
 │        │  ├─ memory.ts        shared Memory: LibSQLVector + fastembed recall
@@ -279,9 +303,10 @@ packages/
 │        └─ tools/            agent tools (getWeather, dolt, image, schedules …)
 └─ web/                      Next.js 16 App Router + AI Elements (:3000)
    ├─ app/                     chat (/) + /events — the controller-event → element map
-   ├─ components/chat/         canonical shell · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
+   ├─ components/chat/         full skin: sidebar · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
+   ├─ components/chat-minimal/ second skin: conversation + composer only
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
-   ├─ lib/agent-controller/             use-agent-controller-chat.ts + events — the SSE client
+   ├─ lib/agent-controller/             the engine — SSE client, reducer, data hooks (UI-free)
    ├─ lib/agent-controller-event-map.ts the 50 events → elements + prompts (drives /events)
    └─ scripts/                 gen-registry.mjs (registry manifest) · screenshot.mjs
 ```
@@ -397,9 +422,9 @@ Yes — that's the default posture for tests and it works for dev too. Every tes
 </details>
 
 <details>
-<summary><b>Why is it called "controller" if Mastra renamed it to AgentController?</b></summary>
+<summary><b>Can I use a different chat UI?</b></summary>
 
-It shipped as `AgentController` and was renamed to `AgentController` in `@mastra/core@1.47.0`. The kit keeps `controller` in its route paths, filenames, and component names — renaming them would break every consumer's installed files for no functional gain. The Mastra class it wraps is `AgentController`.
+Yes. The engine (`chat-engine`) is UI-free — it owns the SSE transport, the transcript reducer, and every `/api/*` call, and imports nothing but React. A skin is rendering over one hook, so `chat` and `chat-minimal` both drive the same session and neither depends on the other. Colors and fonts need no work at all: the registry ships no `cssVars`, so any skin inherits your project's shadcn theme. See [`docs/registry.md`](docs/registry.md) for how to author one.
 </details>
 
 <details>
@@ -433,11 +458,10 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 
 ## 🗺️ Roadmap
 
-- 🌐 **Publish the registry** — host `@mastra-chat-kit` so any project can `shadcn add` the chat layer (`bd mastra-chat-kit-2jq`).
-- 🔍 **Scheduled install smoke test** — catch upstream drift and deploy breakage before consumers do (`bd mastra-chat-kit-7zt`).
-- 🧩 **Upstream the AI Elements patches** — contribute the 5 vendored fixes back to `vercel/ai-elements` (`bd mastra-chat-kit-k5f`).
-- 🔁 **More clients** — an IPC/desktop client (Electron) alongside the Agent transport and the AgentController SSE hook.
-- 🧾 **Real-provider smoke tier** — a small opt-in script that runs against a live model, gated behind an explicit key.
+- 🎨 **A visually distinct skin.** `chat` and `chat-minimal` differ in layout but still render messages through the same elements at default styling, so they look alike. The engine/skin split is done and tested; a skin with its own visual identity is the part that isn't.
+- 🧩 **Upstream the AI Elements patches.** Submitted to `vercel/ai-elements` and open at time of writing: [#456](https://github.com/vercel/ai-elements/pull/456) (agent) and [#457](https://github.com/vercel/ai-elements/pull/457) (code-block SSR), plus [#458](https://github.com/vercel/ai-elements/issues/458) and [#459](https://github.com/vercel/ai-elements/issues/459) for the two that change public types. Once merged we drop the local copies and depend entirely on upstream.
+
+**Recently shipped:** the [registry is live](https://mastra-chat-kit.vercel.app) and installable · a nightly install smoke test builds a throwaway consumer project from the deployed registry · the chat engine is UI-free, so skins are swappable.
 
 ---
 

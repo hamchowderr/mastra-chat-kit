@@ -212,6 +212,20 @@ log('installing @mastra-chat-kit/chat');
   }
 }
 
+// The SECOND skin, installed into the SAME project. This is the real proof that
+// skins are independent: chat-minimal must not depend on `chat`, both must resolve
+// the shared engine + tool-views to the same files, and the two must coexist and
+// compile together (the tsc + next build below cover both). See bd 23d.
+log('installing @mastra-chat-kit/chat-minimal (second skin, same project)');
+{
+  const { code, out } = await run(
+    'npx',
+    ['--yes', 'shadcn@latest', 'add', '@mastra-chat-kit/chat-minimal', '--yes'],
+    { cwd: PROJECT },
+  );
+  if (code !== 0) await die('chat-minimal install failed', out);
+}
+
 // ── 5. Assert the files landed ───────────────────────────────────────────────
 // A plain walk rather than fs.globSync — that is still experimental on Node 22,
 // which is what CI runs.
@@ -247,6 +261,13 @@ if (counts['app/api'] !== EXPECT['app/api']) {
 if (missingElements.length)
   problems.push(`vendored elements missing: ${missingElements.join(', ')}`);
 if (!existsSync(join(PROJECT, 'lib/mastra-proxy.ts'))) problems.push('lib/mastra-proxy.ts missing');
+// The second skin, and the shared renderers it resolves to via chat-tool-views —
+// if that dependency is ever dropped, chat-minimal installs without tool-views and
+// fails to compile, so assert the file rather than just the skin.
+if (!existsSync(join(PROJECT, 'components/chat-minimal/minimal-chat.tsx')))
+  problems.push('components/chat-minimal/minimal-chat.tsx missing (second skin)');
+if (!existsSync(join(PROJECT, 'components/chat/tool-views.tsx')))
+  problems.push('components/chat/tool-views.tsx missing (shared by both skins)');
 if (problems.length) await die(`installed tree is wrong:\n  ${problems.join('\n  ')}`);
 log(
   `files OK — ${counts['components/chat']} chat components, ${counts['app/api']} routes, 5 vendored elements`,
