@@ -458,12 +458,10 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 
 ## 🗺️ Roadmap
 
-- 🎨 **A visually distinct skin** — `chat` and `chat-minimal` differ in layout but still render messages through the same elements at default styling. The engine/skin split is done; a skin with its own visual identity isn't.
-- 🧩 **Upstream the AI Elements patches** — submitted to `vercel/ai-elements`, awaiting review: [#456](https://github.com/vercel/ai-elements/pull/456) (agent), [#457](https://github.com/vercel/ai-elements/pull/457) (code-block SSR), plus [#458](https://github.com/vercel/ai-elements/issues/458) and [#459](https://github.com/vercel/ai-elements/issues/459) for the two that change public types. Merged upstream, we drop the local copies.
-- 🔁 **More clients** — an IPC/desktop client (Electron) over the same engine.
-- 🧾 **Real-provider smoke tier** — a small opt-in script that runs against a live model, gated behind an explicit key.
+- 🎨 **A visually distinct skin.** `chat` and `chat-minimal` differ in layout but still render messages through the same elements at default styling, so they look alike. The engine/skin split is done and tested; a skin with its own visual identity is the part that isn't.
+- 🧩 **Upstream the AI Elements patches.** Submitted to `vercel/ai-elements` and open at time of writing: [#456](https://github.com/vercel/ai-elements/pull/456) (agent) and [#457](https://github.com/vercel/ai-elements/pull/457) (code-block SSR), plus [#458](https://github.com/vercel/ai-elements/issues/458) and [#459](https://github.com/vercel/ai-elements/issues/459) for the two that change public types. Once merged we drop the local copies and depend entirely on upstream.
 
-**Shipped:** the registry is [live](https://mastra-chat-kit.vercel.app) and installable; a scheduled install smoke test runs nightly and on every PR that touches the shipped surface.
+**Recently shipped:** the [registry is live](https://mastra-chat-kit.vercel.app) and installable · a nightly install smoke test builds a throwaway consumer project from the deployed registry · the chat engine is UI-free, so skins are swappable.
 
 ---
 

@@ -2,6 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "buildCommand": "pnpm build:registry && pnpm build",
+  "git": {
+    "deploymentEnabled": {
+      "__dolt_remote_info__": false
+    }
+  },
   "headers": [
     {
       "source": "/r/(.*)",
