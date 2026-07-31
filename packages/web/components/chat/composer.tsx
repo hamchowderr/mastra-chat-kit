@@ -2,7 +2,7 @@
 
 import type { ChatStatus } from 'ai';
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   Attachment,
   AttachmentPreview,
@@ -41,10 +41,13 @@ export type ModelOption = { id: string; name: string; provider: Provider };
 
 // Model router ids (provider/model). Keep in sync with MODEL_ALLOWLIST in the
 // server's mastra/index.ts. OpenAI entries are the cheaper chat tier on purpose.
+// `name` is the DISPLAY label — kept short (no "Claude" prefix; the provider logo
+// beside it already conveys the vendor). OpenAI names keep "GPT" (it's the model
+// name, not a vendor word).
 export const MODELS: ModelOption[] = [
-  { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
-  { id: 'anthropic/claude-opus-4-8', name: 'Claude Opus 4.8', provider: 'anthropic' },
-  { id: 'anthropic/claude-haiku-4-5', name: 'Claude Haiku 4.5', provider: 'anthropic' },
+  { id: 'anthropic/claude-sonnet-4-6', name: 'Sonnet 4.6', provider: 'anthropic' },
+  { id: 'anthropic/claude-opus-4-8', name: 'Opus 4.8', provider: 'anthropic' },
+  { id: 'anthropic/claude-haiku-4-5', name: 'Haiku 4.5', provider: 'anthropic' },
   { id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 mini', provider: 'openai' },
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' },
   { id: 'openai/gpt-4.1-nano', name: 'GPT-4.1 nano', provider: 'openai' },
@@ -82,18 +85,24 @@ function AttachmentsDisplay() {
 
 /**
  * The ONE chat composer — full PromptInput surface (attachments + drag-drop,
- * action menu, web-search toggle, model selector, submit). Shared by BOTH the
- * Single Agent and Agent Harness chat views so the input never drifts between
- * engines — only the transport behind `onSend` changes.
+ * action menu, web-search toggle, model selector, submit). Kept separate from
+ * the chat view so the input surface can be reused behind any transport —
+ * only the behaviour behind `onSend` changes.
  */
 export function Composer({
   onSend,
   status,
   className = 'm-4',
+  footerExtra,
+  toolsExtra,
 }: {
   onSend: (submit: ComposerSubmit) => void;
   status?: ChatStatus;
   className?: string;
+  /** Rendered in the footer, right of the tools (e.g. the live token-usage Context). */
+  footerExtra?: ReactNode;
+  /** Rendered at the START of the tools row (e.g. the controller mode switcher). */
+  toolsExtra?: ReactNode;
 }) {
   const [text, setText] = useState('');
   const [model, setModel] = useState(MODELS[0].id);
@@ -138,6 +147,7 @@ export function Composer({
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
+          {toolsExtra}
           <PromptInputActionMenu>
             <PromptInputActionMenuTrigger />
             <PromptInputActionMenuContent>
@@ -222,7 +232,10 @@ export function Composer({
             </ModelSelectorContent>
           </ModelSelector>
         </PromptInputTools>
-        <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
+        <div className="flex items-center gap-2">
+          {footerExtra}
+          <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
+        </div>
       </PromptInputFooter>
     </PromptInput>
   );

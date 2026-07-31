@@ -15,6 +15,8 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     env: {
+      // NODE_ENV=test gates OM + the agent workspace OFF (see lib/memory.ts + agents/chat.ts)
+      // so AIMock runs stay hermetic — the controller still supplies its own workspace.
       NODE_ENV: 'test',
       USE_AIMOCK: 'true',
       AIMOCK_URL: 'http://127.0.0.1:4010',
@@ -25,7 +27,7 @@ export default defineConfig({
       OPENAI_API_KEY: 'mock',
       // env.ts requirements (only used if a test imports the full Mastra index).
       APP_SECRET: 'test-app-secret-at-least-32-characters-long',
-      SUPABASE_DB_URL: 'postgres://mock:mock@localhost:5432/mock',
+      TURSO_DATABASE_URL: 'file:./mastra-test.db',
     },
   },
 });

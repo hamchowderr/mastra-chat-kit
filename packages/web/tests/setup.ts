@@ -33,7 +33,7 @@ if (!window.matchMedia) {
 
 // jsdom has no MediaDevices; the mic selector's useAudioDevices hook calls
 // enumerateDevices on mount. Stub it so browser-only voice elements don't throw
-// in effects (which error boundaries can't catch) during the Showroom render.
+// in effects (which error boundaries can't catch) when a test renders them.
 if (!navigator.mediaDevices) {
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,

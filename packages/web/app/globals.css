@@ -4,92 +4,105 @@
 /* next-themes toggles a `.dark` class on <html>; wire Tailwind's dark variant to it. */
 @custom-variant dark (&:is(.dark *));
 
+/* ─────────────────────────────────────────────────────────────
+   Neutral zinc theme with a deliberate three-tier surface hierarchy
+   (subtle, not colorful):
+
+     sidebar   = zinc-50   → recessed rail  ("dark and dingy")
+     canvas    = zinc-25   → the chat area  ("light and airy")
+     card      = white     → composer, popovers, message cards ("stark, exposed")
+
+   Text/accents are neutral (near-black). Re-brand later by changing --primary.
+   ───────────────────────────────────────────────────────────── */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+  /* Surfaces (light → dark): white card, zinc-25 canvas, zinc-50 sidebar. */
+  --background: #fcfcfc; /* zinc-25 — the chat canvas */
+  --foreground: #18181b;
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
+  --popover-foreground: #18181b;
 
-  --primary: #18181b;
+  --primary: #18181b; /* zinc-900 — near-black accents (send button, active) */
   --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
+  --secondary: #f4f4f5; /* zinc-100 */
   --secondary-foreground: #18181b;
   --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #f4f4f5;
+  --muted-foreground: #71717a; /* zinc-500 */
+  --accent: #f4f4f5; /* zinc-100 — hover fill */
   --accent-foreground: #18181b;
-  --destructive: #e7000b;
+  --destructive: #e11d48;
   --destructive-foreground: #fafafa;
 
-  --border: #e4e4e7;
+  --border: #e4e4e7; /* zinc-200 — the real structural line */
   --input: #e4e4e7;
-  --ring: #a1a1aa;
+  --ring: #a1a1aa; /* zinc-400 — soft focus ring */
 
-  --chart-1: #f54a00;
-  --chart-2: #009689;
-  --chart-3: #104e64;
-  --chart-4: #ffba00;
-  --chart-5: #fd9a00;
+  --shadow-float: 0 1px 2px rgba(24, 24, 27, 0.04), 0 12px 32px -16px rgba(24, 24, 27, 0.12);
 
-  --sidebar: #fafafa;
-  --sidebar-foreground: #0a0a0a;
+  --chart-1: #18181b;
+  --chart-2: #52525b;
+  --chart-3: #71717a;
+  --chart-4: #a1a1aa;
+  --chart-5: #d4d4d8;
+
+  --sidebar: #fafafa; /* zinc-50 — recessed rail */
+  --sidebar-foreground: #18181b;
   --sidebar-primary: #18181b;
   --sidebar-primary-foreground: #fafafa;
-  --sidebar-accent: #f4f4f5;
+  --sidebar-accent: #f4f4f5; /* zinc-100 — row hover/active */
   --sidebar-accent-foreground: #18181b;
   --sidebar-border: #e4e4e7;
   --sidebar-ring: #a1a1aa;
 }
 
 .dark {
-  --background: #0a0a0a;
+  /* Surfaces (light → dark): zinc-800 card, zinc-900 canvas, near-black sidebar. */
+  --background: #0c0c0e; /* canvas */
   --foreground: #fafafa;
-  --card: #18181b;
+  --card: #1a1a1d; /* raised card/composer */
   --card-foreground: #fafafa;
-  --popover: #18181b;
+  --popover: #1a1a1d;
   --popover-foreground: #fafafa;
 
-  --primary: #e4e4e7;
+  --primary: #fafafa;
   --primary-foreground: #18181b;
-  --secondary: #27272a;
+  --secondary: #27272a; /* zinc-800 */
   --secondary-foreground: #fafafa;
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
   --accent: #27272a;
   --accent-foreground: #fafafa;
-  --destructive: #ff6467;
-  --destructive-foreground: #fafafa;
+  --destructive: #fb7185;
+  --destructive-foreground: #18181b;
 
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: #71717a;
+  --border: #27272a; /* zinc-800 */
+  --input: #27272a;
+  --ring: #52525b;
 
-  --chart-1: #1447e6;
-  --chart-2: #00bba7;
-  --chart-3: #fd9a00;
-  --chart-4: #ad46ff;
-  --chart-5: #ff2056;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -18px rgba(0, 0, 0, 0.6);
 
-  --sidebar: #18181b;
+  --chart-1: #fafafa;
+  --chart-2: #d4d4d8;
+  --chart-3: #a1a1aa;
+  --chart-4: #71717a;
+  --chart-5: #52525b;
+
+  --sidebar: #161618; /* recessed rail */
   --sidebar-foreground: #fafafa;
-  --sidebar-primary: #1447e6;
-  --sidebar-primary-foreground: #fafafa;
+  --sidebar-primary: #fafafa;
+  --sidebar-primary-foreground: #18181b;
   --sidebar-accent: #27272a;
   --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #71717a;
+  --sidebar-border: #27272a;
+  --sidebar-ring: #52525b;
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-
+  /* Plain 1:1 token mapping — no hue tinting. The palette above is already the
+     final neutral; surfaces read as clean layered grays. */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -109,6 +122,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --shadow-float: var(--shadow-float);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -125,8 +139,13 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-geist-sans), "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
 }
 
 @layer base {
@@ -135,14 +154,77 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Avoid orphans/awkward wraps in body copy. */
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
     text-wrap: pretty;
   }
-  /* Balanced multi-line headings (no lonely last word). */
   h1,
   h2,
   h3,
   h4 {
     text-wrap: balance;
   }
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+/* Three-dot typing indicator (assistant is responding). */
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.typing-dot {
+  animation: typing-dot 1.2s infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Hide the native scrollbar on a scroll container while keeping it scrollable.
+   Used for the chat conversation (StickToBottom's scroll element) so the reading
+   column stays clean. With a zero-width scrollbar, `scrollbar-gutter: stable`
+   reserves no space either, so content keeps the full width. */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox + Chrome 121+ */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none; /* Chrome/Safari fallback */
 }

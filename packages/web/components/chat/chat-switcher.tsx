@@ -1,120 +1,89 @@
 'use client';
 
-import { PanelLeftIcon } from 'lucide-react';
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import { Chat } from '@/components/chat/chat';
-import { ChatSidebar } from '@/components/chat/chat-sidebar';
-import { HarnessChat } from '@/components/chat/harness-chat';
-import { cn } from '@/lib/utils';
-
-type Engine = 'single' | 'harness' | 'code';
-
-const ENGINES: { id: Engine; label: string }[] = [
-  { id: 'single', label: 'Single Agent' },
-  { id: 'harness', label: 'Agent Harness' },
-  { id: 'code', label: 'Code Agent' },
-];
+import { PanelLeftIcon, PanelRightIcon } from 'lucide-react';
+import { useState } from 'react';
+import { AgentControllerChat } from '@/components/chat/agent-controller-chat';
+import { AgentControllerSidebar } from '@/components/chat/agent-controller-sidebar';
+import { WorkbenchPanel } from '@/components/chat/workbench-panel';
+import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 
 /**
- * The chat app shell. Owns the persistent chat-history sidebar (Mastra threads
- * for the Single Agent), the engine toggle, and the cross-cutting state the two
- * need to share: the active `threadId`, sidebar collapse, and a `listVersion`
- * counter the Chat bumps after each turn so the sidebar re-fetches.
+ * The app shell — sidebar │ chat │ workbench, no top header bar so the chat runs
+ * edge to edge. The sidebar-collapse control lives at the top of the sidebar (and
+ * floats top-left when the sidebar is collapsed, so it's always reachable); the
+ * workbench toggle floats in the chat's empty top-right gutter.
  *
- * The sidebar is the Single Agent's history: selecting a chat (or "New chat")
- * snaps the engine to `single` and loads/clears that thread. Harness and Code
- * keep their current behavior (no persisted thread wiring in this pass).
+ * One controller session (an `AgentController` with a real Workspace: filesystem +
+ * shell sandbox + browser) backs all three panes, so history, transcript, and the
+ * workbench's Files/Terminal/Browser reflect the same run.
  */
 export function ChatSwitcher() {
-  const [engine, setEngine] = useState<Engine>('single');
-  const [threadId, setThreadId] = useState<string | null>(null);
-  // Whether the active thread was freshly minted (eligible for AI title-gen)
-  // vs. selected from history (already titled, must not be regenerated/cleared).
-  const [threadIsNew, setThreadIsNew] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
-  const [listVersion, setListVersion] = useState(0);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  // Workbench starts CLOSED so the default view is a clean chat, not an IDE.
+  const [rightCollapsed, setRightCollapsed] = useState(true);
+  const controller = useAgentControllerChat();
 
-  // Lazily mint the first thread id on the client (avoids an SSR/CSR mismatch
-  // from generating a uuid during render).
-  useEffect(() => {
-    setThreadId((id) => id ?? crypto.randomUUID());
-  }, []);
-
-  const refreshList = useCallback(() => setListVersion((v) => v + 1), []);
-
-  const newChat = useCallback(() => {
-    setThreadId(crypto.randomUUID());
-    setThreadIsNew(true);
-    setEngine('single');
-  }, []);
-
-  const selectChat = useCallback((id: string) => {
-    setThreadId(id);
-    setThreadIsNew(false);
-    setEngine('single');
-  }, []);
+  // New chat: clear the transcript, then focus the composer so it's obviously
+  // responsive — from an already-empty chat there'd otherwise be no visible change.
+  const handleNew = () => {
+    controller.reset();
+    requestAnimationFrame(() => {
+      document
+        .querySelector<HTMLTextAreaElement>('textarea[data-slot="input-group-control"]')
+        ?.focus();
+    });
+  };
 
   return (
-    <div className="flex h-full flex-1">
-      <ChatSidebar
-        activeThreadId={engine === 'single' ? threadId : null}
-        onSelect={selectChat}
-        onNew={newChat}
-        refreshSignal={listVersion}
-        collapsed={collapsed}
+    // Recessed frame: the shell + both rails share the sidebar tone; the chat floats inset
+    // as a raised rounded panel (the "inset" layout — clean, subtle separation).
+    <div className="relative flex h-dvh overflow-hidden bg-sidebar">
+      <AgentControllerSidebar
+        activeThreadId={controller.activeThreadId}
+        onSelect={controller.openThread}
+        onNew={handleNew}
+        refreshSignal={controller.refreshSignal}
+        collapsed={leftCollapsed}
+        onToggleCollapse={() => setLeftCollapsed((v) => !v)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="relative flex items-center justify-center gap-1 border-border border-b p-2">
+      {/* Collapsed → a floating control brings the sidebar back (same spot as the
+          in-sidebar toggle, so it appears to stay put). */}
+      {leftCollapsed && (
+        <button
+          type="button"
+          aria-label="Show conversations"
+          onClick={() => setLeftCollapsed(false)}
+          className="absolute top-2.5 left-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
+        >
+          <PanelLeftIcon className="size-4" />
+        </button>
+      )}
+
+      <div className="relative flex min-h-0 min-w-0 flex-1">
+        {/* The chat is the raised, floating panel: inset margin + rounded + border + soft
+            shadow, over the recessed sidebar-tone frame. */}
+        <div className="m-1.5 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+          <AgentControllerChat controller={controller} />
+        </div>
+
+        {/* Only when the panel is CLOSED does the toggle float in the chat's empty
+            top-right gutter — open, it would overlap the panel, so the collapse
+            control lives in the panel's own header instead. */}
+        {rightCollapsed && (
           <button
             type="button"
-            aria-label={collapsed ? 'Show chat history' : 'Hide chat history'}
-            onClick={() => setCollapsed((v) => !v)}
-            className="absolute left-2 flex size-9 items-center justify-center rounded-md text-muted-foreground transition-[scale,color] hover:text-foreground active:scale-[0.96]"
+            aria-label="Show workbench"
+            onClick={() => setRightCollapsed(false)}
+            className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
           >
-            <PanelLeftIcon className="size-4" />
+            <PanelRightIcon className="size-4" />
           </button>
+        )}
 
-          <div className="inline-flex rounded-lg bg-muted p-0.5">
-            {ENGINES.map((e) => (
-              <button
-                type="button"
-                key={e.id}
-                onClick={() => setEngine(e.id)}
-                className={cn(
-                  'rounded-md px-3 py-1 font-medium text-sm transition active:scale-[0.96]',
-                  engine === e.id
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {e.label}
-              </button>
-            ))}
-          </div>
-          <nav className="absolute right-3 flex items-center gap-3 text-sm">
-            <Link href="/showcase" className="text-muted-foreground hover:text-foreground">
-              Showroom
-            </Link>
-            <Link href="/status" className="text-muted-foreground hover:text-foreground">
-              Status
-            </Link>
-          </nav>
-        </div>
-
-        {/* Single Agent keeps its persisted thread mounted across engine switches
-            so its history/state survive a peek at Harness or Code. */}
-        <div className={cn('flex min-h-0 flex-1 flex-col', engine !== 'single' && 'hidden')}>
-          <Chat
-            agentId="chat"
-            threadId={threadId ?? undefined}
-            threadIsNew={threadIsNew}
-            onActivity={refreshList}
-          />
-        </div>
-        {engine === 'harness' && <HarnessChat />}
-        {engine === 'code' && <Chat agentId="code" />}
+        {!rightCollapsed && (
+          <WorkbenchPanel controller={controller} onCollapse={() => setRightCollapsed(true)} />
+        )}
       </div>
     </div>
   );

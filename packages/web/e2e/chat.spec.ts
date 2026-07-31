@@ -62,8 +62,9 @@ test('saves the finished chat to the history sidebar', async ({ page }) => {
   await send(page, 'Hello');
   await expect(convo(page).getByText(/how can i help/i)).toBeVisible();
   // The finished conversation is persisted and now appears as an entry in the
-  // left history rail (titled from its first turn). `.first()` tolerates other
-  // greeting threads created earlier in the same run.
+  // left history rail, titled from its first turn (under AIMock the auto-title is
+  // the assistant's greeting, which contains "how can I help"). `.first()`
+  // tolerates other threads created earlier in the same run.
   await expect(
     page
       .getByRole('complementary')

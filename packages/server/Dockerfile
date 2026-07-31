@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
-# Use node:22-slim (Debian/glibc), NOT node:22-alpine (musl).
-# DuckDB native modules segfault on Alpine even with gcompat.
-# This makes the image ~676MB instead of ~150MB. See README "Deployment Notes".
+# Storage runs on libSQL/Turso; observability uses DuckDB, whose native binaries
+# need glibc (they segfault on musl). So node:22-slim (Debian, glibc) is required
+# here — do NOT switch to node:22-alpine.
 # ─── Stage 1: build ───────────────────────────────────────────────
 FROM node:22-slim AS build
 WORKDIR /app
@@ -22,7 +22,6 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 
 # tini — proper signal handling for SIGTERM
-# node:22-slim is Debian-based (glibc), so no gcompat needed for native modules (e.g. DuckDB)
 RUN apt-get update && apt-get install -y --no-install-recommends tini wget && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1001 nodejs && \
@@ -36,6 +35,24 @@ ENV PORT=4111
 ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 
 COPY --from=build --chown=mastra:nodejs /app/.mastra/output ./.mastra/output
+
+# The workspace's headless browser (@mastra/browser-viewer → playwright-core) drives a
+# version-matched Chromium. `mastra build` externalizes @mastra/browser-viewer, which
+# depends on playwright-core, so both land in output/node_modules — but a slim image
+# ships neither the browser BINARY nor Chromium's ~40 system libraries. Provision both
+# here into a fixed path that this install AND the runtime process read via
+# PLAYWRIGHT_BROWSERS_PATH. Runs as root (apt) before the USER switch; chown so the
+# non-root `mastra` user can launch it. Browser tools are lazy, so this only matters at
+# first browser use — but without it those calls fail (fs/shell/memory work regardless).
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN node .mastra/output/node_modules/playwright-core/cli.js install --with-deps chromium \
+    && chown -R mastra:nodejs /ms-playwright \
+    && rm -rf /var/lib/apt/lists/*
+
+# Persistent libSQL storage dir. Create it owned by the runtime user so the named
+# `libsqldata` volume mounted here (docker-compose.yml) inherits that ownership on
+# first init — the non-root `mastra` user must be able to write the DB file.
+RUN mkdir -p /app/data && chown mastra:nodejs /app/data
 
 USER mastra
 EXPOSE 4111

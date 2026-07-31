@@ -47,7 +47,6 @@
       "title": "Context",
       "description": "AI Elements context/usage display (Partial usage type).",
       "dependencies": [
-        "ai",
         "tokenlens"
       ],
       "registryDependencies": [
@@ -86,29 +85,44 @@
       ]
     },
     {
+      "name": "agent",
+      "type": "registry:component",
+      "title": "Agent",
+      "description": "AI Elements agent/tool roster with a strict-TS fit: a Tool `description` can be a function, which is not a ReactNode, so it is narrowed before render.",
+      "dependencies": [
+        "ai",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "accordion",
+        "badge",
+        "@mastra-chat-kit/code-block"
+      ],
+      "files": [
+        {
+          "path": "components/ai-elements/agent.tsx",
+          "type": "registry:component",
+          "target": "components/ai-elements/agent.tsx"
+        }
+      ]
+    },
+    {
       "name": "chat-engine",
       "type": "registry:lib",
       "title": "Chat Engine",
-      "description": "Swappable transport + harness client for Agent mode and Harness mode.",
-      "dependencies": [
-        "ai"
-      ],
+      "description": "Agent Controller SSE client + transcript reducer.",
+      "dependencies": [],
       "registryDependencies": [],
       "files": [
         {
-          "path": "lib/transports/single-agent.ts",
+          "path": "lib/agent-controller/events.ts",
           "type": "registry:lib",
-          "target": "lib/transports/single-agent.ts"
+          "target": "lib/agent-controller/events.ts"
         },
         {
-          "path": "lib/harness/events.ts",
+          "path": "lib/agent-controller/use-agent-controller-chat.ts",
           "type": "registry:lib",
-          "target": "lib/harness/events.ts"
-        },
-        {
-          "path": "lib/harness/use-harness-chat.ts",
-          "type": "registry:lib",
-          "target": "lib/harness/use-harness-chat.ts"
+          "target": "lib/agent-controller/use-agent-controller-chat.ts"
         }
       ]
     },
@@ -116,7 +130,7 @@
       "name": "chat-routes",
       "type": "registry:block",
       "title": "Chat Routes (Mastra proxy)",
-      "description": "Same-origin Next route handlers + proxy that forward chat/threads/harness/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.",
+      "description": "Same-origin Next route handlers + proxy that forward chat/threads/agent-controller/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.",
       "dependencies": [],
       "registryDependencies": [],
       "files": [
@@ -126,44 +140,69 @@
           "target": "lib/mastra-proxy.ts"
         },
         {
-          "path": "app/api/chat/[agentId]/route.ts",
+          "path": "app/api/agent-controller/stream/route.ts",
           "type": "registry:file",
-          "target": "app/api/chat/[agentId]/route.ts"
+          "target": "app/api/agent-controller/stream/route.ts"
         },
         {
-          "path": "app/api/threads/route.ts",
+          "path": "app/api/agent-controller/approve/route.ts",
           "type": "registry:file",
-          "target": "app/api/threads/route.ts"
+          "target": "app/api/agent-controller/approve/route.ts"
         },
         {
-          "path": "app/api/threads/search/route.ts",
+          "path": "app/api/agent-controller/answer/route.ts",
           "type": "registry:file",
-          "target": "app/api/threads/search/route.ts"
+          "target": "app/api/agent-controller/answer/route.ts"
         },
         {
-          "path": "app/api/threads/[id]/route.ts",
+          "path": "app/api/agent-controller/goal/route.ts",
           "type": "registry:file",
-          "target": "app/api/threads/[id]/route.ts"
+          "target": "app/api/agent-controller/goal/route.ts"
         },
         {
-          "path": "app/api/threads/[id]/messages/route.ts",
+          "path": "app/api/agent-controller/om/route.ts",
           "type": "registry:file",
-          "target": "app/api/threads/[id]/messages/route.ts"
+          "target": "app/api/agent-controller/om/route.ts"
         },
         {
-          "path": "app/api/threads/[id]/title/route.ts",
+          "path": "app/api/agent-controller/schedules/route.ts",
           "type": "registry:file",
-          "target": "app/api/threads/[id]/title/route.ts"
+          "target": "app/api/agent-controller/schedules/route.ts"
         },
         {
-          "path": "app/api/harness/approve/route.ts",
+          "path": "app/api/agent-controller/threads/route.ts",
           "type": "registry:file",
-          "target": "app/api/harness/approve/route.ts"
+          "target": "app/api/agent-controller/threads/route.ts"
         },
         {
-          "path": "app/api/harness/stream/route.ts",
+          "path": "app/api/agent-controller/threads/search/route.ts",
           "type": "registry:file",
-          "target": "app/api/harness/stream/route.ts"
+          "target": "app/api/agent-controller/threads/search/route.ts"
+        },
+        {
+          "path": "app/api/agent-controller/threads/[id]/route.ts",
+          "type": "registry:file",
+          "target": "app/api/agent-controller/threads/[id]/route.ts"
+        },
+        {
+          "path": "app/api/agent-controller/threads/[id]/messages/route.ts",
+          "type": "registry:file",
+          "target": "app/api/agent-controller/threads/[id]/messages/route.ts"
+        },
+        {
+          "path": "app/api/workspace/file/route.ts",
+          "type": "registry:file",
+          "target": "app/api/workspace/file/route.ts"
+        },
+        {
+          "path": "app/api/workspace/files/route.ts",
+          "type": "registry:file",
+          "target": "app/api/workspace/files/route.ts"
+        },
+        {
+          "path": "app/api/browser/screencast/route.ts",
+          "type": "registry:file",
+          "target": "app/api/browser/screencast/route.ts"
         },
         {
           "path": "app/api/images/[id]/route.ts",
@@ -176,16 +215,18 @@
       "name": "chat",
       "type": "registry:block",
       "title": "Mastra Chat",
-      "description": "Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.",
+      "description": "Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/AgentController modes.",
       "dependencies": [
-        "@ai-sdk/react",
         "ai",
         "lucide-react",
+        "shiki",
         "sonner"
       ],
       "registryDependencies": [
         "dialog",
         "dropdown-menu",
+        "tabs",
+        "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/context",
         "@mastra-chat-kit/image",
@@ -208,21 +249,10 @@
         "https://ai-sdk.dev/elements/api/registry/suggestion.json",
         "https://ai-sdk.dev/elements/api/registry/task.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json",
-        "https://ai-sdk.dev/elements/api/registry/web-preview.json",
         "sonner",
         "@mastra-chat-kit/chat-routes"
       ],
       "files": [
-        {
-          "path": "components/chat/chat.tsx",
-          "type": "registry:component",
-          "target": "components/chat/chat.tsx"
-        },
-        {
-          "path": "components/chat/chat-sidebar.tsx",
-          "type": "registry:component",
-          "target": "components/chat/chat-sidebar.tsx"
-        },
         {
           "path": "components/chat/chat-switcher.tsx",
           "type": "registry:component",
@@ -234,16 +264,47 @@
           "target": "components/chat/composer.tsx"
         },
         {
-          "path": "components/chat/harness-chat.tsx",
+          "path": "components/chat/agent-controller-chat.tsx",
           "type": "registry:component",
-          "target": "components/chat/harness-chat.tsx"
+          "target": "components/chat/agent-controller-chat.tsx"
         },
         {
           "path": "components/chat/tool-views.tsx",
           "type": "registry:component",
           "target": "components/chat/tool-views.tsx"
+        },
+        {
+          "path": "components/chat/agent-controller-sidebar.tsx",
+          "type": "registry:component",
+          "target": "components/chat/agent-controller-sidebar.tsx"
+        },
+        {
+          "path": "components/chat/workbench-panel.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-panel.tsx"
+        },
+        {
+          "path": "components/chat/workbench-browser.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-browser.tsx"
+        },
+        {
+          "path": "components/chat/workbench-files.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-files.tsx"
+        },
+        {
+          "path": "components/chat/workbench-memory.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-memory.tsx"
+        },
+        {
+          "path": "components/chat/workbench-schedules.tsx",
+          "type": "registry:component",
+          "target": "components/chat/workbench-schedules.tsx"
         }
-      ]
+      ],
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit.vercel.app for the full endpoint contract."
     }
   ]
 }

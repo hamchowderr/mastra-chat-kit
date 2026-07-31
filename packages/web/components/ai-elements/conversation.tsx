@@ -26,10 +26,14 @@ export type ConversationContentProps = ComponentProps<
 
 export const ConversationContent = ({
   className,
+  scrollClassName,
   ...props
 }: ConversationContentProps) => (
   <StickToBottom.Content
     className={cn("flex flex-col gap-8 p-4", className)}
+    // `scrollClassName` targets StickToBottom's actual scroll element (overflow: auto).
+    // Hide its native scrollbar so the chat's reading column stays clean.
+    scrollClassName={cn("no-scrollbar", scrollClassName)}
     {...props}
   />
 );

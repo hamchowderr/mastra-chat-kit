@@ -4,6 +4,7 @@ mastra-chat-kit
 This package's shadcn registry (registry.json) redistributes a small number of
 components adapted from Vercel AI Elements:
 
+  components/ai-elements/agent.tsx        (modified: Tool `description` narrowed to a string before render — it may be a function, which is not a ReactNode)
   components/ai-elements/code-block.tsx  (modified: SSR hydration fix — mount-gated Shiki highlighting)
   components/ai-elements/context.tsx     (modified: usage typed as Partial<LanguageModelUsage>)
   components/ai-elements/image.tsx       (modified: uint8Array made optional; renders from base64)
