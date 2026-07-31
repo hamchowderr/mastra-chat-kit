@@ -19,7 +19,7 @@ const HOMEPAGE = 'https://mastra-chat-kit.vercel.app';
 const UPSTREAM = (name) => `https://ai-sdk.dev/elements/api/registry/${name}.json`;
 
 // AI Elements we ship ourselves (everything else comes from Vercel upstream).
-const LOCAL_ELEMENTS = new Set(['code-block', 'image', 'context', 'tool']);
+const LOCAL_ELEMENTS = new Set(['code-block', 'image', 'context', 'tool', 'agent']);
 
 // Host-provided packages — never list as registry npm dependencies.
 const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
@@ -84,7 +84,8 @@ function classify(relFiles) {
         /* cn() — shadcn init provides this; not a registry dep */
       } else if (key.startsWith('lib/')) lib.add('chat-engine');
       else if (key.startsWith('components/chat/')) {
-        /* internal to the chat block */
+        /* Sibling in the chat block. NOT assumed present — validate() below
+           asserts it's actually shipped. Assuming it was the b5y bug. */
       }
     }
   }
@@ -114,6 +115,29 @@ function regDeps(c, selfName) {
   ];
 }
 
+// Printed by the shadcn CLI after install (registry-item `docs` field). The base
+// mismatch is invisible until it surfaces as a type error deep in a trigger, so
+// say it where a consumer who never opened our docs will still see it (bd og7).
+const RADIX_NOTICE = `This kit needs TWO things in your project. Check both:
+
+  1. The RADIX base       ->  npx shadcn@latest init --base radix
+  2. The LUCIDE icon set  ->  "iconLibrary": "lucide" in components.json
+
+With both, a fresh install typechecks with 0 errors and \`next build\` exits 0
+(verified on shadcn CLI 4.16.0 / Next 16.2.6).
+
+If either is wrong:
+  • Base UI instead of Radix (a bare \`init\` gives you this — --defaults resolves
+    to --preset=base-nova) -> 14 type errors. This kit's own components port fine
+    either way (the CLI rewrites \`asChild\` to Base UI's \`render\`), but the upstream
+    Vercel AI Elements it depends on are Radix-authored and don't survive that.
+  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own
+    ui/spinner.tsx. Fix: set iconLibrary to lucide, then
+    \`shadcn add spinner --overwrite\`.
+
+Then set MASTRA_SERVER_URL to point at your Mastra server (default
+http://localhost:4111). See ${HOMEPAGE} for the full endpoint contract.`;
+
 const items = [];
 
 // 1) The 4 vendored AI Elements (3 patched + tool rewired to our code-block).
@@ -122,6 +146,7 @@ const ELEMENT_TITLES = {
   image: 'Image',
   context: 'Context',
   tool: 'Tool',
+  agent: 'Agent',
 };
 const ELEMENT_DESCS = {
   'code-block':
@@ -129,6 +154,8 @@ const ELEMENT_DESCS = {
   image: 'AI Elements image; renders from base64 (uint8Array optional).',
   context: 'AI Elements context/usage display (Partial usage type).',
   tool: 'AI Elements tool call display, wired to the local SSR-safe code block.',
+  agent:
+    'AI Elements agent/tool roster with a strict-TS fit: a Tool `description` can be a function, which is not a ReactNode, so it is narrowed before render.',
 };
 for (const name of [...LOCAL_ELEMENTS]) {
   const file = elPath(name);
@@ -144,11 +171,10 @@ for (const name of [...LOCAL_ELEMENTS]) {
   });
 }
 
-// 2) chat-engine: the kit-specific transports/harness lib (not lib/utils).
+// 2) chat-engine: the kit-specific transports/controller lib (not lib/utils).
 const ENGINE_FILES = [
-  'lib/transports/single-agent.ts',
-  'lib/harness/events.ts',
-  'lib/harness/use-harness-chat.ts',
+  'lib/agent-controller/events.ts',
+  'lib/agent-controller/use-agent-controller-chat.ts',
 ];
 {
   const c = classify(ENGINE_FILES);
@@ -156,7 +182,7 @@ const ENGINE_FILES = [
     name: 'chat-engine',
     type: 'registry:lib',
     title: 'Chat Engine',
-    description: 'Swappable transport + harness client for Agent mode and Harness mode.',
+    description: 'Agent Controller SSE client + transcript reducer.',
     dependencies: c.npm,
     registryDependencies: regDeps(c, 'chat-engine'),
     files: ENGINE_FILES.map((f) => ({ path: f, type: 'registry:lib', target: f })),
@@ -169,14 +195,22 @@ const ENGINE_FILES = [
 // explicit targets so they land at the exact app/ paths the components expect.
 const ROUTE_FILES = [
   'lib/mastra-proxy.ts',
-  'app/api/chat/[agentId]/route.ts',
-  'app/api/threads/route.ts',
-  'app/api/threads/search/route.ts',
-  'app/api/threads/[id]/route.ts',
-  'app/api/threads/[id]/messages/route.ts',
-  'app/api/threads/[id]/title/route.ts',
-  'app/api/harness/approve/route.ts',
-  'app/api/harness/stream/route.ts',
+  // use-agent-controller-chat.ts + the workbench panels fetch ALL of these — shipping
+  // only stream+approve left the controller dead on arrival for consumers (bd b5y).
+  'app/api/agent-controller/stream/route.ts',
+  'app/api/agent-controller/approve/route.ts',
+  'app/api/agent-controller/answer/route.ts',
+  'app/api/agent-controller/goal/route.ts',
+  'app/api/agent-controller/om/route.ts',
+  'app/api/agent-controller/schedules/route.ts',
+  'app/api/agent-controller/threads/route.ts',
+  'app/api/agent-controller/threads/search/route.ts',
+  'app/api/agent-controller/threads/[id]/route.ts',
+  'app/api/agent-controller/threads/[id]/messages/route.ts',
+  // Workbench panels (files viewer + live browser screencast).
+  'app/api/workspace/file/route.ts',
+  'app/api/workspace/files/route.ts',
+  'app/api/browser/screencast/route.ts',
   'app/api/images/[id]/route.ts',
 ];
 {
@@ -186,7 +220,7 @@ const ROUTE_FILES = [
     type: 'registry:block',
     title: 'Chat Routes (Mastra proxy)',
     description:
-      'Same-origin Next route handlers + proxy that forward chat/threads/harness/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.',
+      'Same-origin Next route handlers + proxy that forward chat/threads/agent-controller/images to a Mastra server (MASTRA_SERVER_URL). Required for the chat block to function.',
     dependencies: c.npm,
     registryDependencies: regDeps(c, 'chat-routes'),
     files: ROUTE_FILES.map((f) => ({ path: f, type: 'registry:file', target: f })),
@@ -195,12 +229,19 @@ const ROUTE_FILES = [
 
 // 4) chat: the headline block — the canonical shell.
 const CHAT_FILES = [
-  'components/chat/chat.tsx',
-  'components/chat/chat-sidebar.tsx',
   'components/chat/chat-switcher.tsx',
   'components/chat/composer.tsx',
-  'components/chat/harness-chat.tsx',
+  'components/chat/agent-controller-chat.tsx',
   'components/chat/tool-views.tsx',
+  // AgentController mode's own shell. chat-switcher.tsx imports agent-controller-sidebar and
+  // workbench-panel directly, and workbench-panel pulls the four panels — so
+  // omitting them shipped a chat-switcher that could not compile (bd b5y).
+  'components/chat/agent-controller-sidebar.tsx',
+  'components/chat/workbench-panel.tsx',
+  'components/chat/workbench-browser.tsx',
+  'components/chat/workbench-files.tsx',
+  'components/chat/workbench-memory.tsx',
+  'components/chat/workbench-schedules.tsx',
 ];
 {
   const c = classify(CHAT_FILES);
@@ -209,7 +250,7 @@ const CHAT_FILES = [
     type: 'registry:block',
     title: 'Mastra Chat',
     description:
-      'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/Harness modes.',
+      'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/AgentController modes.',
     dependencies: c.npm,
     // Appended explicitly (the import-trace can't discover these):
     // - chat-routes: the UI calls those endpoints via fetch, not import.
@@ -217,8 +258,115 @@ const CHAT_FILES = [
     //   which the app mounts in its layout — ship it so consumers have it.
     registryDependencies: [...regDeps(c, 'chat'), 'sonner', NS('chat-routes')],
     files: CHAT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
+    docs: RADIX_NOTICE,
   });
 }
+
+/**
+ * Fail the build if the manifest is internally inconsistent — the two ways it
+ * silently drifted before (bd mastra-chat-kit-b5y):
+ *
+ *   1. A shipped file imports a local module nobody ships → consumer gets
+ *      module-not-found on first build.
+ *   2. A shipped file fetches an `/api/*` path whose route handler isn't
+ *      shipped → the UI renders but every call 404s.
+ *
+ * Files under `components/ui/` and `components/ai-elements/` are exempt from (1):
+ * those arrive via registryDependencies, not our own `files`.
+ */
+function validate(allItems) {
+  const shipped = new Set(allItems.flatMap((it) => it.files.map((f) => f.path)));
+  const shippedKeys = new Set([...shipped].map((p) => p.replace(/\.tsx?$/, '')));
+  const errors = [];
+
+  // (1) every local import resolves to something we ship
+  for (const rel of shipped) {
+    for (const spec of parseImports(resolve(WEB, rel))) {
+      let key = null;
+      if (spec.startsWith('@/')) key = spec.slice(2);
+      else if (spec.startsWith('.'))
+        key = toPosix(relative(WEB, resolve(dirname(resolve(WEB, rel)), spec)));
+      else continue; // bare npm specifier — covered by `dependencies`
+      if (shippedKeys.has(key)) continue;
+      if (key === 'lib/utils') continue; // shadcn init provides cn()
+      if (key.startsWith('components/ui/')) continue; // registryDependency
+      if (key.startsWith('components/ai-elements/')) continue; // registryDependency
+      errors.push(`${rel} imports "${spec}" -> ${key}, which no registry item ships`);
+    }
+  }
+
+  // (2) every /api/* the UI fetches has a shipped route handler
+  const routeSegs = [...shipped]
+    .filter((p) => p.startsWith('app/api/') && p.endsWith('/route.ts'))
+    .map((p) => p.slice('app/'.length, -'/route.ts'.length).split('/'));
+  const isDynamic = (s) => s.startsWith('[') || s.startsWith('${') || s.startsWith(':');
+  const hasRoute = (segs) =>
+    routeSegs.some(
+      (r) =>
+        r.length === segs.length &&
+        r.every((rs, i) => rs === segs[i] || isDynamic(rs) || isDynamic(segs[i])),
+    );
+
+  // Strip comments first: JSDoc routinely names endpoints as backticked globs
+  // (`/api/workspace/*`), which are prose, not calls.
+  const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  for (const rel of shipped) {
+    const src = stripComments(readFileSync(resolve(WEB, rel), 'utf8'));
+    for (const m of src.matchAll(/["'`](\/api\/[^"'`\s]*)["'`]|["'`](\/api\/[^"'`\s]*)\?/g)) {
+      const raw = (m[1] ?? m[2]).split('?')[0].replace(/\/$/, '');
+      if (raw.includes('*')) continue; // glob in prose, not a real path
+      const segs = raw.slice(1).split('/'); // drop leading "/" -> ['api', …]
+      if (!hasRoute(segs))
+        errors.push(`${rel} fetches "${raw}", but no registry item ships its route handler`);
+    }
+  }
+
+  // (3) the reverse of (2): every shipped route handler has a caller.
+  //
+  // (2) alone is one-directional, which is how five dead /api/threads* proxies
+  // stayed in a PUBLISHED registry after the sidebar that called them was deleted
+  // (bd e70) — consumers installed routes nothing fetched, against a resource id
+  // the shipped UI never reads. A route with no caller is either dead or a missing
+  // caller; both are bugs worth failing the build over.
+  const fetched = new Set();
+  for (const rel of shipped) {
+    const src = stripComments(readFileSync(resolve(WEB, rel), 'utf8'));
+    for (const m of src.matchAll(/["'`](\/api\/[^"'`\s]*)/g)) {
+      const raw = m[1].split('?')[0].replace(/\/$/, '');
+      if (raw.includes('*')) continue;
+      fetched.add(raw.slice(1).split('/').join('/'));
+    }
+  }
+  const isCalled = (segs) =>
+    [...fetched].some((f) => {
+      const fs = f.split('/');
+      return (
+        fs.length === segs.length &&
+        fs.every((s, i) => s === segs[i] || isDynamic(s) || isDynamic(segs[i]))
+      );
+    });
+  for (const segs of routeSegs) {
+    // A route file is only reachable from the browser via a fetch in shipped
+    // source; the proxy lib itself is called with a SERVER path, not /api/*.
+    if (!isCalled(segs)) {
+      errors.push(
+        `app/${segs.join('/')}/route.ts is shipped, but no shipped file fetches "/${segs.join('/')}"`,
+      );
+    }
+  }
+
+  if (errors.length) {
+    console.error(`\n❌ registry manifest is inconsistent (${errors.length}):\n`);
+    for (const e of [...new Set(errors)].sort()) console.error(`  • ${e}`);
+    console.error(
+      '\nAdd the missing file to ROUTE_FILES / CHAT_FILES, or stop shipping the file that references it.\n',
+    );
+    process.exit(1);
+  }
+}
+
+validate(items);
 
 const registry = {
   $schema: 'https://ui.shadcn.com/schema/registry.json',

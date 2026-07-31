@@ -4,6 +4,15 @@ This file is for AI coding agents (Claude Code, Cursor, Copilot, etc.) working o
 
 ---
 
+## CRITICAL: Load the `mastra` skill first
+
+Load the `mastra` skill **before any Mastra work** on this codebase. Never rely on
+cached knowledge — Mastra APIs change between versions, and this kit pins exact
+`@mastra/*` versions. If the skill isn't available, consult the current docs at
+<https://mastra.ai/llms.txt> instead of guessing from memory.
+
+---
+
 ## Boot Order (critical)
 
 `src/mastra/index.ts` must initialize in this exact order:
@@ -30,11 +39,11 @@ Never reorder these. Never construct an `Agent` or `@ai-sdk/*` client before `co
 ```typescript
 // correct
 import { env } from '../../lib/env';
-import { leadIntakeAgent } from './agents/_example';
+import { chatAgent } from './agents/chat';
 
 // wrong
-import { env } from '@/lib/env';           // no path aliases
-import { leadIntakeAgent } from './agents'; // no barrel imports
+import { env } from '@/lib/env';        // no path aliases
+import { chatAgent } from './agents';   // no barrel imports
 ```
 
 ---
@@ -53,50 +62,32 @@ Rules:
 
 ## Agent Conventions
 
-File naming: `src/mastra/agents/<kebab-name>.ts` (prefix `_` for examples/templates).
+File naming: `src/mastra/agents/<kebab-name>.ts`.
 
-Every agent file must export:
-1. A named Zod schema (e.g. `LeadSchema`) and its inferred type
-2. The agent instance with `id`, `name`, `instructions`, `model`, and `scorers`
+Every agent file exports its agent instance with `id`, `name`, `instructions`, `model`,
+and `tools` (plus `memory`/`workspace` where relevant). Agents that return structured
+data also export a named Zod schema + its inferred type.
 
 Model string format: `anthropic/claude-sonnet-4-6` (provider/model-id).
-
-Scorers are declared inline on the agent. Scorer implementations live in `src/mastra/scorers/`. Every agent should have at least a hallucination scorer.
 
 Tools used only by one agent live inline in that agent's file. Shared tools go in `src/mastra/tools/`.
 
 ---
 
-## Scorer Conventions
-
-File naming: `src/mastra/scorers/<agent-name>.scorers.ts`.
-
-Dataset files: `src/mastra/scorers/datasets/<agent-name>.json`.
-
-Every scorer file exports named scorers. Every dataset file has `agentId`, `thresholds`, and `cases` — minimum 5 cases, at least 1 anti-hallucination case.
-
-Correct import paths for prebuilt scorers:
-```typescript
-import { createHallucinationScorer, createPromptAlignmentScorerLLM } from '@mastra/evals/scorers/prebuilt';
-// NOT from '@mastra/evals/scorers/llm' or '@mastra/evals/scorers/code'
-```
-
-Note: `createPromptAlignmentScorerLLM` with `evaluationMode: 'system'` requires system-prompt data in the inline scorer input. Register it on the agent only without that option, or run it manually in eval.ts. The default (no `evaluationMode`) works correctly for both inline and manual use.
-
----
-
 ## Storage
 
-The Mastra instance uses a composite store:
-- **default domain** → `PostgresStore` (Supabase Postgres via `SUPABASE_DB_URL`)
-- **observability domain** → `DuckDBStore`
+The Mastra instance runs on **libSQL/Turso**. A `LibSQLStore` serves the
+default/editor/memory domains, and `LibSQLVector` (see `src/mastra/lib/memory.ts`)
+backs semantic recall (native vector search, no pgvector). Observability alone uses
+DuckDB (OLAP) via a `MastraCompositeStore` — Studio's Metrics/Logs need it.
 
-Both require an explicit `id` field:
 ```typescript
-new PostgresStore({ id: 'mastra-storage', connectionString: env.SUPABASE_DB_URL })
+new LibSQLStore({ id: 'mastra-storage', url: env.TURSO_DATABASE_URL })
 ```
 
-`DuckDBStore` requires glibc. Do not run it in Alpine-based containers — use `node:22-slim`.
+`url` is `file:./mastra.db` for local dev (no server, no Docker) and a `libsql://`
+Turso URL (with `TURSO_AUTH_TOKEN`) in prod. Both `LibSQLStore` and `LibSQLVector`
+require an explicit `id`. To switch the kit to Postgres, see `docs/postgres.md`.
 
 ---
 
@@ -126,7 +117,7 @@ The `MastraEditor` instance gives non-developers a way to iterate on agent promp
 - **Never read `process.env` directly** — use `env` from `src/lib/env.ts`
 - **Never construct an AI SDK client before `configureAIMock()`** — AIMock will be bypassed silently
 - **Never set `ANTHROPIC_BASE_URL = AIMOCK_URL` bare** — `@ai-sdk/anthropic` appends `/messages`, so set it to `${AIMOCK_URL}/v1` to land at `/v1/messages` (where AIMock actually listens)
-- **Never change the Dockerfile base to `node:22-alpine`** or any musl-based image — DuckDB native binaries will SIGSEGV at runtime. If you genuinely need a smaller image, swap `DuckDBStore` for `LibSQLStore` in the observability domain in `src/mastra/index.ts` instead. See README "Deployment Notes".
+- **Never treat a `file:` libSQL DB as multi-writer** — a local `file:./mastra.db` is single-process; for prod / multi-process use a `libsql://` Turso URL (with `TURSO_AUTH_TOKEN`), or switch to Postgres (`docs/postgres.md`).
 - **Never add a new env var without updating `.env.example`** — new devs won't know it exists
 - **Never skip the Zod schema for a new env var** — process will start with undefined values silently
 - **Never import from `src/mastra/` in `src/lib/`** — creates circular dependency risk
@@ -140,10 +131,8 @@ The `MastraEditor` instance gives non-developers a way to iterate on agent promp
 Stop and confirm with the user before making these changes:
 
 - Changing the boot order in `src/mastra/index.ts`
-- Removing or renaming a scorer that's referenced in a dataset JSON
 - Downgrading a Mastra package version
-- Adding a new `domain` to the composite store
-- Any Supabase schema migrations
+- Switching the storage backend (libSQL ⇄ Postgres — see `docs/postgres.md`)
 
 ---
 
@@ -152,8 +141,7 @@ Stop and confirm with the user before making these changes:
 ```bash
 npm run dev          # Start Studio at localhost:4111
 npm run typecheck    # Verify types before running
-npm run eval         # Run all eval cases; exits 0 on pass, 1 on fail
-npx supabase start   # Start local Supabase (Docker required)
+npm test             # Run the vitest suite
 ```
 
 Eval runs with `USE_AIMOCK=false` hit the real Anthropic API and incur cost. Use `USE_AIMOCK=true` with AIMock running for free deterministic runs during development.

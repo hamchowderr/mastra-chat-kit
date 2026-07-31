@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -8,30 +9,36 @@ import { defineConfig, devices } from '@playwright/test';
  * Playwright drives a real browser against the web app; the web proxies to the
  * Mastra server, which routes LLM calls to AIMock's deterministic fixtures.
  *
- * PREREQUISITE — a Postgres with pgvector (Mastra Memory + PgVector). One-liner:
- *   docker run -d --name chatkit-pg -e POSTGRES_PASSWORD=postgres -p 5499:5432 \
- *     pgvector/pgvector:pg16
- *   docker exec chatkit-pg psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS vector;"
- * Override the DSN with E2E_DB_URL if your Postgres lives elsewhere.
+ * No external services: storage runs on a local libSQL file DB, so there's no
+ * Postgres/pgvector to stand up. Override with E2E_DB_URL to point the server at a
+ * different libSQL/Turso URL.
  */
 
-const DB_URL =
-  process.env.E2E_DB_URL ??
-  process.env.SUPABASE_DB_URL ??
-  'postgres://postgres:postgres@127.0.0.1:5499/postgres';
+// ABSOLUTE path on purpose: under `mastra dev` the server's cwd shifts between
+// module load and request time, so a relative `file:./x.db` splits reads/writes
+// across two files (empty sidebar). An absolute URL pins every op to one DB, and
+// matches the file `e2e/global-setup.ts` resets.
+const DB_FILE = process.env.E2E_DB_FILE ?? path.resolve(process.cwd(), '../server/mastra-e2e.db');
+const DB_URL = process.env.E2E_DB_URL ?? `file:${DB_FILE.replace(/\\/g, '/')}`;
 
+// Ports are overridable so the e2e stack doesn't collide with other local dev
+// servers (set E2E_SERVER_PORT / E2E_WEB_PORT / AIMOCK_URL when 4111/3000/4010
+// are taken). `reuseExistingServer` reuses whatever is already on a port, so a
+// collision would silently run the tests against the wrong app.
 const AIMOCK_URL = process.env.AIMOCK_URL ?? 'http://127.0.0.1:4010';
-const SERVER_URL = process.env.MASTRA_SERVER_URL ?? 'http://127.0.0.1:4111';
+const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 4111);
+const SERVER_URL = process.env.MASTRA_SERVER_URL ?? `http://127.0.0.1:${SERVER_PORT}`;
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3000);
 const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 
-// Env for the Mastra server: route LLM calls at AIMock, point Memory at the
-// pgvector Postgres, satisfy env.ts (an LLM key is required even under AIMock —
+// Env for the Mastra server: route LLM calls at AIMock, point storage at a local
+// libSQL file DB, satisfy env.ts (an LLM key is required even under AIMock —
 // validation runs before the AIMock provider switch). All non-secret test values.
 const serverEnv: Record<string, string> = {
   USE_AIMOCK: 'true',
   AIMOCK_URL,
-  SUPABASE_DB_URL: DB_URL,
+  PORT: String(SERVER_PORT),
+  TURSO_DATABASE_URL: DB_URL,
   APP_SECRET: 'e2e-app-secret-at-least-32-characters-long-xx',
   ANTHROPIC_API_KEY: 'mock',
   OPENAI_API_KEY: 'mock',
@@ -78,7 +85,9 @@ export default defineConfig({
       url: WEB_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 240_000,
-      env: { MASTRA_SERVER_URL: SERVER_URL },
+      // NODE_ENV=production is required: a `next build` inheriting NODE_ENV=development
+      // builds in dev mode and its error-page prerender crashes (useContext of null).
+      env: { MASTRA_SERVER_URL: SERVER_URL, NODE_ENV: 'production' },
     },
   ],
 });

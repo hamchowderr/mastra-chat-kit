@@ -6,7 +6,7 @@
     },
 
     {
-      "_comment": "Weather is exercised by BOTH the Single-Agent test and the Harness test, which run in parallel against this one AIMock. sequenceIndex is a SHARED per-process counter, so the two suites race on it. turnIndex is stateless (counts assistant messages in the request) so each call resolves independently: turn 0 = the tool call, turn 1 = the grounded answer.",
+      "_comment": "Weather is exercised by BOTH the Single-Agent test and the AgentController test, which run in parallel against this one AIMock. sequenceIndex is a SHARED per-process counter, so the two suites race on it. turnIndex is stateless (counts assistant messages in the request) so each call resolves independently: turn 0 = the tool call, turn 1 = the grounded answer.",
       "match": { "userMessage": "What's the weather in Los Angeles?", "turnIndex": 0 },
       "response": {
         "toolCalls": [{ "name": "getWeather", "arguments": { "location": "Los Angeles" } }]
@@ -29,6 +29,47 @@
       "match": { "userMessage": "How do I use Mastra memory?", "turnIndex": 1 },
       "response": {
         "content": "Based on the docs (\"Overview: Mastra memory\"), Mastra memory supports threads, working memory, and semantic recall."
+      }
+    },
+
+    {
+      "_comment": "Subagent delegation (AgentController). turn 0: the chat agent calls the built-in `subagent` tool (agentType:code). The controller then spawns the code subagent, whose OWN model call is matched by the systemMessage fixture below (its instructions contain 'coding subagent'), returning text so subagent_start/_text_delta/_end fire. turn 1: after the subagent result returns, the parent gives its final answer. Proves the subagent_* event path end-to-end (698.27).",
+      "match": { "userMessage": "Use the code subagent to create hello.txt", "turnIndex": 0 },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "subagent",
+            "arguments": {
+              "agentType": "code",
+              "task": "create hello.txt with a short greeting"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_comment": "The spawned code subagent's own run. Matched on its distinctive system prompt ('coding subagent'), which the parent chat agent never has, so it only catches the subagent's call. Returns text (no nested tools) — a minimal deterministic subagent result.",
+      "match": { "systemMessage": "coding subagent" },
+      "response": { "content": "Created hello.txt with a short greeting." }
+    },
+    {
+      "match": { "userMessage": "Use the code subagent to create hello.txt", "turnIndex": 1 },
+      "response": { "content": "Done — the code subagent created hello.txt with a greeting." }
+    },
+
+    {
+      "_comment": "Agent-driven goals. The agent recognizes a standing objective and calls its OWN setGoal tool (agents/chat.ts), which writes the objective to thread-state via setObjective. turn 0 = the setGoal tool call; the goal step then judges (its judge call falls through to the catch-all, which is fine — the objective is set regardless). maxRuns:1 caps the loop. Proves the tool bridges model-call -> setObjective end-to-end (698.29).",
+      "match": {
+        "userMessage": "Your goal is to greet me warmly. Keep going until done.",
+        "turnIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "setGoal",
+            "arguments": { "objective": "Greet the user warmly.", "maxRuns": 1 }
+          }
+        ]
       }
     },
 
@@ -63,7 +104,64 @@
     },
 
     {
-      "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat (Single Agent AND Agent Harness) always responds deterministically instead of 404 'No fixture matched'. The harness sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated harness tool/approval fixtures are tracked in beads 6d2.",
+      "_comment": "Agent-driven ask_user (698.30). The request is ambiguous (which environment?), so the agent calls the built-in ask_user tool, which SUSPENDS the run (emitting tool_suspended with the question). turn 0 = the ask_user call; after the user answers, the tool re-runs with the answer and turn 1 gives the final text. Proves the suspend→resume round-trip end-to-end.",
+      "match": { "userMessage": "Deploy the app for me.", "turnIndex": 0 },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "ask_user",
+            "arguments": {
+              "question": "Which environment should I deploy to?",
+              "options": [{ "label": "staging" }, { "label": "production" }],
+              "selectionMode": "single_select"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Deploy the app for me.", "turnIndex": 1 },
+      "response": { "content": "Deploying to the selected environment now." }
+    },
+
+    {
+      "_comment": "Native task tracking (698.19). A multi-step request → the agent calls the built-in task_write (from TaskSignalProvider) to lay out the steps; the TaskStateProcessor projects the list onto the state-signal lane → the controller emits task_updated → the <Task> element. turn 0 = task_write; turn 1 = the final text.",
+      "match": {
+        "userMessage": "Build a small counter script: create it, then run it.",
+        "turnIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "task_write",
+            "arguments": {
+              "tasks": [
+                {
+                  "content": "Create counter.js",
+                  "status": "in_progress",
+                  "activeForm": "Creating counter.js"
+                },
+                {
+                  "content": "Run it and verify the output",
+                  "status": "pending",
+                  "activeForm": "Running counter.js"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Build a small counter script: create it, then run it.",
+        "turnIndex": 1
+      },
+      "response": { "content": "Done — counter.js created and verified." }
+    },
+
+    {
+      "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {
         "content": "I'm the mastra-chat-kit reference assistant (running on AIMock — a deterministic mock, no real model call). Try **\"What's the weather in Los Angeles?\"** or **\"How do I use Mastra memory?\"** to see tool calls, reasoning, and sources render in the UI."

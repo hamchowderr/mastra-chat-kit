@@ -17,11 +17,17 @@
  *   - UnicodeNormalizer (input)  — pure string op, no LLM. Strips homoglyph /
  *                                  invisible-char tricks and normalizes whitespace
  *                                  before any other check runs. Zero cost, zero downside.
- *   - TokenLimiter (output)      — deterministic tiktoken count, no LLM. Bounds runaway
- *                                  / costly responses. Generous cap so it never truncates
- *                                  legitimate output — tune per template.
  *
- * Both are deterministic and behavior-neutral: safe to apply to EVERY agent.
+ * ## ⚠️ Why there is NO default OUTPUT processor
+ *
+ * `TokenLimiter` / `CostGuard` implement ONLY `processInputStep` — they bound what is
+ * sent TO the model, never the response. In `outputProcessors` on `@mastra/core` >=1.47
+ * they have no valid hook and BREAK the response: empty `result.text`/`steps` on
+ * non-streaming `generate()`, and — verified in this kit — they HANG the AgentController
+ * streaming path mid tool-call (`generationCount:0`, the run never completes). TypeScript
+ * does not catch it (`OutputProcessorOrWorkflow[]` accepts them). To cap INPUT, add a
+ * `TokenLimiter` to `defaultInputProcessors` instead — but note it drops older messages
+ * and throws `TripWire` if the system prompt alone exceeds the limit.
  *
  * ## What's OPT-IN (commented below) — and why it is NOT on by default
  *
@@ -40,7 +46,7 @@
  */
 
 import type { InputProcessorOrWorkflow, OutputProcessorOrWorkflow } from '@mastra/core/processors';
-import { TokenLimiter, UnicodeNormalizer } from '@mastra/core/processors';
+import { UnicodeNormalizer } from '@mastra/core/processors';
 
 // import {
 //   ModerationProcessor,
@@ -52,9 +58,6 @@ import { TokenLimiter, UnicodeNormalizer } from '@mastra/core/processors';
 //   StructuredOutputProcessor,
 //   BatchPartsProcessor,
 // } from '@mastra/core/processors';
-
-/** Generous default output cap. Lower it for chat, raise it for long-form RAG. */
-export const DEFAULT_OUTPUT_TOKEN_LIMIT = 8000;
 
 export const defaultInputProcessors: InputProcessorOrWorkflow[] = [
   // Deterministic, no LLM — always safe.
@@ -72,9 +75,8 @@ export const defaultInputProcessors: InputProcessorOrWorkflow[] = [
 ];
 
 export const defaultOutputProcessors: OutputProcessorOrWorkflow[] = [
-  // Deterministic, no LLM — always safe.
-  new TokenLimiter({ limit: DEFAULT_OUTPUT_TOKEN_LIMIT, strategy: 'truncate' }),
-
+  // NONE by default — see the "Why there is NO default OUTPUT processor" note above.
+  // TokenLimiter/CostGuard in this slot break streaming (hang the controller on tool calls).
   // --- OPT-IN: model-backed / behavior-changing output processors ---
   // Stop system-prompt / instruction leakage in responses (one extra LLM call):
   // new SystemPromptScrubber({ model: 'anthropic/claude-haiku-4-5' }),

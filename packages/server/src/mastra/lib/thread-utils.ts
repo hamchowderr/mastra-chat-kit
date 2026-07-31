@@ -17,8 +17,17 @@ export function messageText(m: any): string {
       : undefined;
   if (parts) {
     return parts
-      .filter((p) => p?.type === 'text' && typeof p.text === 'string')
-      .map((p) => p.text)
+      .map((p) => {
+        // Assistant text arrives as a text part; the user's own turn (Mastra core
+        // ≥1.52 "format 2") arrives as a data-user-message part with the text on
+        // data.contents.
+        if (p?.type === 'text' && typeof p.text === 'string') return p.text;
+        if (p?.type === 'data-user-message' && typeof p?.data?.contents === 'string') {
+          return p.data.contents;
+        }
+        return '';
+      })
+      .filter(Boolean)
       .join(' ')
       .trim();
   }
@@ -42,7 +51,7 @@ export function threadTitle(thread: any, firstUserMessage?: string): string {
   return 'New chat';
 }
 
-/** A v6 UIMessage (text-only) for restoring a thread into the chat UI. */
+/** A text-only UIMessage (AI SDK v7 parts shape) for restoring a thread into the chat UI. */
 // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
 export function toUIMessage(m: any): {
   id: string;

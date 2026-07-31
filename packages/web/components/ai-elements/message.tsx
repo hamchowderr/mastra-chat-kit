@@ -54,8 +54,11 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      "is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm",
-      "group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground",
+      "flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm",
+      // User turn = a brand-colored chat bubble (white text); the squared
+      // bottom-right corner is the classic "this one's yours" tail. Assistant
+      // turn stays flat/edge-to-edge for reading.
+      "group-[.is-user]:ml-auto group-[.is-user]:rounded-2xl group-[.is-user]:rounded-br-sm group-[.is-user]:bg-primary group-[.is-user]:px-4 group-[.is-user]:py-2.5 group-[.is-user]:text-primary-foreground",
       "group-[.is-assistant]:text-foreground",
       className
     )}
@@ -72,7 +75,15 @@ export const MessageActions = ({
   children,
   ...props
 }: MessageActionsProps) => (
-  <div className={cn("flex items-center gap-1", className)} {...props}>
+  <div
+    className={cn(
+      // Hover-reveal: quiet by default, fade in when the message row is hovered
+      // or a child gets keyboard focus. Relies on the `group` on <Message>.
+      "flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+      className
+    )}
+    {...props}
+  >
     {children}
   </div>
 );

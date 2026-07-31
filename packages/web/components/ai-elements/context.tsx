@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/hover-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import type { LanguageModelUsage } from "ai";
 import type { ComponentProps } from "react";
 import { createContext, useContext, useMemo } from "react";
 import { getUsage } from "tokenlens";
@@ -21,14 +20,25 @@ const ICON_STROKE_WIDTH = 2;
 
 type ModelId = string;
 
+/**
+ * Flat token-usage shape this element renders. Intentionally decoupled from the
+ * AI SDK's `LanguageModelUsage` — that type nests reasoning/cache counts under
+ * `input`/`outputTokenDetails` and reshapes them between majors, while this
+ * element only ever reads flat counts. Callers build this from whatever usage
+ * metadata they have (server turn metadata, provider usage, etc.).
+ */
+export type ContextUsage = {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
+};
+
 interface ContextSchema {
   usedTokens: number;
   maxTokens: number;
-  // Partial: this element reads only flat fields (inputTokens/outputTokens/…),
-  // all optional-guarded. The SDK's LanguageModelUsage now also requires
-  // input/outputTokenDetails, which callers building usage from server metadata
-  // don't have and this element never reads.
-  usage?: Partial<LanguageModelUsage>;
+  usage?: ContextUsage;
   modelId?: ModelId;
 }
 

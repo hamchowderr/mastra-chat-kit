@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'mastra-chat-kit',
   description:
-    'Reference AI chat layer — AI Elements + AI SDK v6 + Mastra (Agent & Harness modes).',
+    'Reference AI chat layer — AI Elements + AI SDK v6 + Mastra (Agent & AgentController modes).',
 };
 
 export default function RootLayout({
