@@ -121,19 +121,21 @@ Add the namespace to `components.json`, then install:
 ```
 
 ```bash
-npx shadcn@latest add @mastra-chat-kit/chat
+npx shadcn@latest add @mastra-chat-kit/chat           # the full shell
+npx shadcn@latest add @mastra-chat-kit/chat-minimal   # or the embeddable one
 ```
 
-> ⚠️ **The hosted registry is not live yet.** That URL 404s until the deploy lands
-> (tracked in `bd mastra-chat-kit-2jq`). Until then, build and serve `public/r`
-> locally — see [`docs/registry.md`](docs/registry.md).
+`chat` lands **34 files from this registry** — 9 shell components, the shared tool
+renderers, 14 `app/api/*` proxy routes plus the proxy lib, the 4-file `chat-engine`,
+and our 5 vendored AI Elements — plus the upstream AI Elements and shadcn/ui
+primitives they resolve to.
 
-That lands **32 files from this registry** — 10 chat components, 14 `app/api/*` proxy routes plus the proxy lib, the `chat-engine` controller client, and our 5 vendored AI Elements — plus the upstream AI Elements and shadcn/ui primitives they resolve to.
-
-Then mount the shell and point it at a server:
+Then mount a shell and point it at a server:
 
 ```tsx
-import { ChatSwitcher } from '@/components/chat/chat-switcher';
+import { ChatSwitcher } from '@/components/chat/chat-switcher';    // sidebar │ chat │ workbench
+// or
+import { MinimalChat } from '@/components/chat-minimal/minimal-chat'; // just the conversation
 ```
 
 ```bash
@@ -141,7 +143,31 @@ import { ChatSwitcher } from '@/components/chat/chat-switcher';
 MASTRA_SERVER_URL=http://localhost:4111
 ```
 
-The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 20-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+
+### One engine, swappable skins
+
+The look and the engine are separate registry items, so you can change the first
+without losing the second:
+
+| Item | What it is |
+|---|---|
+| `chat-engine` | The brains — SSE client, transcript reducer, and the hooks that own every `/api/*` call. **UI-free: imports only React.** |
+| `chat-tool-views` | Shared renderers turning real tool output into elements. Used by every skin. |
+| `chat` · `chat-minimal` | Just the looks. Neither depends on the other. |
+
+Both skins drive the **same** `AgentController` session — same threads, same tool
+approvals, same subagents, same workspace. A third skin is one file rendering over
+`useAgentControllerChat()`; `docs/registry.md` covers how, and the build fails if a
+skin imports another skin or forgets a shared dependency.
+
+Colors and fonts need no work: the registry ships **no** `cssVars`, so every skin
+inherits your project's own shadcn theme.
+
+> **Being straight about this:** `chat` and `chat-minimal` differ in *layout*, not
+> yet in *visual style* — both render messages through the same AI Elements at
+> default styling. The engine/skin split is real and tested; a skin with its own
+> visual identity is still to come.
 
 ---
 
@@ -279,9 +305,10 @@ packages/
 │        └─ tools/            agent tools (getWeather, dolt, image, schedules …)
 └─ web/                      Next.js 16 App Router + AI Elements (:3000)
    ├─ app/                     chat (/) + /events — the controller-event → element map
-   ├─ components/chat/         canonical shell · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
+   ├─ components/chat/         full skin: sidebar · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
+   ├─ components/chat-minimal/ second skin: conversation + composer only
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
-   ├─ lib/agent-controller/             use-agent-controller-chat.ts + events — the SSE client
+   ├─ lib/agent-controller/             the engine — SSE client, reducer, data hooks (UI-free)
    ├─ lib/agent-controller-event-map.ts the 50 events → elements + prompts (drives /events)
    └─ scripts/                 gen-registry.mjs (registry manifest) · screenshot.mjs
 ```
@@ -433,11 +460,12 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 
 ## 🗺️ Roadmap
 
-- 🌐 **Publish the registry** — host `@mastra-chat-kit` so any project can `shadcn add` the chat layer (`bd mastra-chat-kit-2jq`).
-- 🔍 **Scheduled install smoke test** — catch upstream drift and deploy breakage before consumers do (`bd mastra-chat-kit-7zt`).
-- 🧩 **Upstream the AI Elements patches** — contribute the 5 vendored fixes back to `vercel/ai-elements` (`bd mastra-chat-kit-k5f`).
-- 🔁 **More clients** — an IPC/desktop client (Electron) alongside the Agent transport and the AgentController SSE hook.
+- 🎨 **A visually distinct skin** — `chat` and `chat-minimal` differ in layout but still render messages through the same elements at default styling. The engine/skin split is done; a skin with its own visual identity isn't.
+- 🧩 **Upstream the AI Elements patches** — submitted to `vercel/ai-elements`, awaiting review: [#456](https://github.com/vercel/ai-elements/pull/456) (agent), [#457](https://github.com/vercel/ai-elements/pull/457) (code-block SSR), plus [#458](https://github.com/vercel/ai-elements/issues/458) and [#459](https://github.com/vercel/ai-elements/issues/459) for the two that change public types. Merged upstream, we drop the local copies.
+- 🔁 **More clients** — an IPC/desktop client (Electron) over the same engine.
 - 🧾 **Real-provider smoke tier** — a small opt-in script that runs against a live model, gated behind an explicit key.
+
+**Shipped:** the registry is [live](https://mastra-chat-kit.vercel.app) and installable; a scheduled install smoke test runs nightly and on every PR that touches the shipped surface.
 
 ---
 
