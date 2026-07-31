@@ -4,15 +4,29 @@
 # need glibc (they segfault on musl). So node:22-slim (Debian, glibc) is required
 # here — do NOT switch to node:22-alpine.
 # ─── Stage 1: build ───────────────────────────────────────────────
+#
+# BUILD CONTEXT IS THE REPO ROOT, not packages/server (see docker-compose.yml).
+# This used to `npm ci` from a packages/server/package-lock.json, which meant the
+# container resolved its dependencies from a DIFFERENT lockfile than local dev and
+# CI (both pnpm, from the root pnpm-lock.yaml). Two lockfiles can resolve two
+# version sets, so the image could ship a tree nobody ever tested — the same class
+# of failure that broke a Vercel deploy when it fell back to npm and pulled a
+# different @types/react. One package manager, one lockfile.
 FROM node:22-slim AS build
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+RUN corepack enable
 
-COPY . .
+# Manifests first, so a dependency-only change reuses the install layer.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/server/package.json packages/server/
+RUN pnpm install --frozen-lockfile --filter @mastra-chat-kit/server...
+
+COPY packages/server packages/server
+WORKDIR /app/packages/server
+
 # --studio bundles the Studio SPA so it can be served self-hosted in production.
-RUN npx mastra build --studio
+RUN pnpm exec mastra build --studio
 # Bake Studio config: auto-detect server from same origin → no "enter URL" form,
 # works for any deploy domain with no per-deploy config.
 RUN node scripts/bake-studio.mjs
@@ -34,7 +48,7 @@ ENV PORT=4111
 # Secure it behind auth before exposing publicly (see Mastra Studio auth docs).
 ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 
-COPY --from=build --chown=mastra:nodejs /app/.mastra/output ./.mastra/output
+COPY --from=build --chown=mastra:nodejs /app/packages/server/.mastra/output ./.mastra/output
 
 # The workspace's headless browser (@mastra/browser-viewer → playwright-core) drives a
 # version-matched Chromium. `mastra build` externalizes @mastra/browser-viewer, which
