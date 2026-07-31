@@ -2,32 +2,38 @@
 # so the ignore rules have to live here — Docker only reads .dockerignore from the
 # context root, and packages/server/.dockerignore is invisible to it.
 #
-# Patterns are unanchored so they match at any depth: `node_modules` excludes the root
-# install AND every packages/*/node_modules.
+# EVERY nested rule needs a `**/` prefix. A bare `node_modules` matches ONLY the
+# context root — Docker uses Go filepath.Match, NOT gitignore semantics, so it does
+# not match at any depth. Getting this wrong is not cosmetic: without `**/`, the
+# host's packages/server/node_modules was copied into the image and clobbered the
+# container's own pnpm install (its symlinks pointed at C:/Users/... and resolved to
+# nothing on Linux), and packages/server/.env was baked into an image layer.
+# `**/` matches zero or more directories, so it covers the root case too.
 
-node_modules
+**/node_modules
 .git
 .gitignore
 
-# Never ship secrets into an image layer.
-.env
-.env.local
-.env.*.local
+# Never ship secrets into an image layer. .env.example is intentionally kept —
+# it holds placeholders only and documents the required variables.
+**/.env
+**/.env.local
+**/.env.*.local
 
 # Build output and caches — the image builds its own.
-.mastra
-.next
-.turbo
-dist
-build
-coverage
-*.log
-*.tsbuildinfo
+**/.mastra
+**/.next
+**/.turbo
+**/dist
+**/build
+**/coverage
+**/*.log
+**/*.tsbuildinfo
 
 # Local databases and their sidecar files.
-*.db
-*.db-shm
-*.db-wal
+**/*.db
+**/*.db-shm
+**/*.db-wal
 
 # The web package is not part of the server image.
 packages/web
@@ -39,6 +45,6 @@ scripts
 SPEC
 README.md
 
-.DS_Store
-.vscode
-.idea
+**/.DS_Store
+**/.vscode
+**/.idea

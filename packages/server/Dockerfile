@@ -51,15 +51,24 @@ ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 COPY --from=build --chown=mastra:nodejs /app/packages/server/.mastra/output ./.mastra/output
 
 # The workspace's headless browser (@mastra/browser-viewer → playwright-core) drives a
-# version-matched Chromium. `mastra build` externalizes @mastra/browser-viewer, which
-# depends on playwright-core, so both land in output/node_modules — but a slim image
-# ships neither the browser BINARY nor Chromium's ~40 system libraries. Provision both
-# here into a fixed path that this install AND the runtime process read via
-# PLAYWRIGHT_BROWSERS_PATH. Runs as root (apt) before the USER switch; chown so the
-# non-root `mastra` user can launch it. Browser tools are lazy, so this only matters at
-# first browser use — but without it those calls fail (fs/shell/memory work regardless).
+# version-matched Chromium. `mastra build` externalizes @mastra/browser-viewer and its
+# playwright-core dep into output/node_modules — but a slim image ships neither the
+# browser BINARY nor Chromium's ~40 system libraries. Provision both here into a fixed
+# path that this install AND the runtime process read via PLAYWRIGHT_BROWSERS_PATH.
+# Runs as root (apt) before the USER switch; chown so the non-root `mastra` user can
+# launch it. Browser tools are lazy, so this only matters at first browser use — but
+# without it those calls fail (fs/shell/memory work regardless).
+#
+# Locate the CLI instead of hardcoding its path: WHERE playwright-core lands depends on
+# the package manager. npm hoists it to output/node_modules/playwright-core; pnpm leaves
+# it in the virtual store (output/node_modules/.pnpm/node_modules/playwright-core),
+# reachable only from the packages that declare it. The hardcoded npm-shaped path is
+# exactly what broke this step when the build moved to pnpm. `test -n` fails the build
+# loudly rather than silently skipping the browser provisioning.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN node .mastra/output/node_modules/playwright-core/cli.js install --with-deps chromium \
+RUN PW_CLI="$(find .mastra/output/node_modules -path '*/playwright-core/cli.js' -print -quit)" \
+    && test -n "$PW_CLI" \
+    && node "$PW_CLI" install --with-deps chromium \
     && chown -R mastra:nodejs /ms-playwright \
     && rm -rf /var/lib/apt/lists/*
 
