@@ -23,6 +23,51 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # createDefaultMemory() always wires `embedder: fastembed`, so every test that
+      # builds a Memory wants the bge-small ONNX model (~130MB) in ~/.cache/mastra.
+      # Vitest runs test files in parallel workers, so several of them race to download
+      # that model into the SAME path and truncate it — observed as both "ZlibError:
+      # zlib: unexpected end of file" and "Tokenizer file not found", each followed by
+      # "Failed to probe embedder for dimension, falling back to default".
+      #
+      # So: warm it ONCE, single-process, before any worker starts. Restore/save are
+      # split deliberately — a plain actions/cache would save whatever is on disk at
+      # job end, which on a failed download means caching a BROKEN model that every
+      # later run then restores and never re-downloads. Only a verified-good warm is
+      # allowed to populate the cache.
+      #
+      # The warm is best-effort: if it fails the job continues exactly as it does today
+      # (Mastra falls back to a default dimension), because no test asserts on
+      # embeddings yet — see bd mastra-chat-kit for the missing coverage.
+      - name: Restore the fastembed model
+        id: fastembed-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/mastra/fastembed-models
+          key: fastembed-${{ runner.os }}-bge-small-en-v1.5-v2
+
+      - name: Warm the fastembed model (single process)
+        id: fastembed-warm
+        continue-on-error: true
+        run: |
+          node --input-type=module -e "
+            import { fastembed } from '@mastra/fastembed';
+            import { embed } from 'ai';
+            const { embedding } = await embed({ model: fastembed, value: 'warm the model' });
+            if (!Array.isArray(embedding) || embedding.length !== 384) {
+              throw new Error('expected a 384-dim bge-small embedding, got ' + embedding?.length);
+            }
+            console.log('fastembed OK —', embedding.length, 'dims');
+          "
+        working-directory: packages/server
+
+      - name: Save the fastembed model
+        if: steps.fastembed-warm.outcome == 'success' && steps.fastembed-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/mastra/fastembed-models
+          key: fastembed-${{ runner.os }}-bge-small-en-v1.5-v2
+
       - name: Lint (biome)
         run: pnpm lint
 

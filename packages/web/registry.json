@@ -123,6 +123,16 @@
           "path": "lib/agent-controller/use-agent-controller-chat.ts",
           "type": "registry:lib",
           "target": "lib/agent-controller/use-agent-controller-chat.ts"
+        },
+        {
+          "path": "lib/agent-controller/use-threads.ts",
+          "type": "registry:lib",
+          "target": "lib/agent-controller/use-threads.ts"
+        },
+        {
+          "path": "lib/agent-controller/use-workspace.ts",
+          "type": "registry:lib",
+          "target": "lib/agent-controller/use-workspace.ts"
         }
       ]
     },
@@ -212,10 +222,38 @@
       ]
     },
     {
+      "name": "chat-tool-views",
+      "type": "registry:component",
+      "title": "Chat Tool Views",
+      "description": "Shared renderers mapping real agent tool output onto AI Elements — used by every chat skin.",
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "@mastra-chat-kit/code-block",
+        "@mastra-chat-kit/image",
+        "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
+        "https://ai-sdk.dev/elements/api/registry/file-tree.json",
+        "https://ai-sdk.dev/elements/api/registry/inline-citation.json",
+        "https://ai-sdk.dev/elements/api/registry/message.json",
+        "https://ai-sdk.dev/elements/api/registry/plan.json",
+        "https://ai-sdk.dev/elements/api/registry/sources.json",
+        "https://ai-sdk.dev/elements/api/registry/terminal.json"
+      ],
+      "files": [
+        {
+          "path": "components/chat/tool-views.tsx",
+          "type": "registry:component",
+          "target": "components/chat/tool-views.tsx"
+        }
+      ]
+    },
+    {
       "name": "chat",
       "type": "registry:block",
       "title": "Mastra Chat",
-      "description": "Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/AgentController modes.",
+      "description": "The full Agent Controller shell: conversation history sidebar, chat, and the agent workbench (browser, files, memory, schedules).",
       "dependencies": [
         "ai",
         "lucide-react",
@@ -229,23 +267,19 @@
         "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/context",
-        "@mastra-chat-kit/image",
         "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
+        "@mastra-chat-kit/chat-tool-views",
         "https://ai-sdk.dev/elements/api/registry/attachments.json",
-        "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
         "https://ai-sdk.dev/elements/api/registry/confirmation.json",
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
-        "https://ai-sdk.dev/elements/api/registry/inline-citation.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
         "https://ai-sdk.dev/elements/api/registry/model-selector.json",
-        "https://ai-sdk.dev/elements/api/registry/plan.json",
         "https://ai-sdk.dev/elements/api/registry/prompt-input.json",
         "https://ai-sdk.dev/elements/api/registry/queue.json",
         "https://ai-sdk.dev/elements/api/registry/reasoning.json",
         "https://ai-sdk.dev/elements/api/registry/shimmer.json",
-        "https://ai-sdk.dev/elements/api/registry/sources.json",
         "https://ai-sdk.dev/elements/api/registry/suggestion.json",
         "https://ai-sdk.dev/elements/api/registry/task.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json",
@@ -267,11 +301,6 @@
           "path": "components/chat/agent-controller-chat.tsx",
           "type": "registry:component",
           "target": "components/chat/agent-controller-chat.tsx"
-        },
-        {
-          "path": "components/chat/tool-views.tsx",
-          "type": "registry:component",
-          "target": "components/chat/tool-views.tsx"
         },
         {
           "path": "components/chat/agent-controller-sidebar.tsx",
@@ -302,6 +331,34 @@
           "path": "components/chat/workbench-schedules.tsx",
           "type": "registry:component",
           "target": "components/chat/workbench-schedules.tsx"
+        }
+      ],
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit.vercel.app for the full endpoint contract."
+    },
+    {
+      "name": "chat-minimal",
+      "type": "registry:block",
+      "title": "Mastra Chat (minimal)",
+      "description": "Embeddable Agent Controller chat — conversation, composer, tool approvals and ask_user, with no sidebar or workbench.",
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "@mastra-chat-kit/tool",
+        "@mastra-chat-kit/chat-tool-views",
+        "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/confirmation.json",
+        "https://ai-sdk.dev/elements/api/registry/conversation.json",
+        "https://ai-sdk.dev/elements/api/registry/message.json",
+        "https://ai-sdk.dev/elements/api/registry/reasoning.json",
+        "https://ai-sdk.dev/elements/api/registry/shimmer.json",
+        "@mastra-chat-kit/chat-routes"
+      ],
+      "files": [
+        {
+          "path": "components/chat-minimal/minimal-chat.tsx",
+          "type": "registry:component",
+          "target": "components/chat-minimal/minimal-chat.tsx"
         }
       ],
       "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit.vercel.app for the full endpoint contract."

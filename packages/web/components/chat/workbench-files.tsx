@@ -1,19 +1,13 @@
 'use client';
 
 import { XIcon } from 'lucide-react';
-import { type ReactNode, useCallback, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { BundledLanguage } from 'shiki';
 import { CodeBlock } from '@/components/ai-elements/code-block';
 import { FileTree, FileTreeFile, FileTreeFolder } from '@/components/ai-elements/file-tree';
 import type { UseAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
+import { type FileNode, useWorkspaceFiles } from '@/lib/agent-controller/use-workspace';
 import { cn } from '@/lib/utils';
-
-type FileNode = {
-  name: string;
-  path: string;
-  type: 'file' | 'dir';
-  children?: FileNode[];
-};
 
 /** Map a filename to a Shiki language, defaulting to plain text. */
 const EXT_LANG: Record<string, BundledLanguage> = {
@@ -46,15 +40,6 @@ function langFor(name: string): BundledLanguage {
   return EXT_LANG[ext] ?? ('text' as BundledLanguage);
 }
 
-/** Collect every file path in the tree (so we only load content for files). */
-function collectFilePaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<string> {
-  for (const n of nodes) {
-    if (n.type === 'file') acc.add(n.path);
-    else if (n.children) collectFilePaths(n.children, acc);
-  }
-  return acc;
-}
-
 /**
  * Files tab — a live view of the controller agent's workspace (`WORKSPACE_ROOT`),
  * served straight off disk by `/api/workspace/*`. It keeps itself in sync
@@ -63,62 +48,12 @@ function collectFilePaths(nodes: FileNode[], acc: Set<string> = new Set()): Set<
  * refresh to think about. Selecting a file loads its text into a CodeBlock.
  */
 export function WorkbenchFiles({ controller }: { controller: UseAgentControllerChat }) {
-  const [tree, setTree] = useState<FileNode[]>([]);
-  const [loadingTree, setLoadingTree] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [content, setContent] = useState<string | null>(null);
-  const [loadingFile, setLoadingFile] = useState(false);
-
-  const loadTree = useCallback(async () => {
-    setLoadingTree(true);
-    try {
-      const res = await fetch('/api/workspace/files');
-      if (res.ok) {
-        const data = (await res.json()) as { tree?: FileNode[] };
-        setTree(data.tree ?? []);
-      }
-    } catch {
-      // best-effort; leave the previous tree in place
-    } finally {
-      setLoadingTree(false);
-    }
-  }, []);
-
-  // Initial load.
-  useEffect(() => {
-    loadTree();
-  }, [loadTree]);
-
-  // While the agent is running, poll so files it writes appear live; the effect's
-  // cleanup also fires the final reload on the streaming→ready transition, so the
-  // tree settles on the finished state. No manual refresh needed.
-  useEffect(() => {
-    if (controller.status !== 'streaming') return;
-    const id = setInterval(loadTree, 2000);
-    return () => {
-      clearInterval(id);
-      loadTree();
-    };
-  }, [controller.status, loadTree]);
-
-  const selectPath = useCallback(
-    async (p: string) => {
-      // FileTree fires onSelect for folders too — only load content for files.
-      if (!collectFilePaths(tree).has(p)) return;
-      setSelected(p);
-      setContent(null);
-      setLoadingFile(true);
-      try {
-        const res = await fetch(`/api/workspace/file?path=${encodeURIComponent(p)}`);
-        setContent(res.ok ? ((await res.json()) as { content: string }).content : null);
-      } catch {
-        setContent(null);
-      } finally {
-        setLoadingFile(false);
-      }
-    },
-    [tree],
-  );
+  // Tree loading, streaming-poll and file reads live in the engine (bd h27), so a
+  // second skin can surface the workspace without reimplementing any of it.
+  const { tree, loadingTree, selected, content, loadingFile, selectPath, closeFile } =
+    useWorkspaceFiles({
+      status: controller.status,
+    });
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -158,7 +93,7 @@ export function WorkbenchFiles({ controller }: { controller: UseAgentControllerC
             <button
               type="button"
               aria-label="Close file"
-              onClick={() => setSelected(null)}
+              onClick={closeFile}
               className="flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
             >
               <XIcon className="size-3.5" />

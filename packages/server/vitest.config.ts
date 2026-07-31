@@ -14,6 +14,22 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // Run test FILES one at a time.
+    //
+    // Every integration file drives real agent runs against the single AIMock server
+    // on :4010, and `createDefaultMemory()` pulls the fastembed model. In parallel,
+    // workers contend on both: AIMock drops connections (`AI_APICallError: read
+    // ECONNRESET`, and assertions on the empty results that follow), and several
+    // workers race to download the same model into one path and truncate it
+    // (`ZlibError: zlib: unexpected end of file`). The symptom was a DIFFERENT test
+    // failing each run while every one passed alone — the worst kind of red, because
+    // it trains you to re-run instead of read.
+    //
+    // Serial costs ~30s on a 7-file suite and buys determinism. If this suite ever
+    // grows enough for that to hurt, split the tiers rather than re-enabling
+    // parallelism here: the unit files are safe to parallelize, the AIMock-backed
+    // integration ones are not.
+    fileParallelism: false,
     env: {
       // NODE_ENV=test gates OM + the agent workspace OFF (see lib/memory.ts + agents/chat.ts)
       // so AIMock runs stay hermetic — the controller still supplies its own workspace.

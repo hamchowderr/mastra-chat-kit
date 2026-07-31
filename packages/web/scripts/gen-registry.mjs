@@ -27,6 +27,14 @@ const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
 const toPosix = (p) => p.split('\\').join('/');
 const elPath = (n) => `components/ai-elements/${n}.tsx`;
 
+// Files that live in components/chat/ but are shipped as their OWN registry item
+// because more than one skin needs them. Importing one of these from a different
+// item must produce a registryDependency, not a silent assumption that it's a
+// sibling in the same block — see validate() check (4) and bd 23d.
+const SHARED_ITEM_OF = {
+  'components/chat/tool-views': 'chat-tool-views',
+};
+
 /** Absolute path -> "components/ai-elements/x" style key (no extension). */
 function keyOf(absNoExt) {
   return toPosix(relative(WEB, absNoExt));
@@ -83,8 +91,12 @@ function classify(relFiles) {
       else if (key === 'lib/utils') {
         /* cn() — shadcn init provides this; not a registry dep */
       } else if (key.startsWith('lib/')) lib.add('chat-engine');
-      else if (key.startsWith('components/chat/')) {
-        /* Sibling in the chat block. NOT assumed present — validate() below
+      else if (SHARED_ITEM_OF[key] && !ownKeys.has(key)) {
+        // A file shipped by a DIFFERENT item (e.g. tool-views, shared by every
+        // skin) — it must become a registryDependency or the install is missing it.
+        lib.add(SHARED_ITEM_OF[key]);
+      } else if (key.startsWith('components/chat/')) {
+        /* Sibling within this same block. NOT assumed present — validate() below
            asserts it's actually shipped. Assuming it was the b5y bug. */
       }
     }
@@ -172,9 +184,14 @@ for (const name of [...LOCAL_ELEMENTS]) {
 }
 
 // 2) chat-engine: the kit-specific transports/controller lib (not lib/utils).
+// The engine is everything a chat UI needs that ISN'T a look: the SSE transport,
+// the transcript reducer, and the data hooks that own every /api/* call. A skin
+// built on these is pure rendering — see bd h27 / 23d.
 const ENGINE_FILES = [
   'lib/agent-controller/events.ts',
   'lib/agent-controller/use-agent-controller-chat.ts',
+  'lib/agent-controller/use-threads.ts',
+  'lib/agent-controller/use-workspace.ts',
 ];
 {
   const c = classify(ENGINE_FILES);
@@ -227,12 +244,30 @@ const ROUTE_FILES = [
   });
 }
 
-// 4) chat: the headline block — the canonical shell.
+// 4) chat-tool-views: the SHARED renderers that turn real tool output into elements
+// (sources, generated images, plan, goal card, ask_user prompt, workspace views).
+// Promoted out of the `chat` block so a second skin depends on THIS rather than on
+// the other skin — skins must never import each other (bd 23d).
+const TOOL_VIEW_FILES = ['components/chat/tool-views.tsx'];
+{
+  const c = classify(TOOL_VIEW_FILES);
+  items.push({
+    name: 'chat-tool-views',
+    type: 'registry:component',
+    title: 'Chat Tool Views',
+    description:
+      'Shared renderers mapping real agent tool output onto AI Elements — used by every chat skin.',
+    dependencies: c.npm,
+    registryDependencies: regDeps(c, 'chat-tool-views'),
+    files: TOOL_VIEW_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
+  });
+}
+
+// 5) chat: the headline block — the canonical full shell (sidebar │ chat │ workbench).
 const CHAT_FILES = [
   'components/chat/chat-switcher.tsx',
   'components/chat/composer.tsx',
   'components/chat/agent-controller-chat.tsx',
-  'components/chat/tool-views.tsx',
   // AgentController mode's own shell. chat-switcher.tsx imports agent-controller-sidebar and
   // workbench-panel directly, and workbench-panel pulls the four panels — so
   // omitting them shipped a chat-switcher that could not compile (bd b5y).
@@ -250,7 +285,7 @@ const CHAT_FILES = [
     type: 'registry:block',
     title: 'Mastra Chat',
     description:
-      'Canonical Mastra + AI Elements chat layer: conversation shell, composer, history sidebar, tool renderers, Agent/AgentController modes.',
+      'The full Agent Controller shell: conversation history sidebar, chat, and the agent workbench (browser, files, memory, schedules).',
     dependencies: c.npm,
     // Appended explicitly (the import-trace can't discover these):
     // - chat-routes: the UI calls those endpoints via fetch, not import.
@@ -258,6 +293,25 @@ const CHAT_FILES = [
     //   which the app mounts in its layout — ship it so consumers have it.
     registryDependencies: [...regDeps(c, 'chat'), 'sonner', NS('chat-routes')],
     files: CHAT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
+    docs: RADIX_NOTICE,
+  });
+}
+
+// 6) chat-minimal: a SECOND skin over the same engine — conversation + composer only.
+// Proves the split is real: same AgentController session (threads, approvals,
+// subagents, workspace), a completely different shell, and no dependency on `chat`.
+const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
+{
+  const c = classify(MINIMAL_FILES);
+  items.push({
+    name: 'chat-minimal',
+    type: 'registry:block',
+    title: 'Mastra Chat (minimal)',
+    description:
+      'Embeddable Agent Controller chat — conversation, composer, tool approvals and ask_user, with no sidebar or workbench.',
+    dependencies: c.npm,
+    registryDependencies: [...regDeps(c, 'chat-minimal'), NS('chat-routes')],
+    files: MINIMAL_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
     docs: RADIX_NOTICE,
   });
 }
@@ -353,6 +407,39 @@ function validate(allItems) {
       errors.push(
         `app/${segs.join('/')}/route.ts is shipped, but no shipped file fetches "/${segs.join('/')}"`,
       );
+    }
+  }
+
+  // (4) cross-item imports must be declared as registryDependencies.
+  //
+  // (1) only asserts a local import is shipped by SOME item. That was sufficient
+  // while every chat file lived in one block, but the moment a file is promoted to
+  // its own item (tool-views → chat-tool-views, bd 23d) an importing item can pass
+  // (1) while never pulling the item that ships it — shadcn then installs an
+  // incomplete tree that fails to compile in the consumer's project.
+  const itemOf = new Map();
+  for (const it of allItems)
+    for (const f of it.files) itemOf.set(f.path.replace(/\.tsx?$/, ''), it.name);
+  for (const it of allItems) {
+    const own = new Set(it.files.map((f) => f.path.replace(/\.tsx?$/, '')));
+    const declared = new Set(
+      (it.registryDependencies ?? []).map((d) => d.replace(`@${REGISTRY_NAME}/`, '')),
+    );
+    for (const f of it.files) {
+      for (const spec of parseImports(resolve(WEB, f.path))) {
+        const key = spec.startsWith('@/')
+          ? spec.slice(2)
+          : spec.startsWith('.')
+            ? toPosix(relative(WEB, resolve(dirname(resolve(WEB, f.path)), spec)))
+            : null;
+        if (!key || own.has(key)) continue;
+        const owner = itemOf.get(key);
+        if (owner && owner !== it.name && !declared.has(owner)) {
+          errors.push(
+            `item "${it.name}" imports ${key} (shipped by "${owner}") but does not list @${REGISTRY_NAME}/${owner} in registryDependencies`,
+          );
+        }
+      }
     }
   }
 
