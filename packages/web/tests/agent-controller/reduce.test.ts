@@ -3,9 +3,11 @@ import {
   type AgentControllerMessage,
   collectToolResults,
   emptyTranscript,
+} from '@/lib/agent-controller/events';
+import {
   reduceAgentControllerEvent,
   reduceAgentControllerEvents,
-} from '@/lib/agent-controller/events';
+} from '@/lib/agent-controller/reduce';
 
 // The reducer is the testable core of the Agent Controller transport — folding the
 // SSE AgentControllerEvents into the transcript the view renders, with no network/React.
