@@ -41,6 +41,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# …except the template. This negation is load-bearing: `.env*` is the stock
+# Next.js scaffold rule and it silently swallowed every attempt to ship an env
+# example here, which is why this package had none while packages/server did.
+!.env.local.example
 
 # vercel
 .vercel
