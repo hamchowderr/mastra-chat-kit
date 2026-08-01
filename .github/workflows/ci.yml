@@ -68,6 +68,13 @@ jobs:
           path: ~/.cache/mastra/fastembed-models
           key: fastembed-${{ runner.os }}-bge-small-en-v1.5-v2
 
+      # Cheap half of the container guardrail: catches an ignore rule that stopped
+      # excluding secrets or host files in milliseconds, so nobody waits ~15 min for
+      # the real image build in container.yml to say so. That workflow is what
+      # actually proves an image is clean — this only lints the rules.
+      - name: Check .dockerignore still protects the image
+        run: node scripts/check-dockerignore.mjs
+
       - name: Lint (biome)
         run: pnpm lint
 

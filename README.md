@@ -278,7 +278,7 @@ Every tier is **AIMock-backed, zero LLM spend** — real provider keys are inten
 | **component** | `pnpm --filter web test` | AgentController reducer, transport + chat views, element rendering (Vitest + RTL) |
 | **e2e** | `pnpm test:e2e` | Full chat flow (Playwright, AIMock-backed) |
 
-`pnpm test` runs the unit/integration + component tiers across both packages. CI runs lint, both test suites, and a production web build on every PR — no secrets, no spend.
+`pnpm test` runs the unit/integration + component tiers across both packages. CI runs lint, both test suites, a production web build, and a `.dockerignore` check on every PR — no secrets, no spend. A separate **Container** workflow builds the real server image whenever anything it's made of changes, and asserts the result carries no secrets or host files and boots to healthy.
 
 > **e2e note:** the Playwright config runs the web as a **production build** (`next build && next start`), not `next dev` — Turbopack's HMR socket breaks React hydration under headless Chromium.
 
@@ -395,6 +395,15 @@ Vercel · Netlify · Cloudflare, via Mastra's deployers (added as `deployer:` on
 **Mastra Cloud — managed.**
 `mastra auth`, then `mastra deploy --org <id> --project <name>` — gateway auto-seeded, managed libSQL provisioned. Deploy the Next.js web separately.
 
+**Building the image yourself.** The build context is the **repo root**, not `packages/server` — the image installs from the workspace `pnpm-lock.yaml` so it can't drift onto versions dev and CI never used:
+
+```bash
+docker build -f packages/server/Dockerfile -t mastra-chat-kit-server .
+pnpm verify:image mastra-chat-kit-server   # asserts the image is clean and boots
+```
+
+Because the context is the repo root, every nested rule in `.dockerignore` needs a `**/` prefix. **Docker is not gitignore** — it matches with Go `filepath.Match`, so a bare `.env` or `node_modules` covers only the context root. Getting that wrong once baked `packages/server/.env` into an image layer and copied the host's `node_modules` over the container's own install. `pnpm check:dockerignore` catches a rule regression in milliseconds; the `Container` workflow builds the real image whenever anything it's made of changes, and asserts the result contains no secrets, no host files, and actually serves.
+
 ---
 
 ## ❓ FAQ
@@ -445,7 +454,14 @@ Issues and PRs welcome. Two things worth knowing before you start:
 Before opening a PR, run what CI runs:
 
 ```bash
-pnpm lint && pnpm test && pnpm --filter @mastra-chat-kit/web build
+pnpm lint && pnpm check:dockerignore && pnpm test && pnpm --filter @mastra-chat-kit/web build
+```
+
+If you touched the `Dockerfile` or `.dockerignore`, also build and inspect the image — the **Container** workflow will do it on the PR, but it takes ~15 minutes to tell you:
+
+```bash
+docker build -f packages/server/Dockerfile -t mastra-chat-kit-server:ci .
+pnpm verify:image mastra-chat-kit-server:ci
 ```
 
 ### Working against AIMock
@@ -461,7 +477,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 - 🎨 **A visually distinct skin.** `chat` and `chat-minimal` differ in layout but still render messages through the same elements at default styling, so they look alike. The engine/skin split is done and tested; a skin with its own visual identity is the part that isn't.
 - 🧩 **Upstream the AI Elements patches.** Submitted to `vercel/ai-elements` and open at time of writing: [#456](https://github.com/vercel/ai-elements/pull/456) (agent) and [#457](https://github.com/vercel/ai-elements/pull/457) (code-block SSR), plus [#458](https://github.com/vercel/ai-elements/issues/458) and [#459](https://github.com/vercel/ai-elements/issues/459) for the two that change public types. Once merged we drop the local copies and depend entirely on upstream.
 
-**Recently shipped:** the [registry is live](https://mastra-chat-kit.vercel.app) and installable · a nightly install smoke test builds a throwaway consumer project from the deployed registry · the chat engine is UI-free, so skins are swappable.
+**Recently shipped:** the [registry is live](https://mastra-chat-kit.vercel.app) and installable · a nightly install smoke test builds a throwaway consumer project from the deployed registry · the chat engine is UI-free, so skins are swappable · the server image builds from the workspace lockfile and CI proves it ships no secrets.
 
 ---
 

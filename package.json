@@ -12,6 +12,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "test:e2e": "pnpm --filter @mastra-chat-kit/web test:e2e",
+    "check:dockerignore": "node scripts/check-dockerignore.mjs",
+    "verify:image": "node scripts/verify-container-image.mjs",
     "lint": "biome check .",
     "lint:fix": "biome check --fix .",
     "format": "biome format --write ."
