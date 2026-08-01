@@ -10,16 +10,21 @@ A production-ready Mastra agent starter. A chat/controller agent + a coding agen
 file (`./mastra.db`) — no database server, no Docker needed for dev.
 
 ```bash
-# 1. Clone and install
-git clone <repo> my-agent && cd my-agent
-npm install
+# 1. Clone and install — this package is a pnpm workspace member, so install
+#    from the REPO ROOT. Running a package manager inside packages/server
+#    writes a second lockfile that can resolve different versions than the
+#    ones dev and CI actually tested (see mastra-chat-kit-j0p).
+git clone https://github.com/hamchowderr/mastra-chat-kit && cd mastra-chat-kit
+pnpm install
 
 # 2. Configure environment
-cp .env.example .env
-# Fill in: APP_SECRET, ANTHROPIC_API_KEY (storage defaults to a local libSQL file)
+cp packages/server/.env.example packages/server/.env
+# Fill in: APP_SECRET, plus model access. CHAT_MODEL is a `provider/model`
+# string resolved by Mastra's model router — a gateway key or a direct
+# provider key both work. Storage defaults to a local libSQL file.
 
-# 3. Run
-npm run dev
+# 3. Run just this server (root `pnpm dev` starts the web app alongside it)
+pnpm --filter @mastra-chat-kit/server dev
 # → Mastra Studio at http://localhost:4111
 ```
 
@@ -33,7 +38,7 @@ Expected: the agent lists the workspace, then (after approval) writes the file.
 
 ## Reachability
 
-This template's agents are reachable through four standard protocols. Once the dev server is running (`npm run dev`), every registered agent can be called via:
+This template's agents are reachable through four standard protocols. Once the dev server is running (`pnpm dev`), every registered agent can be called via:
 
 ### REST API
 
@@ -147,13 +152,18 @@ template-mastra-base/
 
 ## Scripts
 
+Run these **from `packages/server`**. From the repo root, prefix with
+`pnpm --filter @mastra-chat-kit/server` — and install from the root either way,
+never inside this package (a second lockfile is how the container ended up on an
+untested dependency tree).
+
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start Mastra Studio at localhost:4111 |
-| `npm run build` | Bundle for production (output → `.mastra/output/`) |
-| `npm run start` | Start production server (no Studio) |
-| `npm run typecheck` | TypeScript type check (zero-emit) |
-| `npm run setup:browser` | Download the Chromium the controller Browser panel drives (run once after install) |
+| `pnpm dev` | Start Mastra Studio at localhost:4111 |
+| `pnpm build` | Bundle for production (output → `.mastra/output/`) |
+| `pnpm start` | Start production server (no Studio) |
+| `pnpm typecheck` | TypeScript type check (zero-emit) |
+| `pnpm setup:browser` | Download the Chromium the controller Browser panel drives (run once after install) |
 
 ---
 
@@ -208,7 +218,7 @@ concern — pulls take seconds and storage is cheap.
 | PostHog telemetry noise in restricted networks | Mastra runtime phones home on startup | Set `MASTRA_TELEMETRY_DISABLED=1` in `.env` |
 | Prod libSQL auth errors | Turso needs a token | Set `TURSO_AUTH_TOKEN` alongside a `libsql://` `TURSO_DATABASE_URL` |
 | Pino transport error in Docker | `pino-pretty` missing from production deps | Ensure it's in `dependencies`, not `devDependencies`, in any packages you add |
-| Browser panel blank / screencast emits no frames | Chromium not installed, or `BROWSER_EXECUTABLE_PATH` points at a system Chrome (its launcher forks/detaches — `playwright-core` can't drive it headless) | Run `npm run setup:browser` once; leave `BROWSER_EXECUTABLE_PATH` **unset** so browser-viewer uses its bundled Chromium |
+| Browser panel blank / screencast emits no frames | Chromium not installed, or `BROWSER_EXECUTABLE_PATH` points at a system Chrome (its launcher forks/detaches — `playwright-core` can't drive it headless) | Run `pnpm setup:browser` once; leave `BROWSER_EXECUTABLE_PATH` **unset** so browser-viewer uses its bundled Chromium |
 
 ---
 
