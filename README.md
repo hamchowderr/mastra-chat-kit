@@ -134,7 +134,13 @@ cp packages/server/.env.example packages/server/.env
 #         ANTHROPIC_API_KEY + anthropic/…, OPENAI_API_KEY + openai/…, etc.
 #   Leave TURSO_DATABASE_URL as-is for the local file: DB.
 
-# 3. Run server (:4111) + web (:3000) together
+# 3. Configure the web env — optional locally, REQUIRED to deploy
+cp packages/web/.env.local.example packages/web/.env.local
+#   Only MASTRA_SERVER_URL matters, and it defaults to http://localhost:4111,
+#   so `pnpm dev` works without this. On a deployment the fallback resolves to
+#   nothing and every proxied request fails, without a build or deploy error.
+
+# 4. Run server (:4111) + web (:3000) together
 pnpm dev
 ```
 
