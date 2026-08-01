@@ -17,13 +17,27 @@ name: Container
 on:
   pull_request:
     # ~15 minutes of build, so it runs only when something that can change the
-    # image changes. Everything the image is made of is listed here.
+    # image changes.
+    #
+    # Derive this list from the Dockerfile, not from intuition. It does:
+    #   COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+    #   COPY packages/server/package.json packages/server/
+    #   COPY packages/server packages/server        <- the WHOLE directory
+    #   RUN pnpm exec mastra build --studio         <- compiles src/ into the image
+    # so every file under packages/server is image content, and the three root
+    # manifests are too. An earlier version of this list enumerated four narrow
+    # paths under packages/server and omitted src/**, which meant a change to the
+    # server's own source — including one that moved a served route — could merge
+    # without the image ever being built. Broad glob plus an explicit exclusion is
+    # correct here; an allowlist silently under-covers as the package grows.
     paths:
-      - 'packages/server/Dockerfile'
+      - 'packages/server/**'
+      # Docs cannot change the image, and a README edit should not buy a 15-minute
+      # build. Negations are order-sensitive — this must stay after the glob above.
+      - '!packages/server/**/*.md'
       - '.dockerignore'
-      - 'packages/server/docker-compose*.yml'
-      - 'packages/server/package.json'
-      - 'packages/server/scripts/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
       - 'pnpm-lock.yaml'
       - 'scripts/verify-container-image.mjs'
       - '.github/workflows/container.yml'
