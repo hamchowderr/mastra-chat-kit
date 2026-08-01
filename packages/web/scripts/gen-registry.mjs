@@ -24,6 +24,26 @@ const LOCAL_ELEMENTS = new Set(['code-block', 'image', 'context', 'tool', 'agent
 // Host-provided packages — never list as registry npm dependencies.
 const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
 
+/**
+ * Packages whose MAJOR must match what we tested against, emitted to consumers
+ * as `name@range` instead of a bare name.
+ *
+ * A bare name means the consumer installs whatever is latest, which is not
+ * necessarily what CI verified. That is not hypothetical: `@streamdown/code`
+ * declares its `CodeHighlighterPlugin` against shiki's types and depends on
+ * shiki ^3, while this workspace shipped a bare `shiki` and had pinned ^4.
+ * A consumer therefore resolved shiki 4 next to the plugin's shiki 3, giving
+ * two distinct declarations of the same type — and upstream's message.tsx and
+ * reasoning.tsx failed to typecheck with "{ cjk, code, math, mermaid } is not
+ * assignable to PluginConfig", despite the shapes being identical.
+ *
+ * Deliberately an allowlist, not blanket pinning of every dependency: pinning
+ * something a consumer already has (say `ai`) would fight their own resolution
+ * for no benefit. Add an entry only when a version SKEW breaks the install.
+ */
+const PINNED_DEPS = new Map([['shiki', '^3.23.0']]);
+const withVersion = (pkg) => (PINNED_DEPS.has(pkg) ? `${pkg}@${PINNED_DEPS.get(pkg)}` : pkg);
+
 const toPosix = (p) => p.split('\\').join('/');
 const elPath = (n) => `components/ai-elements/${n}.tsx`;
 
@@ -82,7 +102,7 @@ function classify(relFiles) {
         key = toPosix(relative(WEB, resolve(dirname(abs), spec)));
       } else {
         const pkg = pkgName(spec);
-        if (!HOST_PKGS.has(pkg)) npm.add(pkg);
+        if (!HOST_PKGS.has(pkg)) npm.add(withVersion(pkg));
         continue;
       }
       if (ownKeys.has(key)) continue; // import within this same item
