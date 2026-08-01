@@ -44,3 +44,8 @@ packages/server/SPEC/
 # resolution (the container once installed from its own package-lock.json).
 package-lock.json
 yarn.lock
+
+# Supabase is not part of this kit — storage is libSQL. `docs/postgres.md`
+# tells anyone who wants Postgres to run `supabase init` themselves, which
+# recreates this directory locally as CLI scratch.
+packages/server/supabase/
