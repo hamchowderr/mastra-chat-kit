@@ -39,3 +39,8 @@ readme-preview.html
 # Internal build notes kept local: they document a sibling project
 # (template-mastra-base) and carry absolute developer paths.
 packages/server/SPEC/
+
+# This is a pnpm workspace — a stray npm/yarn lockfile silently forks dependency
+# resolution (the container once installed from its own package-lock.json).
+package-lock.json
+yarn.lock
