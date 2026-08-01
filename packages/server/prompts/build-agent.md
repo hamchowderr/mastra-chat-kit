@@ -1,6 +1,6 @@
 # Prompt: Build a New Mastra Agent
 
-Use this prompt to add a complete, production-ready agent to this template.
+Use this prompt to add a complete, production-ready agent to this server.
 
 ---
 
@@ -21,7 +21,7 @@ EVAL_CASES:        <describe 4-5 test cases: one happy path, one missing-fields,
 
 ## Prompt
 
-You are adding a new agent to the `template-mastra-base` Mastra project. Follow every convention in `AGENTS.md` exactly.
+You are adding a new agent to the `@mastra-chat-kit/server` Mastra project. Follow every convention in `AGENTS.md` exactly.
 
 **Agent to build**: `{AGENT_NAME}` (`{AGENT_ID}`)
 
@@ -84,13 +84,13 @@ Produce these files and changes in order:
 
 ### Implementation Order
 
-1. Write the Zod schema and agent shell (no scorers yet) → `npm run typecheck`
-2. Write the scorers file → `npm run typecheck`
+1. Write the Zod schema and agent shell (no scorers yet) → `pnpm typecheck`
+2. Write the scorers file → `pnpm typecheck`
 3. Write the dataset JSON
-4. Register in `index.ts` → `npm run typecheck`
-5. `npm run dev` → verify agent appears in Studio
+4. Register in `index.ts` → `pnpm typecheck`
+5. `pnpm dev` → verify agent appears in Studio
 6. Send one live test message in Studio to confirm structured output
-7. `npm run eval` → confirm all cases pass and exit 0
+7. `pnpm eval` → confirm all cases pass and exit 0
 
 ---
 

@@ -1,27 +1,41 @@
-# template-mastra-base
+# @mastra-chat-kit/server
 
-A production-ready Mastra agent starter. A chat/controller agent + a coding agent, Docker, CI — everything you need to ship a Mastra agent without building the scaffold yourself.
+**The reference server for [mastra-chat-kit](../../README.md) — the implementation
+the chat layer's endpoint contract is written against.**
+
+A stock `mastra dev` server does *not* satisfy that contract; it serves Mastra's own
+`/api/agents/*` shape. This package registers the 14 routes the web layer and the
+shadcn registry actually call, so it is what you point a consumer at, and what you
+copy from when adding the contract to a server of your own. The contract itself is
+specified in [`docs/registry.md`](../../docs/registry.md).
+
+It is a **Mastra + Hono server on :4111**: an `AgentController` over a chat agent,
+five subagents (code · research · writer · reviewer · data), a workspace sandbox
+(filesystem + shell + browser), and libSQL for storage, threads, observability and
+vector recall.
+
+> **Setting the repo up for the first time?** Use the root
+> [Getting started](../../README.md#-getting-started) — this is a pnpm workspace
+> member and installing from inside it writes a second lockfile that can resolve
+> versions dev and CI never tested. This file assumes the repo is already installed
+> and covers what is specific to the server.
 
 ---
 
-## Quickstart (5 minutes)
+## Run it standalone
 
-**Prerequisites**: Node 22+, an Anthropic API key. Storage runs on a local libSQL
-file (`./mastra.db`) — no database server, no Docker needed for dev.
+The root `pnpm dev` starts this server *and* the web app. To run only this one:
 
 ```bash
-# 1. Clone and install
-git clone <repo> my-agent && cd my-agent
-npm install
-
-# 2. Configure environment
-cp .env.example .env
-# Fill in: APP_SECRET, ANTHROPIC_API_KEY (storage defaults to a local libSQL file)
-
-# 3. Run
-npm run dev
+pnpm --filter @mastra-chat-kit/server dev
 # → Mastra Studio at http://localhost:4111
 ```
+
+Env lives in `packages/server/.env` (copy `.env.example`). Set `APP_SECRET` plus
+model access: `CHAT_MODEL` is a `provider/model` string resolved by
+[Mastra's model router](https://mastra.ai/models), so a single gateway key or a
+per-provider key both work — no specific provider is required. Storage defaults to
+a local libSQL file, so there is no database server and no Docker in dev.
 
 Chat with the `chat` agent in Studio to verify everything works. Send:
 
@@ -33,7 +47,8 @@ Expected: the agent lists the workspace, then (after approval) writes the file.
 
 ## Reachability
 
-This template's agents are reachable through four standard protocols. Once the dev server is running (`npm run dev`), every registered agent can be called via:
+Beyond the chat-kit contract, every registered agent is reachable through four
+standard protocols. Once the dev server is running:
 
 ### REST API
 
@@ -77,19 +92,19 @@ curl -X POST http://localhost:4111/api/a2a/chat \
   -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"kind":"message","messageId":"msg-1","role":"user","parts":[{"kind":"text","text":"Hi, I need a quote"}]}}}'
 ```
 
-Use this when another agent (in CrewAI, LangGraph, ADK, or any A2A-compatible framework) needs to delegate work to this template's agent.
+Use this when another agent (in CrewAI, LangGraph, ADK, or any A2A-compatible framework) needs to delegate work to this server's agents.
 
 ### MCP (Model Context Protocol)
 
-Anthropic's open standard for agent-tool integration. The template's MCPServer exposes every agent as a callable tool at `/api/mcp/base-mcp/mcp`.
+Anthropic's open standard for agent-tool integration. This server's MCPServer exposes every agent as a callable tool at `/api/mcp/chat-kit/mcp`.
 
 To use from Claude Desktop, add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "template-mastra-base": {
-      "url": "http://localhost:4111/api/mcp/base-mcp/mcp"
+    "mastra-chat-kit": {
+      "url": "http://localhost:4111/api/mcp/chat-kit/mcp"
     }
   }
 }
@@ -115,45 +130,62 @@ For production deployment, secure Studio behind authentication. See [Mastra's au
 ## File Structure
 
 ```
-template-mastra-base/
+packages/server/
 ├── src/
 │   ├── lib/
 │   │   └── env.ts                  # Zod-validated env loader — crashes on bad config
 │   └── mastra/
-│       ├── index.ts                # Entry point: env → AIMock → Mastra instance
+│       ├── index.ts                # Boot: env → AIMock → Mastra; registers the route contract
 │       ├── agents/
-│       │   ├── chat.ts             # Chat/controller agent (workspace + tools)
-│       │   └── code.ts             # Coding agent over the workspace sandbox
+│       │   ├── chat.ts             # The agent the controller drives (+ its inline tools)
+│       │   ├── code.ts             # Subagent: build/run in the sandbox
+│       │   ├── research.ts         # Subagent: browse + search + cite
+│       │   ├── writer.ts           # Subagent: long-form drafting
+│       │   ├── reviewer.ts         # Subagent: read-only audit
+│       │   └── data.ts             # Subagent: versioned SQL (only when Dolt is on)
 │       ├── lib/
-│       │   └── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
-│       ├── tools/                  # Shared tools (inline tools live in agent files)
-│       └── workflows/              # Mastra workflows
-├── scripts/
-│   └── bake-studio.mjs             # Bakes Studio config for self-hosted serving
-├── prompts/
-│   ├── README.md                   # Index of agent-building prompts
-│   └── build-agent.md              # Parameterized prompt for adding a new agent
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # typecheck → build → docker
-├── Dockerfile                      # Multi-stage, node:22-slim runtime
-├── docker-compose.yml              # Production compose
-├── compose.dev.yml                 # Dev compose override
+│       │   ├── agent-controller.ts # AgentController + Session — the engine
+│       │   ├── workspace.ts        # Filesystem + shell sandbox + browser
+│       │   ├── memory.ts           # Shared Memory: LibSQLVector + fastembed recall
+│       │   ├── dolt.ts             # Optional versioned data, Git-style (mysql2)
+│       │   ├── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
+│       │   └── …                   # image-store, processors, thread-utils, workspace-files
+│       └── tools/                  # Shared tools (dolt, schedule); inline tools live in agent files
+├── tests/
+│   ├── helpers/call-tool.ts        # Invoke a tool's execute() from a test, typed
+│   ├── unit/                       # Pure logic — no LLM, no mock server
+│   └── integration/                # Agent + controller flows through AIMock
+├── fixtures/                       # AIMock fixtures (matched on turnIndex)
+├── scripts/bake-studio.mjs         # Bakes Studio config for self-hosted serving
+├── prompts/                        # Parameterized prompts for AI coding agents
+├── supabase/config.toml            # Only for the optional Postgres path — see docs/postgres.md
+├── Dockerfile                      # Multi-stage; build context is the REPO ROOT
+├── docker-compose.yml              # Production compose (+ .override / compose.dev.yml)
+├── aimock.json                     # AIMock server config (pnpm dev:mock)
 ├── .env.example                    # All required env vars with comments
-└── AGENTS.md                       # Conventions for AI coding agents
+└── AGENTS.md / CLAUDE.md           # Conventions for AI coding agents
 ```
+
+> CI lives at the **repo root** (`.github/workflows/`), not here — GitHub only reads
+> workflows from the root, so a nested one never runs. There used to be one in this
+> package; it was dead for exactly that reason and has been removed.
 
 ---
 
 ## Scripts
 
+Run these **from `packages/server`**. From the repo root, prefix with
+`pnpm --filter @mastra-chat-kit/server` — and install from the root either way,
+never inside this package (a second lockfile is how the container ended up on an
+untested dependency tree).
+
 | Command | What it does |
 |---|---|
-| `npm run dev` | Start Mastra Studio at localhost:4111 |
-| `npm run build` | Bundle for production (output → `.mastra/output/`) |
-| `npm run start` | Start production server (no Studio) |
-| `npm run typecheck` | TypeScript type check (zero-emit) |
-| `npm run setup:browser` | Download the Chromium the controller Browser panel drives (run once after install) |
+| `pnpm dev` | Start Mastra Studio at localhost:4111 |
+| `pnpm build` | Bundle for production (output → `.mastra/output/`) |
+| `pnpm start` | Start production server (no Studio) |
+| `pnpm typecheck` | TypeScript type check (zero-emit) |
+| `pnpm setup:browser` | Download the Chromium the controller Browser panel drives (run once after install) |
 
 ---
 
@@ -208,7 +240,7 @@ concern — pulls take seconds and storage is cheap.
 | PostHog telemetry noise in restricted networks | Mastra runtime phones home on startup | Set `MASTRA_TELEMETRY_DISABLED=1` in `.env` |
 | Prod libSQL auth errors | Turso needs a token | Set `TURSO_AUTH_TOKEN` alongside a `libsql://` `TURSO_DATABASE_URL` |
 | Pino transport error in Docker | `pino-pretty` missing from production deps | Ensure it's in `dependencies`, not `devDependencies`, in any packages you add |
-| Browser panel blank / screencast emits no frames | Chromium not installed, or `BROWSER_EXECUTABLE_PATH` points at a system Chrome (its launcher forks/detaches — `playwright-core` can't drive it headless) | Run `npm run setup:browser` once; leave `BROWSER_EXECUTABLE_PATH` **unset** so browser-viewer uses its bundled Chromium |
+| Browser panel blank / screencast emits no frames | Chromium not installed, or `BROWSER_EXECUTABLE_PATH` points at a system Chrome (its launcher forks/detaches — `playwright-core` can't drive it headless) | Run `pnpm setup:browser` once; leave `BROWSER_EXECUTABLE_PATH` **unset** so browser-viewer uses its bundled Chromium |
 
 ---
 
