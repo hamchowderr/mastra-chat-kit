@@ -6,9 +6,9 @@ import {
   type AgentControllerSchedule,
   type AgentControllerTranscript,
   emptyTranscript,
-  reduceAgentControllerEvent,
   uiMessagesToAgentController,
 } from './events';
+import { reduceAgentControllerEvent } from './reduce';
 
 export type AgentControllerStatus = 'ready' | 'streaming' | 'error';
 

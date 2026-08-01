@@ -120,6 +120,16 @@
           "target": "lib/agent-controller/events.ts"
         },
         {
+          "path": "lib/agent-controller/reduce.ts",
+          "type": "registry:lib",
+          "target": "lib/agent-controller/reduce.ts"
+        },
+        {
+          "path": "lib/agent-controller/reduce-helpers.ts",
+          "type": "registry:lib",
+          "target": "lib/agent-controller/reduce-helpers.ts"
+        },
+        {
           "path": "lib/agent-controller/use-agent-controller-chat.ts",
           "type": "registry:lib",
           "target": "lib/agent-controller/use-agent-controller-chat.ts"
