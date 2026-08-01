@@ -189,6 +189,8 @@ for (const name of [...LOCAL_ELEMENTS]) {
 // built on these is pure rendering — see bd h27 / 23d.
 const ENGINE_FILES = [
   'lib/agent-controller/events.ts',
+  'lib/agent-controller/reduce.ts',
+  'lib/agent-controller/reduce-helpers.ts',
   'lib/agent-controller/use-agent-controller-chat.ts',
   'lib/agent-controller/use-threads.ts',
   'lib/agent-controller/use-workspace.ts',
