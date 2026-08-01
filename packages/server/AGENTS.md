@@ -108,7 +108,7 @@ When adding a new agent:
 2. Add it to the `agents` field of the `MCPServer` instance (exposes via MCP as `ask_<agentId>`)
 3. Ensure the agent has a non-empty `description` property — MCPServer fails to start without it
 
-The `MastraEditor` instance gives non-developers a way to iterate on agent prompts and tools without code changes. Changes are versioned and stored in the `editor` storage domain. The editor is mandatory for every template in this family.
+The `MastraEditor` instance gives non-developers a way to iterate on agent prompts and tools without code changes. Changes are versioned and stored in the `editor` storage domain. Keep it wired — the kit's Studio workflow assumes it.
 
 ---
 
@@ -139,9 +139,9 @@ Stop and confirm with the user before making these changes:
 ## Useful Commands
 
 ```bash
-npm run dev          # Start Studio at localhost:4111
-npm run typecheck    # Verify types before running
-npm test             # Run the vitest suite
+pnpm dev          # Start Studio at localhost:4111
+pnpm typecheck    # Verify types before running
+pnpm test             # Run the vitest suite
 ```
 
 Eval runs with `USE_AIMOCK=false` hit the real Anthropic API and incur cost. Use `USE_AIMOCK=true` with AIMock running for free deterministic runs during development.

@@ -80,14 +80,19 @@ DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
 ## 5. Local Postgres for dev
 
-Either use the Supabase CLI:
+Either use the Supabase CLI. `supabase start` needs a project in the current
+directory, and this repo ships none — it runs on libSQL — so initialise one
+first:
 
 ```bash
+npx supabase init    # writes supabase/config.toml (defaults are fine)
 npx supabase start   # Postgres + pgvector in Docker
 ```
 
+That gives you Postgres on `54322`, which is the connection string in step 4.
+
 …or bring your own `pgvector/pgvector:pg16` container and point `DATABASE_URL`
-at it.
+at it — nothing here depends on the Supabase CLI.
 
 ## 6. Docker Compose deploy (optional)
 

@@ -1,6 +1,6 @@
 # Prompts
 
-Parameterized prompts for AI coding agents working on this template. Pass one of these to Claude Code (or any capable coding agent) to generate complete, convention-compliant output.
+Parameterized prompts for AI coding agents working on this server. Pass one of these to Claude Code (or any capable coding agent) to generate complete, convention-compliant output.
 
 ## Available
 
@@ -16,7 +16,7 @@ Parameterized prompts for AI coding agents working on this template. Pass one of
 | `build-scorer.md` | Add a custom scorer with dataset cases |
 | `build-workflow.md` | Add a Mastra workflow with steps and triggers |
 | `deploy-vps.md` | Deploy the agent to a VPS with PM2, nginx, and SSL |
-| `client-kickoff.md` | Spin up a new client project from this template |
+| `client-kickoff.md` | Spin up a new downstream project on top of the chat kit |
 | `debug-agent.md` | Diagnose and fix a failing agent or eval case |
 
 ## Usage

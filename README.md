@@ -2,11 +2,22 @@
 
 # 💬 mastra-chat-kit
 
-### The Mastra Agent Controller, wired to Vercel AI Elements.
+### An open-source chat app and agent server for Mastra's Agent Harness.
 
-**A chat frontend + agent backend where the hard part is already done: Mastra's Agent Controller emits ~50 orchestration events that a plain chat stream cannot carry — tool approvals, subagents, goals, plan modes, task tracking, observational memory, schedules, a live sandboxed workspace — and this kit maps every one of them onto the AI Element that renders it.**
+mastra-chat-kit is a free, open-source **workspace** — a Next.js chat frontend and a
+Mastra agent server, already wired to each other — that helps you build agent
+applications where the agent's work is visible and approved rather than hidden
+behind a text stream. Clone it and the whole stack runs. Or install just the chat
+layer into a project you already have.
 
-Ships as a **shadcn registry**, so any project installs the same chat layer with one command instead of re-deriving the wiring.
+<p align="center">
+  <a href="#-features"><strong>Features</strong></a> ·
+  <a href="#-getting-started"><strong>Getting started</strong></a> ·
+  <a href="#-install-the-chat-layer"><strong>Install the chat layer</strong></a> ·
+  <a href="#-agentcontroller-capabilities"><strong>Capabilities</strong></a> ·
+  <a href="#️-deployment"><strong>Deploy</strong></a> ·
+  <a href="#-faq"><strong>FAQ</strong></a>
+</p>
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Status: active](https://img.shields.io/badge/status-active-brightgreen)]()
@@ -59,14 +70,26 @@ Same pattern for **research** (browse + search + cite), **writer** (long-form dr
 
 ---
 
-## 🎯 Why mastra-chat-kit?
+## ✨ Features
 
-- **✋ Approval-gated by default.** Every side-effecting tool pauses for approve / decline before it runs. HITL is the default posture, not a feature you bolt on.
-- **🔌 ~50 controller events, already wired.** The gap between "an agent streams text" and "an agent shows you a plan, asks a question, delegates, and tracks its steps" is a lot of event plumbing. That's the part this kit is.
-- **🧩 One chat layer, installed not copied.** `shadcn add` pulls the canonical shell into any project. Fixes flow out to consumers instead of drifting across forks.
-- **🎭 Testable before it costs anything.** Unit, integration, component, and e2e tiers all run against deterministic AIMock fixtures. Real provider keys are absent by design, so an accidental live call fails loudly rather than billing you.
-- **📦 Zero-friction storage.** Memory, threads, observability, and vector search all run on libSQL — a local `file:` DB in dev with no Docker and no server, a Turso URL in prod.
-- **🔓 Provider-agnostic.** `CHAT_MODEL` is a `provider/model` string resolved by Mastra's model router — 600+ models across 40+ providers, one key via a gateway or one key per provider.
+- **[Mastra](https://mastra.ai) Agent Harness** (the `AgentController` class)
+  - Every side-effecting tool pauses for approve / decline before it runs — human-in-the-loop is the default posture, not a feature you bolt on
+  - Subagents, plan modes, goals, task tracking, observational memory and cron schedules, all agent-driven
+  - A real workspace the agent drives: filesystem, shell sandbox, and a headless browser
+- **[AI SDK v7](https://ai-sdk.dev) + [AI Elements](https://ai-sdk.dev/elements)**
+  - ~50 controller events already mapped onto the element that renders each one — the plumbing between "an agent streams text" and "an agent shows you a plan, asks a question, and delegates"
+  - [shadcn/ui](https://ui.shadcn.com) on Radix, styled with [Tailwind](https://tailwindcss.com) 4; ships no `cssVars`, so it inherits your theme
+- **Installable, not copy-pasted**
+  - `shadcn add` pulls the chat layer into any project, so fixes flow to consumers instead of drifting across forks
+  - The engine is UI-free — bring your own frontend and render it over one hook
+- **Zero-friction storage**
+  - Memory, threads, observability and vector search all on [libSQL](https://turso.tech): a local `file:` DB in dev with no Docker and no server, a Turso URL in prod
+  - Embeddings run locally via [fastembed](https://github.com/qdrant/fastembed) — no embedding API
+- **Provider-agnostic**
+  - `CHAT_MODEL` is a `provider/model` string resolved by [Mastra's model router](https://mastra.ai/models) — 600+ models across 40+ providers, one gateway key or one key per provider
+- **Testable before it costs anything**
+  - Unit, integration, component and e2e tiers all run against deterministic [AIMock](https://aimock.copilotkit.dev) fixtures
+  - Real provider keys are absent by design, so an accidental live call fails loudly instead of billing you
 
 ---
 
@@ -89,6 +112,52 @@ Every capability is **agent-driven** — no manual buttons; the agent calls the 
 | **Semantic search** | The sidebar searches message bodies via a local embedding index. | *type in the sidebar search* |
 
 ![The in-app /events page — all 50 controller events mapped to the AI Element each drives, with a copy-paste prompt to trigger it live](docs/events.png)
+
+---
+
+## 🚀 Getting started
+
+**Prerequisites:** Node.js 22+ · pnpm 10+ · one model provider key. **No Docker, no Postgres** — storage defaults to a local `file:` libSQL DB.
+
+```bash
+# 1. Install all workspace deps
+pnpm install
+
+# 2. Configure the server env
+cp packages/server/.env.example packages/server/.env
+#   Set APP_SECRET (openssl rand -hex 32) + model access. CHAT_MODEL is a
+#   `provider/model` string resolved by Mastra's model router. Two ways to key it:
+#     • GATEWAY (one key, every provider, swap models freely):
+#         AI_GATEWAY_API_KEY     + CHAT_MODEL=vercel/…   (Vercel AI Gateway), or
+#         MASTRA_GATEWAY_API_KEY + CHAT_MODEL=mastra/…   (Mastra Gateway)
+#     • DIRECT (one key per provider):
+#         ANTHROPIC_API_KEY + anthropic/…, OPENAI_API_KEY + openai/…, etc.
+#   Leave TURSO_DATABASE_URL as-is for the local file: DB.
+
+# 3. Configure the web env — optional locally, REQUIRED to deploy
+cp packages/web/.env.local.example packages/web/.env.local
+#   Only MASTRA_SERVER_URL matters, and it defaults to http://localhost:4111,
+#   so `pnpm dev` works without this. On a deployment the fallback resolves to
+#   nothing and every proxied request fails, without a build or deploy error.
+
+# 4. Run server (:4111) + web (:3000) together
+pnpm dev
+```
+
+Open `http://localhost:3000` for the chat and `/events` for the controller event → element map, with a copy-paste prompt per capability.
+
+![The chat on first open — conversation sidebar, suggested prompts, and the composer with its model and web-search controls](docs/empty-state.png)
+
+<div align="center"><sub>First open. The suggested prompts each trigger a different controller capability; the workbench opens from the control in the top-right gutter.</sub></div>
+
+**Zero-cost dev.** Run against AIMock instead of a real provider:
+
+```bash
+pnpm --filter @mastra-chat-kit/server dev:mock    # AIMock on :4010
+# then set USE_AIMOCK=true in packages/server/.env and start the server
+```
+
+> **Loading env in dev:** a plain `.env` works everywhere. We inject secrets with **[Infisical](https://infisical.com)** instead of a committed file — `infisical run --path=/<project> -- pnpm dev` — so nothing sensitive lands on disk.
 
 ---
 
@@ -175,6 +244,10 @@ inherits your project's own shadcn theme.
 
 Every capability above comes from one place.
 
+> **On the name:** Mastra announced this as the **Agent Harness**. The class you
+> import from `@mastra/core` is `AgentController`. They are the same thing — this
+> README says `AgentController` wherever it names real code.
+
 | | |
 |---|---|
 | **Component** | `<ChatSwitcher />` — sidebar │ chat │ workbench |
@@ -212,46 +285,6 @@ It runs on Mastra's `AgentController` — the session controller Mastra's docs d
 ```
 
 The controller wraps the `chatAgent`. Storage, threads, observability, and vector recall land in one libSQL database; embeddings run locally via `fastembed` (no embedding API).
-
----
-
-## 🚀 Getting started
-
-**Prerequisites:** Node.js 22+ · pnpm 10+ · one model provider key. **No Docker, no Postgres** — storage defaults to a local `file:` libSQL DB.
-
-```bash
-# 1. Install all workspace deps
-pnpm install
-
-# 2. Configure the server env
-cp packages/server/.env.example packages/server/.env
-#   Set APP_SECRET (openssl rand -hex 32) + model access. CHAT_MODEL is a
-#   `provider/model` string resolved by Mastra's model router. Two ways to key it:
-#     • GATEWAY (one key, every provider, swap models freely):
-#         AI_GATEWAY_API_KEY     + CHAT_MODEL=vercel/…   (Vercel AI Gateway), or
-#         MASTRA_GATEWAY_API_KEY + CHAT_MODEL=mastra/…   (Mastra Gateway)
-#     • DIRECT (one key per provider):
-#         ANTHROPIC_API_KEY + anthropic/…, OPENAI_API_KEY + openai/…, etc.
-#   Leave TURSO_DATABASE_URL as-is for the local file: DB.
-
-# 3. Run server (:4111) + web (:3000) together
-pnpm dev
-```
-
-Open `http://localhost:3000` for the chat and `/events` for the controller event → element map, with a copy-paste prompt per capability.
-
-![The chat on first open — conversation sidebar, suggested prompts, and the composer with its model and web-search controls](docs/empty-state.png)
-
-<div align="center"><sub>First open. The suggested prompts each trigger a different controller capability; the workbench opens from the control in the top-right gutter.</sub></div>
-
-**Zero-cost dev.** Run against AIMock instead of a real provider:
-
-```bash
-pnpm --filter @mastra-chat-kit/server dev:mock    # AIMock on :4010
-# then set USE_AIMOCK=true in packages/server/.env and start the server
-```
-
-> **Loading env in dev:** a plain `.env` works everywhere. We inject secrets with **[Infisical](https://infisical.com)** instead of a committed file — `infisical run --path=/<project> -- pnpm dev` — so nothing sensitive lands on disk.
 
 ---
 
@@ -411,9 +444,11 @@ Because the context is the repo root, every nested rule in `.dockerignore` needs
 <details>
 <summary><b>Does installing the registry give me the agent too?</b></summary>
 
-No. The registry is **frontend-only** — chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it.
+Not the *registry* — but this *repo* has one, and that's the distinction worth getting straight.
 
-You bring a Mastra server that speaks the kit's endpoint contract. `packages/server` in this repo is the reference implementation; a stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 20-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+**Cloning the repo** gives you the whole environment, agents included: `packages/server` is a working Mastra server with six agents, the workspace sandbox, and the full route contract registered. That's the "ready-to-run" path, and it's what [Getting started](#-getting-started) sets up.
+
+**The registry** is the other path — it's **frontend-only** by design: chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it, because a project installing the engine already has its own agents. You bring a Mastra server that speaks the contract; `packages/server` is the reference implementation. A stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
 </details>
 
 <details>
