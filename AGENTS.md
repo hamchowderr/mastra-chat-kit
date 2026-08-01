@@ -9,8 +9,17 @@ This file provides instructions and context for AI coding agents working on this
 > BEADS INTEGRATION markers; regenerate that with `bd setup claude && bd setup codex`
 > rather than editing it by hand.
 
-One command the managed Quick Reference below omits: `bd dolt push` pushes beads
-data to the remote, and a session is not finished without it.
+`bd dolt push` pushes beads data to the configured remote, and a session is not
+finished without it.
+
+**Never point that remote at the git origin.** Beads defaults `sync.remote` to
+the git `origin`, and a successful push then writes a `__dolt_remote_info__`
+branch to GitHub. This repo was connected to a Vercel project that built every
+branch, and that one holds a single file and no `packages/web`, so each push
+queued a deployment that died at checkout in ~1s. On 2026-08-01 the remote was
+repointed at a local directory (`.beads/config.yaml` carries the detail) and the
+Vercel project was deleted. Clearing the key is *not* enough — `bd dolt push`
+re-derives it from git origin and rewrites the file; only a non-git remote holds.
 
 ## Non-Interactive Shell Commands
 

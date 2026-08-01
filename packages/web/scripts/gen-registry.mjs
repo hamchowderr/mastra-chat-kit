@@ -15,7 +15,12 @@ import { dirname, posix, relative, resolve } from 'node:path';
 
 const WEB = process.cwd(); // packages/web
 const REGISTRY_NAME = 'mastra-chat-kit';
-const HOMEPAGE = 'https://mastra-chat-kit.vercel.app';
+// The Vercel deployment that used to serve this registry was deleted 2026-08-01,
+// so there is no hosted registry right now. `homepage` is metadata only — it does
+// not affect resolution — so it points at the repo. To host the registry again,
+// serve packages/web/public/r (built by `pnpm build:registry`) from any static
+// host and set HOMEPAGE to that origin.
+const HOMEPAGE = 'https://github.com/hamchowderr/mastra-chat-kit';
 const UPSTREAM = (name) => `https://ai-sdk.dev/elements/api/registry/${name}.json`;
 
 // AI Elements we ship ourselves (everything else comes from Vercel upstream).
