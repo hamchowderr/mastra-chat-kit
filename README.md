@@ -2,13 +2,22 @@
 
 # 💬 mastra-chat-kit
 
-### A ready-to-run chat interface and environment for Mastra's Agent Harness.
+### An open-source chat app and agent server for Mastra's Agent Harness.
 
-**Clone it and the whole stack is already standing: a Mastra server with six agents, a sandboxed filesystem + shell + browser, libSQL storage, and a Next.js chat frontend wired to all of it. The Agent Harness emits ~50 orchestration events a plain chat stream cannot carry — tool approvals, subagents, goals, plan modes, task tracking, observational memory, schedules, a live workspace — and this kit maps every one of them onto the AI Element that renders it.**
+mastra-chat-kit is a free, open-source **workspace** — a Next.js chat frontend and a
+Mastra agent server, already wired to each other — that helps you build agent
+applications where the agent's work is visible and approved rather than hidden
+behind a text stream. Clone it and the whole stack runs. Or install just the chat
+layer into a project you already have.
 
-The chat layer is **also** distributable: it ships as a **shadcn registry**, so another project can install the engine — or a whole skin — with one command instead of re-deriving the wiring.
-
-> **On the name:** Mastra announced this as the **Agent Harness**. The class you import from `@mastra/core` is `AgentController`. They are the same thing; this README says `AgentController` wherever it names real code.
+<p align="center">
+  <a href="#-features"><strong>Features</strong></a> ·
+  <a href="#-getting-started"><strong>Getting started</strong></a> ·
+  <a href="#-install-the-chat-layer"><strong>Install the chat layer</strong></a> ·
+  <a href="#-agentcontroller-capabilities"><strong>Capabilities</strong></a> ·
+  <a href="#️-deployment"><strong>Deploy</strong></a> ·
+  <a href="#-faq"><strong>FAQ</strong></a>
+</p>
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Status: active](https://img.shields.io/badge/status-active-brightgreen)]()
@@ -61,14 +70,26 @@ Same pattern for **research** (browse + search + cite), **writer** (long-form dr
 
 ---
 
-## 🎯 Why mastra-chat-kit?
+## ✨ Features
 
-- **✋ Approval-gated by default.** Every side-effecting tool pauses for approve / decline before it runs. HITL is the default posture, not a feature you bolt on.
-- **🔌 ~50 controller events, already wired.** The gap between "an agent streams text" and "an agent shows you a plan, asks a question, delegates, and tracks its steps" is a lot of event plumbing. That's the part this kit is.
-- **🧩 One chat layer, installed not copied.** `shadcn add` pulls the canonical shell into any project. Fixes flow out to consumers instead of drifting across forks.
-- **🎭 Testable before it costs anything.** Unit, integration, component, and e2e tiers all run against deterministic AIMock fixtures. Real provider keys are absent by design, so an accidental live call fails loudly rather than billing you.
-- **📦 Zero-friction storage.** Memory, threads, observability, and vector search all run on libSQL — a local `file:` DB in dev with no Docker and no server, a Turso URL in prod.
-- **🔓 Provider-agnostic.** `CHAT_MODEL` is a `provider/model` string resolved by Mastra's model router — 600+ models across 40+ providers, one key via a gateway or one key per provider.
+- **[Mastra](https://mastra.ai) Agent Harness** (the `AgentController` class)
+  - Every side-effecting tool pauses for approve / decline before it runs — human-in-the-loop is the default posture, not a feature you bolt on
+  - Subagents, plan modes, goals, task tracking, observational memory and cron schedules, all agent-driven
+  - A real workspace the agent drives: filesystem, shell sandbox, and a headless browser
+- **[AI SDK v7](https://ai-sdk.dev) + [AI Elements](https://ai-sdk.dev/elements)**
+  - ~50 controller events already mapped onto the element that renders each one — the plumbing between "an agent streams text" and "an agent shows you a plan, asks a question, and delegates"
+  - [shadcn/ui](https://ui.shadcn.com) on Radix, styled with [Tailwind](https://tailwindcss.com) 4; ships no `cssVars`, so it inherits your theme
+- **Installable, not copy-pasted**
+  - `shadcn add` pulls the chat layer into any project, so fixes flow to consumers instead of drifting across forks
+  - The engine is UI-free — bring your own frontend and render it over one hook
+- **Zero-friction storage**
+  - Memory, threads, observability and vector search all on [libSQL](https://turso.tech): a local `file:` DB in dev with no Docker and no server, a Turso URL in prod
+  - Embeddings run locally via [fastembed](https://github.com/qdrant/fastembed) — no embedding API
+- **Provider-agnostic**
+  - `CHAT_MODEL` is a `provider/model` string resolved by [Mastra's model router](https://mastra.ai/models) — 600+ models across 40+ providers, one gateway key or one key per provider
+- **Testable before it costs anything**
+  - Unit, integration, component and e2e tiers all run against deterministic [AIMock](https://aimock.copilotkit.dev) fixtures
+  - Real provider keys are absent by design, so an accidental live call fails loudly instead of billing you
 
 ---
 
@@ -216,6 +237,10 @@ inherits your project's own shadcn theme.
 ## 🎛️ The engine: Mastra's Agent Controller
 
 Every capability above comes from one place.
+
+> **On the name:** Mastra announced this as the **Agent Harness**. The class you
+> import from `@mastra/core` is `AgentController`. They are the same thing — this
+> README says `AgentController` wherever it names real code.
 
 | | |
 |---|---|
