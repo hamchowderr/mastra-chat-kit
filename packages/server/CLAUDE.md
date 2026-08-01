@@ -52,18 +52,36 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+**pnpm only, and install from the repo root** — this package is a workspace
+member. `npm install` here writes a second lockfile that can resolve versions
+dev and CI never tested (`mastra-chat-kit-j0p`).
 
 ```bash
-# Example:
-# npm install
-# npm test
+pnpm dev              # mastra dev — Studio at :4111
+pnpm build            # mastra build → .mastra/output/
+pnpm test             # vitest, AIMock-backed (globalSetup boots the mock on :4010)
+pnpm typecheck        # tsc --noEmit over src/ AND tests/
+pnpm setup:browser    # fetch the Chromium the Browser panel drives (once)
 ```
+
+`USE_AIMOCK=true` must live in `.env` — a shell variable will not take, because
+the server loads `.env` *over* the process environment. Same trap for `LOG_LEVEL`.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Mastra + Hono on :4111. `src/mastra/index.ts` boots env → AIMock → Mastra and
+registers the AgentController route contract; `src/mastra/lib/agent-controller.ts`
+wires the controller and its Session over `chatAgent`, with code/research/writer/
+reviewer/data subagents and a workspace (filesystem + shell + browser). Storage,
+threads, observability and semantic recall all run on libSQL; embeddings are
+local via fastembed. Dolt versioned data is optional and off by default.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- `src/lib/env.ts` is Zod-validated and crashes on bad config — add new env vars
+  there, not with bare `process.env` reads.
+- Tests are hermetic and AIMock-backed. Real provider keys are absent by design;
+  an accidental live call should fail loudly rather than bill.
+- Tools are invoked in tests through `tests/helpers/call-tool.ts`, which narrows
+  the optional `execute` and the unbuildable `AgentToolExecutionContext` in one
+  place — don't re-scatter `as any` casts at call sites.

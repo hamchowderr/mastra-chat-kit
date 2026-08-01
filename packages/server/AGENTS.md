@@ -139,9 +139,9 @@ Stop and confirm with the user before making these changes:
 ## Useful Commands
 
 ```bash
-npm run dev          # Start Studio at localhost:4111
-npm run typecheck    # Verify types before running
-npm test             # Run the vitest suite
+pnpm dev          # Start Studio at localhost:4111
+pnpm typecheck    # Verify types before running
+pnpm test             # Run the vitest suite
 ```
 
 Eval runs with `USE_AIMOCK=false` hit the real Anthropic API and incur cost. Use `USE_AIMOCK=true` with AIMock running for free deterministic runs during development.
