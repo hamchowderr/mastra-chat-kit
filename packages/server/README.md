@@ -1,32 +1,41 @@
-# template-mastra-base
+# @mastra-chat-kit/server
 
-A production-ready Mastra agent starter. A chat/controller agent + a coding agent, Docker, CI — everything you need to ship a Mastra agent without building the scaffold yourself.
+**The reference server for [mastra-chat-kit](../../README.md) — the implementation
+the chat layer's endpoint contract is written against.**
+
+A stock `mastra dev` server does *not* satisfy that contract; it serves Mastra's own
+`/api/agents/*` shape. This package registers the 14 routes the web layer and the
+shadcn registry actually call, so it is what you point a consumer at, and what you
+copy from when adding the contract to a server of your own. The contract itself is
+specified in [`docs/registry.md`](../../docs/registry.md).
+
+It is a **Mastra + Hono server on :4111**: an `AgentController` over a chat agent,
+five subagents (code · research · writer · reviewer · data), a workspace sandbox
+(filesystem + shell + browser), and libSQL for storage, threads, observability and
+vector recall.
+
+> **Setting the repo up for the first time?** Use the root
+> [Getting started](../../README.md#-getting-started) — this is a pnpm workspace
+> member and installing from inside it writes a second lockfile that can resolve
+> versions dev and CI never tested. This file assumes the repo is already installed
+> and covers what is specific to the server.
 
 ---
 
-## Quickstart (5 minutes)
+## Run it standalone
 
-**Prerequisites**: Node 22+, an Anthropic API key. Storage runs on a local libSQL
-file (`./mastra.db`) — no database server, no Docker needed for dev.
+The root `pnpm dev` starts this server *and* the web app. To run only this one:
 
 ```bash
-# 1. Clone and install — this package is a pnpm workspace member, so install
-#    from the REPO ROOT. Running a package manager inside packages/server
-#    writes a second lockfile that can resolve different versions than the
-#    ones dev and CI actually tested (see mastra-chat-kit-j0p).
-git clone https://github.com/hamchowderr/mastra-chat-kit && cd mastra-chat-kit
-pnpm install
-
-# 2. Configure environment
-cp packages/server/.env.example packages/server/.env
-# Fill in: APP_SECRET, plus model access. CHAT_MODEL is a `provider/model`
-# string resolved by Mastra's model router — a gateway key or a direct
-# provider key both work. Storage defaults to a local libSQL file.
-
-# 3. Run just this server (root `pnpm dev` starts the web app alongside it)
 pnpm --filter @mastra-chat-kit/server dev
 # → Mastra Studio at http://localhost:4111
 ```
+
+Env lives in `packages/server/.env` (copy `.env.example`). Set `APP_SECRET` plus
+model access: `CHAT_MODEL` is a `provider/model` string resolved by
+[Mastra's model router](https://mastra.ai/models), so a single gateway key or a
+per-provider key both work — no specific provider is required. Storage defaults to
+a local libSQL file, so there is no database server and no Docker in dev.
 
 Chat with the `chat` agent in Studio to verify everything works. Send:
 
@@ -38,7 +47,8 @@ Expected: the agent lists the workspace, then (after approval) writes the file.
 
 ## Reachability
 
-This template's agents are reachable through four standard protocols. Once the dev server is running (`pnpm dev`), every registered agent can be called via:
+Beyond the chat-kit contract, every registered agent is reachable through four
+standard protocols. Once the dev server is running:
 
 ### REST API
 
@@ -82,19 +92,19 @@ curl -X POST http://localhost:4111/api/a2a/chat \
   -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"kind":"message","messageId":"msg-1","role":"user","parts":[{"kind":"text","text":"Hi, I need a quote"}]}}}'
 ```
 
-Use this when another agent (in CrewAI, LangGraph, ADK, or any A2A-compatible framework) needs to delegate work to this template's agent.
+Use this when another agent (in CrewAI, LangGraph, ADK, or any A2A-compatible framework) needs to delegate work to this server's agents.
 
 ### MCP (Model Context Protocol)
 
-Anthropic's open standard for agent-tool integration. The template's MCPServer exposes every agent as a callable tool at `/api/mcp/base-mcp/mcp`.
+Anthropic's open standard for agent-tool integration. This server's MCPServer exposes every agent as a callable tool at `/api/mcp/chat-kit/mcp`.
 
 To use from Claude Desktop, add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
-    "template-mastra-base": {
-      "url": "http://localhost:4111/api/mcp/base-mcp/mcp"
+    "mastra-chat-kit": {
+      "url": "http://localhost:4111/api/mcp/chat-kit/mcp"
     }
   }
 }
@@ -120,33 +130,45 @@ For production deployment, secure Studio behind authentication. See [Mastra's au
 ## File Structure
 
 ```
-template-mastra-base/
+packages/server/
 ├── src/
 │   ├── lib/
 │   │   └── env.ts                  # Zod-validated env loader — crashes on bad config
 │   └── mastra/
-│       ├── index.ts                # Entry point: env → AIMock → Mastra instance
+│       ├── index.ts                # Boot: env → AIMock → Mastra; registers the route contract
 │       ├── agents/
-│       │   ├── chat.ts             # Chat/controller agent (workspace + tools)
-│       │   └── code.ts             # Coding agent over the workspace sandbox
+│       │   ├── chat.ts             # The agent the controller drives (+ its inline tools)
+│       │   ├── code.ts             # Subagent: build/run in the sandbox
+│       │   ├── research.ts         # Subagent: browse + search + cite
+│       │   ├── writer.ts           # Subagent: long-form drafting
+│       │   ├── reviewer.ts         # Subagent: read-only audit
+│       │   └── data.ts             # Subagent: versioned SQL (only when Dolt is on)
 │       ├── lib/
-│       │   └── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
-│       ├── tools/                  # Shared tools (inline tools live in agent files)
-│       └── workflows/              # Mastra workflows
-├── scripts/
-│   └── bake-studio.mjs             # Bakes Studio config for self-hosted serving
-├── prompts/
-│   ├── README.md                   # Index of agent-building prompts
-│   └── build-agent.md              # Parameterized prompt for adding a new agent
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # typecheck → build → docker
-├── Dockerfile                      # Multi-stage, node:22-slim runtime
-├── docker-compose.yml              # Production compose
-├── compose.dev.yml                 # Dev compose override
+│       │   ├── agent-controller.ts # AgentController + Session — the engine
+│       │   ├── workspace.ts        # Filesystem + shell sandbox + browser
+│       │   ├── memory.ts           # Shared Memory: LibSQLVector + fastembed recall
+│       │   ├── dolt.ts             # Optional versioned data, Git-style (mysql2)
+│       │   ├── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
+│       │   └── …                   # image-store, processors, thread-utils, workspace-files
+│       └── tools/                  # Shared tools (dolt, schedule); inline tools live in agent files
+├── tests/
+│   ├── helpers/call-tool.ts        # Invoke a tool's execute() from a test, typed
+│   ├── unit/                       # Pure logic — no LLM, no mock server
+│   └── integration/                # Agent + controller flows through AIMock
+├── fixtures/                       # AIMock fixtures (matched on turnIndex)
+├── scripts/bake-studio.mjs         # Bakes Studio config for self-hosted serving
+├── prompts/                        # Parameterized prompts for AI coding agents
+├── supabase/config.toml            # Only for the optional Postgres path — see docs/postgres.md
+├── Dockerfile                      # Multi-stage; build context is the REPO ROOT
+├── docker-compose.yml              # Production compose (+ .override / compose.dev.yml)
+├── aimock.json                     # AIMock server config (pnpm dev:mock)
 ├── .env.example                    # All required env vars with comments
-└── AGENTS.md                       # Conventions for AI coding agents
+└── AGENTS.md / CLAUDE.md           # Conventions for AI coding agents
 ```
+
+> CI lives at the **repo root** (`.github/workflows/`), not here — GitHub only reads
+> workflows from the root, so a nested one never runs. There used to be one in this
+> package; it was dead for exactly that reason and has been removed.
 
 ---
 

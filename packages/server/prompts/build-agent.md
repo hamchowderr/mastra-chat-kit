@@ -1,6 +1,6 @@
 # Prompt: Build a New Mastra Agent
 
-Use this prompt to add a complete, production-ready agent to this template.
+Use this prompt to add a complete, production-ready agent to this server.
 
 ---
 
@@ -21,7 +21,7 @@ EVAL_CASES:        <describe 4-5 test cases: one happy path, one missing-fields,
 
 ## Prompt
 
-You are adding a new agent to the `template-mastra-base` Mastra project. Follow every convention in `AGENTS.md` exactly.
+You are adding a new agent to the `@mastra-chat-kit/server` Mastra project. Follow every convention in `AGENTS.md` exactly.
 
 **Agent to build**: `{AGENT_NAME}` (`{AGENT_ID}`)
 
