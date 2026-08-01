@@ -225,3 +225,5 @@ See `.env.example` for the full list with comments. Minimum required:
 ## For AI Coding Agents
 
 See `AGENTS.md` for conventions, boot order, import rules, and things to never do.
+
+<!-- filter probe: docs-only change, must not trigger the Container workflow -->
