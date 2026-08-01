@@ -40,10 +40,11 @@ if (doltConfigured) {
 }
 
 const mcpServer = new MCPServer({
-  id: 'base-mcp',
-  name: 'template-mastra-base',
+  // `id` forms the mount path — /api/mcp/<id>/mcp — so it is user-visible.
+  id: 'chat-kit',
+  name: 'mastra-chat-kit',
   version: '0.1.0',
-  description: 'MCP server exposing template-mastra-base agents + Dolt tools',
+  description: 'MCP server exposing mastra-chat-kit agents + Dolt tools',
   // Dolt versioned-data tools exposed over MCP. To let an agent call them
   // directly, spread `...doltTools` into the agent's own `tools`.
   tools: { ...doltTools },
