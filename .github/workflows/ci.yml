@@ -78,6 +78,12 @@ jobs:
       - name: Lint (biome)
         run: pnpm lint
 
+      # Both packages, sources AND tests. Before this step existed the server was
+      # never typechecked in CI at all, and `next build` covered web only as a side
+      # effect — so a type error in packages/server could merge green.
+      - name: Typecheck (server + web)
+        run: pnpm typecheck
+
       - name: Server tests (Tier 1 — Vitest + AIMock, in-memory store)
         run: pnpm --filter @mastra-chat-kit/server test
 

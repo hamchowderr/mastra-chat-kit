@@ -2,6 +2,10 @@ import { Mastra } from '@mastra/core/mastra';
 import { InMemoryStore } from '@mastra/core/storage';
 import { afterEach, describe, expect, it } from 'vitest';
 import { listSchedules, startSchedule, stopSchedule } from '../../src/mastra/tools/schedule';
+import { callTool } from '../helpers/call-tool';
+
+type Schedule = { id: string; status: string; cron: string; prompt: string };
+type ScheduleList = { schedules: { id: string }[] };
 
 /**
  * Recurring schedules (698.18) — the start_schedule / stop_schedule / list_schedules
@@ -28,11 +32,11 @@ describe('recurring schedules — start/stop/list tools (native mastra.schedules
     mastra = new Mastra({ storage: new InMemoryStore() });
 
     // start_schedule → returns a stable id + active status.
-    const created = (await startSchedule.execute(
+    const created = await callTool<Schedule>(
+      startSchedule,
       { cron: FUTURE_CRON, prompt: 'Post the daily standup summary.', name: 'standup' },
       { mastra, agent },
-      // biome-ignore lint/suspicious/noExplicitAny: minimal fabricated tool context
-    )) as any;
+    );
     expect(created.id).toBeTruthy();
     expect(created.status).toBe('active');
     expect(created.cron).toBe(FUTURE_CRON);
@@ -44,16 +48,15 @@ describe('recurring schedules — start/stop/list tools (native mastra.schedules
     expect(fetched?.status).toBe('active');
 
     // list_schedules surfaces it as a flat view.
-    // biome-ignore lint/suspicious/noExplicitAny: tool output
-    const listed = (await listSchedules.execute({}, { mastra, agent })) as any;
-    expect(listed.schedules.map((s: { id: string }) => s.id)).toContain(created.id);
+    const listed = await callTool<ScheduleList>(listSchedules, {}, { mastra, agent });
+    expect(listed.schedules.map((s) => s.id)).toContain(created.id);
 
     // stop_schedule pauses it (reversible — the row survives).
-    const paused = (await stopSchedule.execute(
+    const paused = await callTool<Schedule>(
+      stopSchedule,
       { scheduleId: created.id },
       { mastra, agent },
-      // biome-ignore lint/suspicious/noExplicitAny: tool output
-    )) as any;
+    );
     expect(paused.id).toBe(created.id);
     expect(paused.status).toBe('paused');
 
@@ -66,11 +69,7 @@ describe('recurring schedules — start/stop/list tools (native mastra.schedules
     mastra = new Mastra({ storage: new InMemoryStore() });
     await expect(
       // No agent thread/resource → the tool refuses (a schedule fires into a thread).
-      startSchedule.execute(
-        { cron: FUTURE_CRON, prompt: 'x' },
-        { mastra, agent: {} },
-        // biome-ignore lint/suspicious/noExplicitAny: fabricated ctx without a thread
-      ) as any,
+      callTool<Schedule>(startSchedule, { cron: FUTURE_CRON, prompt: 'x' }, { mastra, agent: {} }),
     ).rejects.toThrow(/thread/i);
   });
 });

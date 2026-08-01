@@ -19,7 +19,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
 
     // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide; we assert on .type
     const events: any[] = [];
-    const unsubscribe = session.subscribe((event) => events.push(event));
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+    });
 
     await session.thread.create({ title: 'greeting' });
     await session.sendMessage({ content: 'Hello' });
@@ -48,7 +50,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
 
     // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide; we assert on .type
     const events: any[] = [];
-    const unsubscribe = session.subscribe((event) => events.push(event));
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+    });
 
     await session.thread.create({ title: 'weather' });
 
@@ -133,7 +137,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     const session = await controller.createSession({ resourceId: 'u-ac-modes' });
     // biome-ignore lint/suspicious/noExplicitAny: wide event union
     const events: any[] = [];
-    const unsubscribe = session.subscribe((event) => events.push(event));
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+    });
 
     await session.thread.create({ title: 'modes' });
     expect(session.mode.get()).toBe('chat'); // defaultModeId
