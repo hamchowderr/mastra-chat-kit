@@ -138,7 +138,7 @@ after `shadcn add @mastra-chat-kit/chat` into a freshly-`init`ed project:
 |---|---|---|
 | `radix` + Lucide | **0** | — builds clean, `next build` exits 0 |
 | `radix` + `hugeicons` | 1 | shadcn's own `ui/spinner` (not ours; see above) |
-| `base-nova` (Base UI) | 13 | see the breakdown below |
+| `base-nova` (Base UI) | 12 | all upstream — see the breakdown below |
 
 Vercel's elements are authored against Radix; on a Base UI project the transform
 leaves them with Base UI primitives they weren't written for. That is why Radix
@@ -150,21 +150,29 @@ Reproduce with `node packages/web/scripts/registry-smoke.mjs --base base --repor
 — it installs onto Base UI and prints the errors grouped by file instead of
 asserting. Measured 2026-08-02, shadcn CLI 4.16.0 / Next 16.2.6:
 
-| File | Errors | Ours? | Cause |
-|---|---|---|---|
-| `prompt-input.tsx` | 7 | upstream | 4 × `BaseUIEvent<…>` vs `Event` handler signatures, 3 × `openDelay`/`closeDelay` |
-| `attachments.tsx` | 3 | upstream | `openDelay`/`closeDelay` on PreviewCard |
-| `context.tsx` | 1 | **ours** | `openDelay` on PreviewCard |
-| `inline-citation.tsx` | 1 | upstream | `openDelay` on PreviewCard |
-| `plan.tsx` | 1 | upstream | `ButtonProps` mismatch |
+| File | Errors | Cause |
+|---|---|---|
+| `prompt-input.tsx` | 7 | 4 × `BaseUIEvent<…>` vs `Event` handler signatures, 3 × `openDelay`/`closeDelay` |
+| `attachments.tsx` | 3 | `openDelay`/`closeDelay` on PreviewCard |
+| `inline-citation.tsx` | 1 | `openDelay` on PreviewCard |
+| `plan.tsx` | 1 | `ButtonProps` mismatch |
 
-Two root causes account for 12 of the 13: **`openDelay`/`closeDelay` do not exist
-on Base UI's PreviewCard** (8), and **Base UI wraps handler events in
+Two root causes account for 11 of the 12: **`openDelay`/`closeDelay` do not exist
+on Base UI's PreviewCard** (7), and **Base UI wraps handler events in
 `BaseUIEvent<…>`** (4). The last is a `ButtonProps` shape mismatch in `plan`.
 
-Note the correction: **one of the failures is in a file we ship.** `context.tsx`
-is one of the five vendored elements, so that one is ours to fix rather than
-upstream's — earlier notes here said all of them were upstream's. Tracked in
+The first measurement found **13**, and one of them was in a file we ship —
+`context.tsx`, one of the five vendored elements, also passed `openDelay`. Earlier
+notes here claimed every Base UI failure was upstream's; that was wrong. Ours is
+fixed (it spreads the delay props instead of naming them), which is why the count
+is 12 and the table above is all upstream.
+
+The `openDelay` family is fixed upstream in
+[vercel/ai-elements#473](https://github.com/vercel/ai-elements/pull/473) —
+verified on a Base UI project to take an unpatched consumer from 15 errors to 7.
+When that merges and releases, this table loses 7 more rows. The remaining
+`BaseUIEvent` and `ButtonProps` errors have no fix filed; they are reported in
+[#446](https://github.com/vercel/ai-elements/issues/446) and tracked in
 `bd mastra-chat-kit-68j`.
 
 `nova` is the preset and `base` the primitive library; the resulting `style` is
