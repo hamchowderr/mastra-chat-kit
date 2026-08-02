@@ -138,15 +138,39 @@ after `shadcn add @mastra-chat-kit/chat` into a freshly-`init`ed project:
 |---|---|---|
 | `radix` + Lucide | **0** | — builds clean, `next build` exits 0 |
 | `radix` + `hugeicons` | 1 | shadcn's own `ui/spinner` (not ours; see above) |
-| `base-nova` (Base UI) | 14 | all in upstream Vercel AI Elements |
+| `base-nova` (Base UI) | 13 | see the breakdown below |
 
 Vercel's elements are authored against Radix; on a Base UI project the transform
-leaves them with Base UI primitives they weren't written for (`openDelay` /
-`closeDelay` props that no longer exist, `BaseUIEvent` vs `Event` handler
-signatures). That is why Radix is the supported base.
+leaves them with Base UI primitives they weren't written for. That is why Radix
+is the supported base.
 
-In every configuration measured, **0 errors landed in this kit's own files**
-(`components/chat`, `lib/agent-controller`, `lib/transports`, `app/api`).
+#### The Base UI failures, measured
+
+Reproduce with `node packages/web/scripts/registry-smoke.mjs --base base --report`
+— it installs onto Base UI and prints the errors grouped by file instead of
+asserting. Measured 2026-08-02, shadcn CLI 4.16.0 / Next 16.2.6:
+
+| File | Errors | Ours? | Cause |
+|---|---|---|---|
+| `prompt-input.tsx` | 7 | upstream | 4 × `BaseUIEvent<…>` vs `Event` handler signatures, 3 × `openDelay`/`closeDelay` |
+| `attachments.tsx` | 3 | upstream | `openDelay`/`closeDelay` on PreviewCard |
+| `context.tsx` | 1 | **ours** | `openDelay` on PreviewCard |
+| `inline-citation.tsx` | 1 | upstream | `openDelay` on PreviewCard |
+| `plan.tsx` | 1 | upstream | `ButtonProps` mismatch |
+
+Two root causes account for 12 of the 13: **`openDelay`/`closeDelay` do not exist
+on Base UI's PreviewCard** (8), and **Base UI wraps handler events in
+`BaseUIEvent<…>`** (4). The last is a `ButtonProps` shape mismatch in `plan`.
+
+Note the correction: **one of the failures is in a file we ship.** `context.tsx`
+is one of the five vendored elements, so that one is ours to fix rather than
+upstream's — earlier notes here said all of them were upstream's. Tracked in
+`bd mastra-chat-kit-68j`.
+
+`nova` is the preset and `base` the primitive library; the resulting `style` is
+`base-nova`. `shadcn init --help` advertises `--defaults` as `--preset=base-nova`,
+but the preset validator rejects that value — valid presets are `nova`, `vega`,
+`maia`, `lyra`, `mira`, `luma`, `sera`, `rhea`.
 
 > For the record, the two upstream elements that import `@radix-ui/…`
 > (`reasoning`, `chain-of-thought`) are *not* the problem — they use only
