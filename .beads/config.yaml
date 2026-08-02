@@ -58,4 +58,17 @@ export.auto: true
 export:
     git-add: false
 sync:
-    remote: "git+https://github.com/hamchowderr/mastra-chat-kit.git"
+    remote: "file://C:/Users/HamCh/beads-backups/mastra-chat-kit-dolt"
+
+# sync.remote deliberately points at a LOCAL directory, not the git origin.
+#
+# Beads defaults this key to the git origin, and a SUCCESSFUL 'bd dolt push' then
+# writes a refs/heads/__dolt_remote_info__ branch to GitHub. This repo was wired
+# to a Vercel project that built every branch, and that one holds a single file
+# and no packages/web — so every push queued a deployment that died at checkout
+# in ~1s. Changed 2026-08-01.
+#
+# Do NOT set this back to git+https://github.com/... — clearing it is not enough
+# either, because 'bd dolt push' re-derives it from git origin and rewrites this
+# file. A non-git remote is what actually holds. Point it at DoltHub when those
+# remotes exist.
