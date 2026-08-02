@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "//": "This is a PURE STATIC deploy — index.html plus r/*.json, no package.json, no build. All three settings below are load-bearing overrides of whatever the Vercel project has stored: framework:null stops detection deciding this is Next.js ('No Next.js version detected'), the empty buildCommand stops it running the web app's 'pnpm build:registry && pnpm build', and outputDirectory '.' serves the staged root.",
+  "framework": null,
+  "buildCommand": "",
+  "outputDirectory": ".",
+  "headers": [
+    {
+      "source": "/r/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" },
+        { "key": "Cache-Control", "value": "public, max-age=3600, s-maxage=86400" }
+      ]
+    }
+  ]
+}

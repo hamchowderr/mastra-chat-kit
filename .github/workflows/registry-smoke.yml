@@ -18,8 +18,9 @@ on:
   workflow_dispatch:
     inputs:
       hosted_url:
-        description: 'Also assert the deployed registry answers (https://mastra-chat-kit-registry.vercel.app). Optional — leave blank to smoke-test the local build only.'
+        description: 'Registry URL to assert. Defaults to the live one; pass another to test a preview, or "none" to smoke-test the local build only.'
         required: false
+        default: 'https://mastra-chat-kit-registry.vercel.app'
         type: string
   pull_request:
     # Only the surfaces that can break an install — this job is slow, so it
@@ -56,8 +57,22 @@ jobs:
 
       # No pnpm install: the smoke script only needs node plus `npx shadcn`,
       # and the throwaway consumer brings its own dependencies.
+      # The scheduled run MUST hit the live registry. A local-only run passes
+      # happily while the deployment is dead, which is exactly how the URL in the
+      # README went stale — docs advertising a host that 404s every `shadcn add`.
+      # Pull requests deliberately skip it: a down deployment is production news,
+      # not a reason to fail someone's diff.
       - name: Install the registry into a throwaway project
-        run: node packages/web/scripts/registry-smoke.mjs ${{ inputs.hosted_url && format('--hosted {0}', inputs.hosted_url) || '' }}
+        env:
+          HOSTED_URL: ${{ github.event_name == 'pull_request' && 'none' || inputs.hosted_url || 'https://mastra-chat-kit-registry.vercel.app' }}
+        run: |
+          if [ "$HOSTED_URL" = "none" ]; then
+            echo "Smoke-testing the local build only (event: ${{ github.event_name }})."
+            node packages/web/scripts/registry-smoke.mjs
+          else
+            echo "Also asserting the deployed registry answers: $HOSTED_URL"
+            node packages/web/scripts/registry-smoke.mjs --hosted "$HOSTED_URL"
+          fi
 
       # Failure notification is GitHub's default for scheduled workflows (the
       # repo owner is emailed). Kept explicit so the log states the consequence
