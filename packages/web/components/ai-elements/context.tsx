@@ -14,6 +14,15 @@ import { getUsage } from "tokenlens";
 
 const PERCENT_MAX = 100;
 const ICON_RADIUS = 10;
+
+// Open/close instantly. Radix's HoverCard takes these; Base UI's PreviewCard —
+// what the shadcn CLI swaps in on a Base UI project — has neither, so naming
+// them inline fails to typecheck there ("Property 'openDelay' does not exist on
+// type 'Props<unknown>'"). Spreading keeps the zero-delay behaviour on the
+// supported Radix base and is inert on Base UI. Measured: this was 1 of the 13
+// Base UI errors, and the only one in a file this kit ships (bd
+// mastra-chat-kit-68j) — the other 12 are upstream's to fix.
+const NO_DELAY = { closeDelay: 0, openDelay: 0 } as unknown as ComponentProps<typeof HoverCard>;
 const ICON_VIEWBOX = 24;
 const ICON_CENTER = 12;
 const ICON_STROKE_WIDTH = 2;
@@ -70,7 +79,7 @@ export const Context = ({
 
   return (
     <ContextContext.Provider value={contextValue}>
-      <HoverCard closeDelay={0} openDelay={0} {...props} />
+      <HoverCard {...NO_DELAY} {...props} />
     </ContextContext.Provider>
   );
 };
