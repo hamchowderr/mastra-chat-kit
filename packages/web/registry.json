@@ -1,7 +1,7 @@
 {
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "mastra-chat-kit",
-  "homepage": "https://github.com/hamchowderr/mastra-chat-kit",
+  "homepage": "https://mastra-chat-kit-registry.vercel.app",
   "items": [
     {
       "name": "code-block",
@@ -343,7 +343,7 @@
           "target": "components/chat/workbench-schedules.tsx"
         }
       ],
-      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://github.com/hamchowderr/mastra-chat-kit for the full endpoint contract."
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit-registry.vercel.app for the full endpoint contract."
     },
     {
       "name": "chat-minimal",
@@ -371,7 +371,7 @@
           "target": "components/chat-minimal/minimal-chat.tsx"
         }
       ],
-      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://github.com/hamchowderr/mastra-chat-kit for the full endpoint contract."
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit-registry.vercel.app for the full endpoint contract."
     }
   ]
 }
