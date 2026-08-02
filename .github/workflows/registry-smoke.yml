@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       hosted_url:
-        description: 'Also assert a deployed registry answers (e.g. https://your-registry-host). Optional — there is no hosted registry since 2026-08-01; leave blank to smoke-test the local build only.'
+        description: 'Also assert the deployed registry answers (https://mastra-chat-kit-registry.vercel.app). Optional — leave blank to smoke-test the local build only.'
         required: false
         type: string
   pull_request:
