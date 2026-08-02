@@ -24,15 +24,34 @@ AgentController route contract lives in `src/mastra/routes/`, split by surface:
 | `routes/controller.ts` | the run surface — stream (SSE), approve, answer, goal, om, schedules |
 | `routes/workspace.ts` | files, file, browser screencast (SSE), generated images |
 
-Each exports a plain array of `registerApiRoute(...)` results that `index.ts`
-spreads into `serverConfig.apiRoutes`.
+Each exports a **factory** — `createThreadRoutes(deps)` etc. — returning an array
+of `registerApiRoute(...)` results that `index.ts` spreads into
+`serverConfig.apiRoutes`.
 
-**Handlers must never import `mastra` from `index.ts`** — `index.ts` imports the
-route modules, so that would be circular. Reach the instance through the Hono
-context instead, which Mastra types as `CustomRouteVariables`:
+### The routes must not import the wiring
+
+`routes/types.ts` defines `ChatServerDeps`: session and controller accessors, the
+workspace reader, the image store, the browser, an optional search pair, an agent
+id and a model allowlist. `index.ts` supplies this repo's implementation.
+
+This is not ceremony. When the routes imported `lib/agent-controller` directly,
+their transitive closure was **2283 lines across 20 files** — all six agents, the
+tools, memory, processors, Dolt and env — because the controller wires all of it.
+The routes are the portable half (the HTTP contract the web layer speaks);
+everything else is *this repo's* reference implementation and must not be dragged
+along behind it. Adding an import of `lib/`, `agents/` or `tools/` to a route
+module re-creates that coupling — put it in `ChatServerDeps` instead.
+
+Corollaries:
+
+- `deps.search` is **optional**. `/threads/search` answers `{ threads: [] }` when
+  it is absent, so a consumer with no vector index still gets a working sidebar.
+- **Never import `mastra` from `index.ts`** — `index.ts` imports the route
+  modules, so that is circular. Reach the instance through the Hono context,
+  which Mastra types as `CustomRouteVariables`:
 
 ```typescript
-const memory = await c.get('mastra').getAgent('chat').getMemory();
+const memory = await c.get('mastra').getAgent(deps.agentId).getMemory();
 ```
 
 ---

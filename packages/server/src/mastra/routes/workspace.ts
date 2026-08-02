@@ -5,17 +5,15 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import { registerApiRoute } from '@mastra/core/server';
-import { getChatBrowser, WORKSPACE_ROOT } from '../lib/agent-controller';
-import { getImage } from '../lib/image-store';
-import { readWorkspaceFile, readWorkspaceTree } from '../lib/workspace-files';
+import type { ChatServerDeps } from './types';
 
-export const workspaceRoutes = [
+export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
   // Serves a generated image's bytes by id (the generateImage tool stashes them
   // so they never enter the model context). Returns { base64, mediaType }.
   registerApiRoute('/images/:id', {
     method: 'GET',
     handler: async (c) => {
-      const img = getImage(c.req.param('id'));
+      const img = deps.getImage(c.req.param('id'));
       if (!img) {
         return c.json({ error: 'image not found' }, 404);
       }
@@ -28,7 +26,8 @@ export const workspaceRoutes = [
   // ?path=<rel> → one file's text (confined to WORKSPACE_ROOT by the reader).
   registerApiRoute('/workspace/files', {
     method: 'GET',
-    handler: async (c) => c.json({ root: WORKSPACE_ROOT, tree: await readWorkspaceTree() }),
+    handler: async (c) =>
+      c.json({ root: deps.workspace.root, tree: await deps.workspace.readTree() }),
   }),
   registerApiRoute('/workspace/file', {
     method: 'GET',
@@ -37,7 +36,7 @@ export const workspaceRoutes = [
       if (!p) {
         return c.json({ error: 'path query is required' }, 400);
       }
-      const file = await readWorkspaceFile(p);
+      const file = await deps.workspace.readFile(p);
       if (!file) {
         return c.json({ error: 'not found' }, 404);
       }
@@ -52,7 +51,7 @@ export const workspaceRoutes = [
   registerApiRoute('/browser/screencast', {
     method: 'GET',
     handler: async (c) => {
-      const browser = await getChatBrowser();
+      const browser = await deps.getBrowser();
       try {
         if (!browser.isBrowserRunning()) {
           await browser.launch();

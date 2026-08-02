@@ -12,21 +12,9 @@
 
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
-import { getChatAgentController, getChatSession } from '../lib/agent-controller';
+import type { ChatServerDeps } from './types';
 
-// Models the controller stream will accept from body.model (the composer's model
-// picker). Keep in sync with web `MODELS` in components/chat/composer.tsx. The
-// agent's own `model: env.CHAT_MODEL` is the fallback when none/invalid is sent.
-const MODEL_ALLOWLIST = new Set([
-  'anthropic/claude-sonnet-4-6',
-  'anthropic/claude-opus-4-8',
-  'anthropic/claude-haiku-4-5',
-  'openai/gpt-4.1-mini',
-  'openai/gpt-4o-mini',
-  'openai/gpt-4.1-nano',
-]);
-
-export const controllerRoutes = [
+export const createControllerRoutes = (deps: ChatServerDeps) => [
   // Agent Controller endpoint: POST /agent-controller/stream → SSE of AgentControllerEvents.
   // Body: { text: string, threadId?: string }. The AgentController wraps the same
   // chatAgent but emits the richer orchestration surface (sessions, modes,
@@ -65,7 +53,7 @@ export const controllerRoutes = [
           }))
         : undefined;
 
-      const session = await getChatSession();
+      const session = await deps.getSession();
       // Resume the given thread, or start a fresh thread when none is sent. No
       // placeholder title — the sidebar derives the display title from the first
       // user message (chat-app convention) until AI titling lands (see 698.11).
@@ -109,7 +97,7 @@ export const controllerRoutes = [
             // Honor the composer's model pick (validated against MODEL_ALLOWLIST).
             // Switching here — inside the subscribed
             // stream — lets the resulting `model_changed` event flow to the client too.
-            if (model && MODEL_ALLOWLIST.has(model)) {
+            if (model && deps.modelAllowlist.has(model)) {
               await session.model.switch({ modelId: model });
             }
             await session.sendMessage({
@@ -159,7 +147,7 @@ export const controllerRoutes = [
       ) {
         return c.json({ error: 'decision must be approve | decline | always_allow_category' }, 400);
       }
-      const session = await getChatSession();
+      const session = await deps.getSession();
       session.respondToToolApproval({ decision });
       return c.json({ ok: true });
     },
@@ -183,7 +171,7 @@ export const controllerRoutes = [
       if (typeof answer !== 'string' && !Array.isArray(answer)) {
         return c.json({ error: 'answer must be a string or string[]' }, 400);
       }
-      const session = await getChatSession();
+      const session = await deps.getSession();
       await session.respondToToolSuspension({
         resumeData: answer,
         ...(toolCallId ? { toolCallId } : {}),
@@ -204,8 +192,8 @@ export const controllerRoutes = [
   registerApiRoute('/agent-controller/goal', {
     method: 'GET',
     handler: async (c) => {
-      const controller = await getChatAgentController();
-      const session = await getChatSession();
+      const controller = await deps.getAgentController();
+      const session = await deps.getSession();
       const threadId = session.thread.getId();
       if (!threadId) {
         return c.json({ objective: null });
@@ -220,8 +208,8 @@ export const controllerRoutes = [
   registerApiRoute('/agent-controller/goal', {
     method: 'DELETE',
     handler: async (c) => {
-      const controller = await getChatAgentController();
-      const session = await getChatSession();
+      const controller = await deps.getAgentController();
+      const session = await deps.getSession();
       const threadId = session.thread.getId();
       if (threadId) {
         await controller.getCurrentAgent(session).clearObjective({ threadId });
@@ -238,8 +226,8 @@ export const controllerRoutes = [
   registerApiRoute('/agent-controller/om', {
     method: 'GET',
     handler: async (c) => {
-      const controller = await getChatAgentController();
-      const session = await getChatSession();
+      const controller = await deps.getAgentController();
+      const session = await deps.getSession();
       const record = await controller.getObservationalMemoryRecord(session);
       const observations =
         record?.activeObservations?.replace(/<\/?thread[^>]*>/g, '').trim() || null;
@@ -261,7 +249,7 @@ export const controllerRoutes = [
   registerApiRoute('/agent-controller/schedules', {
     method: 'GET',
     handler: async (c) => {
-      const rows = await c.get('mastra').schedules.list({ agentId: 'chat' });
+      const rows = await c.get('mastra').schedules.list({ agentId: deps.agentId });
       const schedules = rows
         // biome-ignore lint/suspicious/noExplicitAny: AnySchedule union — agent schedules carry agentId
         .filter((s: any) => s?.agentId)
