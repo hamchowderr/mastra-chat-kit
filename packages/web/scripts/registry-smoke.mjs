@@ -42,6 +42,36 @@ const PROJECT = join(WORK, 'consumer');
 const hostedArg = process.argv.indexOf('--hosted');
 const HOSTED = hostedArg > -1 ? process.argv[hostedArg + 1] : null;
 
+// Which shadcn base to scaffold the consumer on.
+//
+//   radix (default) — the SUPPORTED base. Type errors here are real failures.
+//   base            — Base UI, what a bare `shadcn init` gives you since CLI 4.x
+//                     (`--defaults` resolves to `--preset=base-nova`). Our own
+//                     components port fine (the CLI rewrites `asChild` to
+//                     `render`); the upstream Vercel AI Elements do not, because
+//                     they are Radix-authored. Measuring exactly which ones fail
+//                     is bd mastra-chat-kit-68j.
+//
+// --report prints the grouped error summary and exits 0 instead of failing, so a
+// Base UI run can be used to MEASURE before anything is fixed.
+const baseArg = process.argv.indexOf('--base');
+const BASE = baseArg > -1 ? process.argv[baseArg + 1] : 'radix';
+const REPORT = process.argv.includes('--report');
+if (BASE !== 'radix' && BASE !== 'base') {
+  console.error(`--base must be "radix" or "base" (got ${BASE})`);
+  process.exit(1);
+}
+// `--base` selects the primitive library (base | radix | aria) and `--preset` the
+// theme; the resulting `style` is "<base>-<preset>". NB: `shadcn init --help`
+// advertises `--defaults` as `--preset=base-nova`, but the preset validator
+// rejects that value — base-nova is the STYLE name, not a preset. Verified on
+// CLI 4.16.0, 2026-08-02: valid presets are nova, vega, maia, lyra, mira, luma,
+// sera, rhea.
+const INIT_BASE_ARGS =
+  BASE === 'radix'
+    ? ['--base', 'radix', '--preset', 'maia']
+    : ['--base', 'base', '--preset', 'nova'];
+
 // What a correct install must produce. These counts are the contract; if the
 // registry legitimately grows, update them here in the same commit.
 const EXPECT = {
@@ -154,7 +184,7 @@ if (HOSTED) {
 // ── 3. Scaffold a consumer at the SUPPORTED base ─────────────────────────────
 rmSync(WORK, { recursive: true, force: true });
 mkdirSync(WORK, { recursive: true });
-log('scaffolding a consumer project (shadcn init --base radix)');
+log(`scaffolding a consumer project (shadcn init ${INIT_BASE_ARGS.join(' ')})`);
 {
   const { code, out } = await run(
     'npx',
@@ -164,10 +194,7 @@ log('scaffolding a consumer project (shadcn init --base radix)');
       'init',
       '--template',
       'next',
-      '--base',
-      'radix',
-      '--preset',
-      'maia',
+      ...INIT_BASE_ARGS,
       '--name',
       'consumer',
       '--yes',
@@ -279,7 +306,37 @@ log('typechecking the consumer');
   const { code, out } = await run('npx', ['--yes', 'tsc', '--noEmit'], { cwd: PROJECT });
   if (code !== 0) {
     const errs = out.split('\n').filter((l) => l.includes('error TS'));
-    const ours = errs.filter((l) => /^(components\/chat|lib\/|app\/api)/.test(l));
+    // "Ours" includes the five AI Elements we VENDOR — they are files this kit
+    // ships and maintains, so an error there is ours to fix, not upstream's.
+    // Leaving them out of this filter is how a Base UI run reported "0 in files
+    // this kit ships" while our own context.tsx was one of the failures.
+    const OURS_RE = new RegExp(
+      `^(components/chat|lib/|app/api|components/ai-elements/(${OURS.join('|')})\\.tsx)`,
+    );
+    const ours = errs.filter((l) => OURS_RE.test(l));
+
+    // Group by file so the output names WHICH components break, not just how
+    // many errors there were. On Base UI the answer is the whole point of the
+    // run — "14 errors somewhere in the upstream elements" is not actionable.
+    const byFile = new Map();
+    for (const line of errs) {
+      const file = line.match(/^([^(]+)\(/)?.[1] ?? '(unknown)';
+      byFile.set(file, (byFile.get(file) ?? 0) + 1);
+    }
+    const summary = [...byFile.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([f, n]) => `  ${String(n).padStart(3)}  ${f}`)
+      .join('\n');
+    console.log(`\nType errors by file (base=${BASE}):\n${summary}\n`);
+    console.log(`total ${errs.length}, ${ours.length} in files this kit ships\n`);
+
+    if (REPORT) {
+      console.log(errs.join('\n'));
+      server.close();
+      rmSync(WORK, { recursive: true, force: true });
+      console.log(`\n✓ report complete (base=${BASE}) — measured, not asserted`);
+      process.exit(0);
+    }
     await die(
       `consumer does not typecheck — ${errs.length} error(s), ${ours.length} in files this kit ships`,
       errs.join('\n'),
