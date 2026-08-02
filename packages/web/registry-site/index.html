@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mastra-chat-kit — shadcn registry</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #18181b; --muted: #71717a; --line: #e4e4e7;
+    --code-bg: #f4f4f5; --accent: #6d28d9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0a0a0b; --fg: #ededf0; --muted: #a1a1aa; --line: #27272a;
+      --code-bg: #17171a; --accent: #a78bfa;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 3rem 1.5rem 5rem; background: var(--bg); color: var(--fg);
+    font: 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.4rem; letter-spacing: -0.02em; margin: 0 0 .35rem; }
+  .sub { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 {
+    font-size: .75rem; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--muted); font-weight: 600; margin: 2.5rem 0 .85rem;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .85rem 1rem; overflow-x: auto; margin: 0 0 .9rem;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13.5px; }
+  ul { list-style: none; padding: 0; margin: 0;
+       display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .4rem; }
+  li a {
+    display: block; padding: .5rem .7rem; border: 1px solid var(--line); border-radius: 7px;
+    color: var(--fg); text-decoration: none; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px; transition: border-color .15s, color .15s;
+  }
+  li a:hover { border-color: var(--accent); color: var(--accent); }
+  .note { color: var(--muted); font-size: 13.5px; }
+  a.plain { color: var(--accent); }
+  footer { margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+  <h1>mastra-chat-kit</h1>
+  <p class="sub">A shadcn registry for the Mastra chat layer — AI Elements, the UI-free agent-controller engine, and the API proxy routes.</p>
+
+  <h2>Install</h2>
+  <p class="note">Add the namespace to your <code>components.json</code>:</p>
+  <pre><code>{
+  "registries": {
+    "@mastra-chat-kit": "https://mastra-chat-kit-registry.vercel.app/r/{name}.json"
+  }
+}</code></pre>
+  <p class="note">Then pull the chat layer:</p>
+  <pre><code>npx shadcn@latest add @mastra-chat-kit/chat           # full shell
+npx shadcn@latest add @mastra-chat-kit/chat-minimal   # embeddable</code></pre>
+  <p class="note">
+    Needs the <strong>Radix</strong> base and the <strong>Lucide</strong> icon set —
+    <code>npx shadcn@latest init --base radix</code> and <code>"iconLibrary": "lucide"</code>.
+    A bare <code>init</code> gives you Base UI, which the upstream AI Elements aren't authored for.
+  </p>
+
+  <h2>Items</h2>
+  <ul>
+    <li><a href="/r/chat.json">chat</a></li>
+    <li><a href="/r/chat-minimal.json">chat-minimal</a></li>
+    <li><a href="/r/chat-engine.json">chat-engine</a></li>
+    <li><a href="/r/chat-routes.json">chat-routes</a></li>
+    <li><a href="/r/chat-tool-views.json">chat-tool-views</a></li>
+    <li><a href="/r/code-block.json">code-block</a></li>
+    <li><a href="/r/image.json">image</a></li>
+    <li><a href="/r/context.json">context</a></li>
+    <li><a href="/r/tool.json">tool</a></li>
+    <li><a href="/r/agent.json">agent</a></li>
+    <li><a href="/r/registry.json">registry.json</a></li>
+  </ul>
+
+  <footer>
+    <p class="note">
+      Source and docs: <a class="plain" href="https://github.com/hamchowderr/mastra-chat-kit">github.com/hamchowderr/mastra-chat-kit</a>
+    </p>
+  </footer>
+</main>
+</body>
+</html>
