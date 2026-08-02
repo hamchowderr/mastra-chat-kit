@@ -26,6 +26,9 @@
 # generated shadcn registry output (rebuilt by `pnpm build:registry`)
 /public/r/
 
+# staging dir assembled by `pnpm deploy:registry` (registry-site/ + public/r)
+/.registry-deploy/
+
 # production
 /build
 
