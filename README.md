@@ -186,12 +186,8 @@ Add the namespace to `components.json`, then install:
 
 ```jsonc
 // components.json
-"registries": { "@mastra-chat-kit": "https://<your-registry-host>/r/{name}.json" }
+"registries": { "@mastra-chat-kit": "https://mastra-chat-kit-registry.vercel.app/r/{name}.json" }
 ```
-
-> **No hosted registry right now.** The Vercel deployment that served this was
-> deleted on 2026-08-01. Run `pnpm build:registry`, serve `packages/web/public/r`
-> from any static host, and use that origin above. See [docs/registry.md](docs/registry.md).
 
 ```bash
 npx shadcn@latest add @mastra-chat-kit/chat           # the full shell
