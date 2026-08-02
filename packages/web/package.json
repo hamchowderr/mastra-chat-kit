@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:registry": "node scripts/gen-registry.mjs && shadcn build",
+    "deploy:registry": "node scripts/deploy-registry.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

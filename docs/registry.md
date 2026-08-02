@@ -168,6 +168,38 @@ In the consumer project's `components.json`, add the namespace:
 > It needs no framework and no build step, so registry hosting is independent of
 > wherever the demo app runs.
 
+### Publishing it
+
+```bash
+pnpm --filter @mastra-chat-kit/web deploy:registry            # build → stage → deploy
+pnpm --filter @mastra-chat-kit/web deploy:registry --dry-run   # stage only, don't deploy
+```
+
+`scripts/deploy-registry.mjs` is the only supported way to publish. It rebuilds
+the registry (deploying a stale `public/r` is the failure this exists to
+prevent), stages `registry-site/` + `public/r` together, links the Vercel project
+**by name**, and deploys. Run it after any change that alters `registry.json`.
+
+The shell lives in `packages/web/registry-site/`: `index.html` (the landing page
+the bare URL serves) and `vercel.json` (CORS + cache headers on `/r/*`).
+
+Three details that will bite anyone editing this:
+
+- **Staging happens in the OS temp dir, not the workspace.** Vercel walks up from
+  the deploy directory hunting for a `package.json` to detect the framework;
+  staging under `packages/web` makes it find the Next.js one and fail with
+  `No Next.js version detected`.
+- **`vercel.json` sets `framework: null`, `buildCommand: ""`, `outputDirectory: "."`.**
+  All three override whatever the Vercel project has stored. Without the empty
+  build command the project tries to run the web app's
+  `pnpm build:registry && pnpm build` against a directory with no `package.json`.
+- **Link by project name.** Vercel otherwise infers the project from the staging
+  directory's name and silently creates a new one.
+
+The daily `registry-smoke` workflow asserts the deployed URL answers, so a dead
+deployment surfaces there rather than in someone's terminal. Pull requests skip
+that assertion — a down deployment is production news, not a broken diff.
+
 Then install the whole chat layer:
 
 ```bash
