@@ -10,7 +10,7 @@
       "description": "AI Elements code block with an SSR hydration fix (mount-gated Shiki highlighting).",
       "dependencies": [
         "lucide-react",
-        "shiki"
+        "shiki@^3.23.0"
       ],
       "registryDependencies": [
         "button",
@@ -267,7 +267,7 @@
       "dependencies": [
         "ai",
         "lucide-react",
-        "shiki",
+        "shiki@^3.23.0",
         "sonner"
       ],
       "registryDependencies": [
