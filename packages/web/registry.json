@@ -232,6 +232,43 @@
       ]
     },
     {
+      "name": "chat-server",
+      "type": "registry:file",
+      "title": "Chat Server (AgentController route contract)",
+      "description": "The 16 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
+      "dependencies": [
+        "@mastra/core"
+      ],
+      "registryDependencies": [],
+      "files": [
+        {
+          "path": "../server/src/mastra/routes/types.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/types.ts"
+        },
+        {
+          "path": "../server/src/mastra/routes/threads.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/threads.ts"
+        },
+        {
+          "path": "../server/src/mastra/routes/controller.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/controller.ts"
+        },
+        {
+          "path": "../server/src/mastra/routes/workspace.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/workspace.ts"
+        },
+        {
+          "path": "../server/src/mastra/lib/thread-utils.ts",
+          "type": "registry:file",
+          "target": "src/mastra/lib/thread-utils.ts"
+        }
+      ]
+    },
+    {
       "name": "chat-tool-views",
       "type": "registry:component",
       "title": "Chat Tool Views",
