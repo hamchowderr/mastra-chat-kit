@@ -7,18 +7,15 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import { registerApiRoute } from '@mastra/core/server';
-import { fastembed } from '@mastra/fastembed';
-import { embed } from 'ai';
-import { CHAT_RESOURCE_ID, getChatSession } from '../lib/agent-controller';
-import { getSharedVector, MESSAGE_VECTOR_INDEX } from '../lib/memory';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from '../lib/thread-utils';
+import type { ChatServerDeps } from './types';
 
-export const threadRoutes = [
+export const createThreadRoutes = (deps: ChatServerDeps) => [
   // List the controller's conversations (newest first) with a display title.
   registerApiRoute('/agent-controller/threads', {
     method: 'GET',
     handler: async (c) => {
-      const session = await getChatSession();
+      const session = await deps.getSession();
       const threads = await session.thread.list();
       const items: Array<{
         id: string;
@@ -63,25 +60,22 @@ export const threadRoutes = [
   }),
 
   // Semantic search over the controller's conversations — matches message BODIES,
-  // not just titles. Controller messages are already embedded into the fastembed
-  // vector index by `createDefaultMemory`'s semanticRecall, under CHAT_RESOURCE_ID.
-  // So we embed the query with fastembed (a LOCAL ONNX model — no API spend) and
-  // query that shared index filtered to the same resource. The user's turn is
-  // stored role="signal" but its text is embedded with `content`, so it matches too.
+  // not just titles. Controller messages are already embedded into the vector
+  // index by `createDefaultMemory`'s semanticRecall, so we embed the query and
+  // query that same index. The user's turn is stored role="signal" but its text
+  // is embedded with `content`, so it matches too.
+  //
+  // `deps.search` is optional: a consumer with no vector index gets an empty
+  // result rather than a 500, so the sidebar still works.
   registerApiRoute('/agent-controller/threads/search', {
     method: 'GET',
     handler: async (c) => {
       const q = (c.req.query('q') ?? '').trim();
-      if (q.length < 2) {
+      if (q.length < 2 || !deps.search) {
         return c.json({ threads: [] });
       }
-      const { embedding } = await embed({ model: fastembed, value: q });
-      const hits = await getSharedVector().query({
-        indexName: MESSAGE_VECTOR_INDEX,
-        queryVector: embedding,
-        topK: 24,
-        filter: { resource_id: CHAT_RESOURCE_ID },
-      });
+      const embedding = await deps.search.embed(q);
+      const hits = await deps.search.query(embedding, 24);
       // Best (highest-ranked) hit per thread → snippet from the matched message.
       const seen = new Map<string, { snippet: string; score: number }>();
       for (const h of hits) {
@@ -101,7 +95,7 @@ export const threadRoutes = [
       // Resolve display titles for the matched threads from the controller's own
       // thread list (explicit title → first non-assistant message). Only threads
       // that still exist are returned.
-      const session = await getChatSession();
+      const session = await deps.getSession();
       const threads = await session.thread.list();
       const byId = new Map(threads.map((t) => [t.id, t]));
       const matchedIds = [...seen.keys()].filter((id) => byId.has(id));
@@ -143,7 +137,7 @@ export const threadRoutes = [
   registerApiRoute('/agent-controller/threads/:id/messages', {
     method: 'GET',
     handler: async (c) => {
-      const session = await getChatSession();
+      const session = await deps.getSession();
       const messages = await session.thread.listMessages({ threadId: c.req.param('id') });
       return c.json({ messages: messages.map(toUIMessage) });
     },
@@ -153,7 +147,7 @@ export const threadRoutes = [
   registerApiRoute('/agent-controller/threads/:id', {
     method: 'DELETE',
     handler: async (c) => {
-      const session = await getChatSession();
+      const session = await deps.getSession();
       await session.thread.delete({ threadId: c.req.param('id') });
       return c.json({ ok: true });
     },
@@ -170,7 +164,7 @@ export const threadRoutes = [
     handler: async (c) => {
       const id = c.req.param('id');
       const body = await c.req.json<{ archived?: boolean; title?: string }>();
-      const memory = await c.get('mastra').getAgent('chat').getMemory();
+      const memory = await c.get('mastra').getAgent(deps.agentId).getMemory();
       if (!memory) {
         return c.json({ error: 'memory not configured' }, 500);
       }
