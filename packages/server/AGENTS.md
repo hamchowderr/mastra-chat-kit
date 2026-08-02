@@ -13,6 +13,30 @@ cached knowledge — Mastra APIs change between versions, and this kit pins exac
 
 ---
 
+## Route Layout
+
+`index.ts` wires the Mastra instance; it does not contain route handlers. The
+AgentController route contract lives in `src/mastra/routes/`, split by surface:
+
+| File | Routes |
+|---|---|
+| `routes/threads.ts` | conversation history — list, semantic search, messages, DELETE, PATCH |
+| `routes/controller.ts` | the run surface — stream (SSE), approve, answer, goal, om, schedules |
+| `routes/workspace.ts` | files, file, browser screencast (SSE), generated images |
+
+Each exports a plain array of `registerApiRoute(...)` results that `index.ts`
+spreads into `serverConfig.apiRoutes`.
+
+**Handlers must never import `mastra` from `index.ts`** — `index.ts` imports the
+route modules, so that would be circular. Reach the instance through the Hono
+context instead, which Mastra types as `CustomRouteVariables`:
+
+```typescript
+const memory = await c.get('mastra').getAgent('chat').getMemory();
+```
+
+---
+
 ## Boot Order (critical)
 
 `src/mastra/index.ts` must initialize in this exact order:
