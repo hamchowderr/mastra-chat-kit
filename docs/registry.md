@@ -158,17 +158,15 @@ In the consumer project's `components.json`, add the namespace:
 ```json
 {
   "registries": {
-    "@mastra-chat-kit": "https://<your-registry-host>/r/{name}.json"
+    "@mastra-chat-kit": "https://mastra-chat-kit-registry.vercel.app/r/{name}.json"
   }
 }
 ```
 
-> **There is no hosted registry right now.** This kit was served from a Vercel
-> deployment that was deleted on 2026-08-01, so the old
-> `mastra-chat-kit.vercel.app` URL is dead. `pnpm build:registry` writes the
-> registry JSON to `packages/web/public/r/`; serve that directory from any static
-> host and use its origin above. Until you do, `shadcn add @mastra-chat-kit/…`
-> has nothing to resolve against.
+> The registry is served as a plain static site — `pnpm build:registry` writes the
+> item JSON to `packages/web/public/r/`, and that directory is deployed on its own.
+> It needs no framework and no build step, so registry hosting is independent of
+> wherever the demo app runs.
 
 Then install the whole chat layer:
 
