@@ -270,6 +270,43 @@ const ROUTE_FILES = [
   });
 }
 
+// 3b) chat-server: the OTHER half. chat-routes above are Next proxies — they
+// forward to a Mastra server but do not implement it, so a consumer who installs
+// only the web side gets a UI that renders and then 404s on every request. This
+// item ships the endpoints those proxies call, to drop into a consumer's own
+// Mastra project.
+//
+// It is deliberately SMALL. The route modules take their dependencies through
+// ChatServerDeps (see the server package's routes/types.ts) rather than importing
+// this repo's wiring, so shipping them does NOT drag along our six agents, our
+// storage, our Dolt setup or our env schema — measured at 2283 lines across 20
+// files before that seam existed (bd mastra-chat-kit-6vl). What ships is the
+// route contract and one pure helper module.
+//
+// Paths are relative to packages/web because that is where registry.json lives;
+// targets are where they land in the consumer's Mastra project. The relative
+// import `../lib/thread-utils` inside the routes resolves correctly because the
+// targets preserve the routes/ ↔ lib/ layout.
+const SERVER_FILES = [
+  ['../server/src/mastra/routes/types.ts', 'src/mastra/routes/types.ts'],
+  ['../server/src/mastra/routes/threads.ts', 'src/mastra/routes/threads.ts'],
+  ['../server/src/mastra/routes/controller.ts', 'src/mastra/routes/controller.ts'],
+  ['../server/src/mastra/routes/workspace.ts', 'src/mastra/routes/workspace.ts'],
+  // Pure formatting helpers the thread routes need. No imports of its own.
+  ['../server/src/mastra/lib/thread-utils.ts', 'src/mastra/lib/thread-utils.ts'],
+];
+items.push({
+  name: 'chat-server',
+  type: 'registry:file',
+  title: 'Chat Server (AgentController route contract)',
+  description:
+    "The 16 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
+  // Every import in these files is @mastra/core/* or a sibling that ships here.
+  dependencies: ['@mastra/core'],
+  registryDependencies: [],
+  files: SERVER_FILES.map(([path, target]) => ({ path, type: 'registry:file', target })),
+});
+
 // 4) chat-tool-views: the SHARED renderers that turn real tool output into elements
 // (sources, generated images, plan, goal card, ask_user prompt, workspace views).
 // Promoted out of the `chat` block so a second skin depends on THIS rather than on

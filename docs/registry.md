@@ -17,6 +17,7 @@ our own copies of only the few we had to patch.
 | `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
 | `chat-engine` | lib | The engine: Agent Controller SSE client, transcript reducer, and the data hooks that own every `/api/*` call. UI-free — imports only React. |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `agent-controller/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
+| `chat-server` | file | **The other half.** The 16 Mastra endpoints `chat-routes` forwards *to*, for your own Mastra project. Not pulled in by `chat` — install it separately, on the server side. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
 | `context` | component | AI Elements context/usage with `Partial<LanguageModelUsage>`. |
@@ -237,6 +238,54 @@ Then install the whole chat layer:
 ```bash
 npx shadcn@latest add @mastra-chat-kit/chat
 ```
+
+### The server half
+
+`chat` gives you a UI that fetches `/api/agent-controller/*`. Those Next routes
+forward to a Mastra server at `MASTRA_SERVER_URL` (default
+`http://localhost:4111`) — and the 16 endpoints they call are **not** Mastra
+built-ins. Point the UI at a stock `mastra dev` and every request 404s.
+
+So install the other half into your Mastra project:
+
+```bash
+npx shadcn@latest add @mastra-chat-kit/chat-server
+```
+
+Five files — the three route modules, the `ChatServerDeps` type, and one pure
+formatting helper. Then register them and supply the dependencies:
+
+```ts
+import { createThreadRoutes } from './mastra/routes/threads';
+import { createControllerRoutes } from './mastra/routes/controller';
+import { createWorkspaceRoutes } from './mastra/routes/workspace';
+
+const deps = {
+  getSession, getAgentController, getBrowser,   // your AgentController
+  agentId: 'chat',
+  workspace: { root, readTree, readFile },
+  getImage,
+  modelAllowlist: new Set([...]),
+  search: { embed, query },                      // OPTIONAL — omit it and
+};                                               // /threads/search returns []
+
+export const mastra = new Mastra({
+  server: {
+    apiRoutes: [
+      ...createThreadRoutes(deps),
+      ...createControllerRoutes(deps),
+      ...createWorkspaceRoutes(deps),
+    ],
+  },
+  // …your agents, your storage
+});
+```
+
+The routes take their dependencies rather than importing ours, so **none of this
+repo's agents, storage, Dolt wiring or env schema comes with them** — see
+`packages/server/AGENTS.md` for why that seam exists. `packages/web/scripts/server-smoke.mjs`
+proves it on every relevant PR: it installs into a plain TypeScript project with
+no React and asserts no shipped file reaches back into this repo.
 
 shadcn resolves the dependency graph automatically: our 5 vendored components +
 `chat-engine` + `chat-routes` from `@mastra-chat-kit`, the other AI Elements from

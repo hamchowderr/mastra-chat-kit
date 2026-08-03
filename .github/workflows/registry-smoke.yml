@@ -29,6 +29,10 @@ on:
       - 'packages/web/registry.json'
       - 'packages/web/scripts/gen-registry.mjs'
       - 'packages/web/scripts/registry-smoke.mjs'
+      - 'packages/web/scripts/server-smoke.mjs'
+      # chat-server ships these straight out of the server package.
+      - 'packages/server/src/mastra/routes/**'
+      - 'packages/server/src/mastra/lib/thread-utils.ts'
       - 'packages/web/components/chat/**'
       - 'packages/web/components/ai-elements/**'
       - 'packages/web/lib/agent-controller/**'
@@ -73,6 +77,14 @@ jobs:
             echo "Also asserting the deployed registry answers: $HOSTED_URL"
             node packages/web/scripts/registry-smoke.mjs --hosted "$HOSTED_URL"
           fi
+
+      # The other half. registry-smoke above scaffolds a NEXT app, so it only ever
+      # proves the web side. chat-server ships into a plain TypeScript Mastra
+      # project with no React, no Tailwind and no components/ — if it silently
+      # started depending on any of that, or on this repo's agents/storage, only
+      # this job would notice.
+      - name: Install the server half into a bare Mastra project
+        run: node packages/web/scripts/server-smoke.mjs
 
       # Failure notification is GitHub's default for scheduled workflows (the
       # repo owner is emailed). Kept explicit so the log states the consequence
