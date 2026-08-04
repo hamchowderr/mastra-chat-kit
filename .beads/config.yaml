@@ -57,18 +57,42 @@
 export.auto: true
 export:
     git-add: false
-sync:
-    remote: "file://C:/Users/HamCh/beads-backups/mastra-chat-kit-dolt"
 
-# sync.remote deliberately points at a LOCAL directory, not the git origin.
+# sync.remote is deliberately ABSENT, and the Dolt remote is configured per-clone
+# instead. Two separate reasons, both verified:
 #
-# Beads defaults this key to the git origin, and a SUCCESSFUL 'bd dolt push' then
-# writes a refs/heads/__dolt_remote_info__ branch to GitHub. This repo was wired
-# to a Vercel project that built every branch, and that one holds a single file
-# and no packages/web — so every push queued a deployment that died at checkout
-# in ~1s. Changed 2026-08-01.
+# 1. NEVER point it at the git origin. Beads defaults this key to the git remote,
+#    and a successful 'bd dolt push' then writes a refs/heads/__dolt_remote_info__
+#    branch to GitHub. This repo was wired to a Vercel project that built every
+#    branch, and that one holds a single file and no packages/web — so every push
+#    queued a deployment that died at checkout in ~1s.
 #
-# Do NOT set this back to git+https://github.com/... — clearing it is not enough
-# either, because 'bd dolt push' re-derives it from git origin and rewrites this
-# file. A non-git remote is what actually holds. Point it at DoltHub when those
+# 2. The value here is a machine path, and this file is COMMITTED. It published
+#    a local directory layout to a public repo for no benefit, because the remote
+#    bd actually pushes to is stored in .dolt/repo_state.json inside the (gitignored)
+#    embedded database — NOT read from this key at push time. Removing it changes
+#    nothing about how pushes behave on a clone that already has a remote set.
+#
+# The value lives in .beads/.env instead, which .beads/.gitignore:57 ignores:
+#
+#     BD_SYNC_REMOTE=file://<absolute/path/to/a/backup-dir>
+#
+# That is not merely cosmetic. With NO value resolvable, every write past the
+# auto-export throttle prints:
+#
+#     beads: auto-export warning: no Dolt remote configured.
+#     beads: repair: bd dolt remote add origin git+https://github.com/... && bd dolt push
+#
+# i.e. bd repeatedly instructs you to do reason 1. Verified A/B with
+# BD_EXPORT_INTERVAL=1s: 3/3 writes warn without .beads/.env, 0/3 with it.
+#
+# On a fresh clone, write that .env and then:
+#
+#     bd dolt remote add origin file://<same/path>   # writes .dolt/repo_state.json
+#     bd dolt push
+#
+# Do NOT use a relative path or '~' — 'bd dolt remote add' absolutizes the value
+# immediately, against the Dolt DATA DIR rather than the repo root, and does not
+# expand a tilde. Both land nested inside .beads/embeddeddolt/ (a "backup" on the
+# same disk, inside the thing it is backing up). Point it at DoltHub when those
 # remotes exist.
