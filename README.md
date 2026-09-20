@@ -1,3 +1,5 @@
+
+
 <div align="center">
 
 # 💬 mastra-chat-kit
@@ -489,7 +491,7 @@ Issues and PRs welcome. Two things worth knowing before you start:
 Before opening a PR, run what CI runs:
 
 ```bash
-pnpm lint && pnpm check:dockerignore && pnpm test && pnpm --filter @mastra-chat-kit/web build
+pnpm lint && pnpm typecheck && pnpm check:dockerignore && pnpm test && pnpm --filter @mastra-chat-kit/web build
 ```
 
 If you touched the `Dockerfile` or `.dockerignore`, also build and inspect the image — the **Container** workflow will do it on the PR, but it takes ~15 minutes to tell you:
@@ -538,7 +540,7 @@ The fixtures match on `turnIndex` (assistant messages in the request), and Mastr
 
 - **[Mastra](https://mastra.ai/)** — the agent framework: agents, AgentController, memory, evals, observability.
 - **[Vercel](https://vercel.com/)** — the [AI SDK](https://ai-sdk.dev) and [AI Elements](https://ai-sdk.dev/elements) this chat layer is built from.
-- **[Turso](https://turso.tech/)** — libSQL, the zero-friction storage + vector backend.
+- **[Turso](https://turso.tech/)** — libSQL, the zero/friction storage + vector backend.
 - **[Hono](https://hono.dev/)**, **[Next.js](https://nextjs.org/)**, and **[shadcn/ui](https://ui.shadcn.com/)** — server, frontend, and components.
 
 ---
