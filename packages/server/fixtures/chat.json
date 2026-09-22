@@ -175,6 +175,75 @@
     },
 
     {
+      "_comment": "Workspace tools against the REAL workspace policy (createChatWorkspace): write a new file, run a shell command (prints 6*7, so 42 can only come from real execution), overwrite an existing file without reading it first (requireReadBeforeWrite must refuse), delete (must suspend for approval). Driven through a plain Agent carrying createChatWorkspace: under NODE_ENV=test the chat agent has no workspace, and the controller does not give the main agent workspace tools. tests/integration/workspace-tools.test.ts.",
+      "match": { "userMessage": "Workspace test: write notes.txt", "hasToolResult": false },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "mastra_workspace_write_file",
+            "arguments": {
+              "path": "notes.txt",
+              "content": "hello from the agent",
+              "overwrite": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Workspace test: write notes.txt", "hasToolResult": true },
+      "response": { "content": "Wrote notes.txt." }
+    },
+
+    {
+      "match": { "userMessage": "Workspace test: run a command", "hasToolResult": false },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "mastra_workspace_execute_command",
+            "arguments": { "command": "node -e \"process.stdout.write(String(6*7))\"" }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Workspace test: run a command", "hasToolResult": true },
+      "response": { "content": "Ran the command." }
+    },
+
+    {
+      "match": { "userMessage": "Workspace test: overwrite notes.txt", "hasToolResult": false },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "mastra_workspace_write_file",
+            "arguments": { "path": "notes.txt", "content": "clobbered", "overwrite": true }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Workspace test: overwrite notes.txt", "hasToolResult": true },
+      "response": { "content": "Tried to overwrite notes.txt." }
+    },
+
+    {
+      "match": { "userMessage": "Workspace test: delete notes.txt", "hasToolResult": false },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "mastra_workspace_delete",
+            "arguments": { "path": "notes.txt", "recursive": false }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Workspace test: delete notes.txt", "hasToolResult": true },
+      "response": { "content": "Deleted notes.txt." }
+    },
+
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {

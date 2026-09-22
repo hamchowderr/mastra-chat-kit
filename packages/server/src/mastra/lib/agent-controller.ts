@@ -20,7 +20,7 @@ import type { BrowserViewer } from '@mastra/browser-viewer';
 import { AgentController, type Session } from '@mastra/core/agent-controller';
 import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
-import { LocalFilesystem, LocalSandbox, Workspace } from '@mastra/core/workspace';
+import type { Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
@@ -33,6 +33,7 @@ import { createDefaultMemory, getSharedStore } from './memory';
 import { resolveToolCategory } from './tool-categories';
 import {
   createBrowser,
+  createChatWorkspace,
   getChatBrowserInstance,
   getChatWorkspace,
   WORKSPACE_ROOT,
@@ -81,14 +82,7 @@ export function createChatAgentController(opts?: {
   workspace?: Workspace;
 }): AgentController {
   const browser = opts?.browser === null ? undefined : (opts?.browser ?? createBrowser());
-  const workspace =
-    opts?.workspace ??
-    new Workspace({
-      id: 'chat-workspace',
-      filesystem: new LocalFilesystem({ basePath: WORKSPACE_ROOT }),
-      sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_ROOT }),
-      ...(browser ? { browser } : {}),
-    });
+  const workspace = opts?.workspace ?? createChatWorkspace({ ...(browser ? { browser } : {}) });
   return new AgentController({
     id: 'chat-agent-controller',
     defaultModeId: 'chat',

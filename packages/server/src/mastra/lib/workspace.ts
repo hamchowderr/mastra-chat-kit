@@ -24,6 +24,7 @@
 
 import path from 'node:path';
 import { BrowserViewer } from '@mastra/browser-viewer';
+import type { MastraBrowser } from '@mastra/core/browser';
 import { LocalFilesystem, LocalSandbox, WORKSPACE_TOOLS, Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
 
@@ -58,28 +59,43 @@ export function getChatBrowserInstance(): BrowserViewer {
   return browserSingleton;
 }
 
+/**
+ * The kit's workspace: filesystem + sandbox rooted at one folder, with its safety
+ * policy. The ONE place that policy lives, so tests that pass a temp `root`
+ * exercise the same rules the live app runs with.
+ */
+export function createChatWorkspace({
+  root = WORKSPACE_ROOT,
+  browser,
+}: {
+  root?: string;
+  browser?: MastraBrowser;
+} = {}): Workspace {
+  return new Workspace({
+    id: 'chat-workspace',
+    filesystem: new LocalFilesystem({ basePath: root }),
+    sandbox: new LocalSandbox({ workingDirectory: root }),
+    ...(browser ? { browser } : {}),
+    // Per-tool safety policy (698.21). requireReadBeforeWrite forces the agent to read
+    // a file before overwriting/editing it; delete always needs explicit approval.
+    tools: {
+      [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: { requireReadBeforeWrite: true },
+      [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { requireReadBeforeWrite: true },
+      [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { requireApproval: true },
+    },
+  });
+}
+
 let workspaceSingleton: Workspace | null = null;
 /**
  * The process-wide shared workspace. Lazily constructed; the browser launches lazily on
- * first use, so importing this stays cheap. Tests never call this — they build their own
- * throwaway workspace via `createChatAgentController` and gate the agent's workspace off (env
- * `AGENT_WORKSPACE=false`), keeping runs hermetic.
+ * first use, so importing this stays cheap. Tests don't call this: they pass
+ * `createChatWorkspace({ root })` a temp folder, and the chat agent's own workspace is
+ * off under NODE_ENV=test, so runs stay hermetic.
  */
 export function getChatWorkspace(): Workspace {
   if (!workspaceSingleton) {
-    workspaceSingleton = new Workspace({
-      id: 'chat-workspace',
-      filesystem: new LocalFilesystem({ basePath: WORKSPACE_ROOT }),
-      sandbox: new LocalSandbox({ workingDirectory: WORKSPACE_ROOT }),
-      browser: getChatBrowserInstance(),
-      // Per-tool safety policy (698.21). requireReadBeforeWrite forces the agent to read
-      // a file before overwriting/editing it; delete always needs explicit approval.
-      tools: {
-        [WORKSPACE_TOOLS.FILESYSTEM.WRITE_FILE]: { requireReadBeforeWrite: true },
-        [WORKSPACE_TOOLS.FILESYSTEM.EDIT_FILE]: { requireReadBeforeWrite: true },
-        [WORKSPACE_TOOLS.FILESYSTEM.DELETE]: { requireApproval: true },
-      },
-    });
+    workspaceSingleton = createChatWorkspace({ browser: getChatBrowserInstance() });
   }
   return workspaceSingleton;
 }
