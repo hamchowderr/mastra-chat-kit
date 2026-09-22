@@ -155,20 +155,37 @@ let singleton: AgentController | null = null;
 let singletonBrowser: BrowserViewer | null = null;
 let initPromise: Promise<AgentController> | null = null;
 
-/** Lazily construct + `init()` the process-wide AgentController exactly once. */
+let instance: AgentController | null = null;
+
+/**
+ * The process-wide AgentController, constructed but NOT initialized. index.ts
+ * registers it on the Mastra instance (`agentControllers`) BEFORE `init()` runs.
+ *
+ * That registration is what keeps tracing alive. An unregistered controller's
+ * `init()` builds its own internal Mastra with no observability, and then calls
+ * `addAgent(chatAgent)` on it, which moves the shared chatAgent off the app's
+ * Mastra. From then on every run on every path (controller SSE and
+ * /api/agents/chat/*) creates no spans (mastra-chat-kit-9m3).
+ */
+export function getChatAgentControllerInstance(): AgentController {
+  // Drive the session with the SHARED workspace singleton — the very same instance
+  // the chat agent carries (getChatWorkspace), so Studio + the controller + the
+  // screencast route all point at one workspace/browser. No double-provision.
+  instance ??= createChatAgentController({
+    workspace: getChatWorkspace(),
+    storage: createAgentControllerStore(),
+  });
+  return instance;
+}
+
+/** Lazily `init()` the process-wide AgentController exactly once. */
 export function getChatAgentController(): Promise<AgentController> {
   if (singleton) {
     return Promise.resolve(singleton);
   }
   if (!initPromise) {
     initPromise = (async () => {
-      // Drive the session with the SHARED workspace singleton — the very same instance
-      // the chat agent carries (getChatWorkspace), so Studio + the controller + the
-      // screencast route all point at one workspace/browser. No double-provision.
-      const controller = createChatAgentController({
-        workspace: getChatWorkspace(),
-        storage: createAgentControllerStore(),
-      });
+      const controller = getChatAgentControllerInstance();
       await controller.init();
       singleton = controller;
       // The screencast route reaches the same Chrome the agent's browser tools drive.
