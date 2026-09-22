@@ -85,3 +85,21 @@ test('saves the finished chat to the history sidebar', async ({ page }) => {
       .first(),
   ).toBeVisible();
 });
+
+// MUST stay last: the server keeps one Session for the whole run, and an
+// "Always allow" grant lasts for that session, so any later test that uses a
+// read tool would no longer see its approval card.
+test('always allow read tools: the next read tool runs without asking', async ({ page }) => {
+  await send(page, "What's the weather in Los Angeles?");
+  const card = convo(page).getByRole('alert').filter({ hasText: 'Run getWeather?' });
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'Always allow read tools' }).click();
+  await expect(convo(page).getByText(/los angeles looks clear/i)).toBeVisible();
+
+  // Same tool again: it runs and answers with no approval card this time.
+  await send(page, "What's the weather in Los Angeles?");
+  await expect(convo(page).getByText(/los angeles looks clear/i)).toHaveCount(2);
+  await expect(convo(page).getByRole('alert').filter({ hasText: 'Run getWeather?' })).toHaveCount(
+    0,
+  );
+});

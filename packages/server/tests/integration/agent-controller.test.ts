@@ -108,11 +108,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     expect(blob).toContain("won't check the weather");
   });
 
-  // This controller sets no `toolCategoryResolver`, and Mastra has no default, so
-  // per the Session JSDoc "always_allow_category" simply approves: nothing is
-  // granted and the next call to the same tool is gated again. Locks that in, so
-  // adding a resolver later shows up here as an intended change.
-  it('always_allow_category without a category resolver approves once, grants nothing', async () => {
+  // "Always allow" grants the tool's CATEGORY for the session (lib/tool-categories.ts
+  // puts getWeather in 'read'), so the next call to a read tool runs without a gate.
+  it('always_allow_category grants the read category: the next read tool is not gated', async () => {
     const controller = createChatAgentController({
       storage: new InMemoryStore(),
       resourceId: 'u-ac-always',
@@ -134,17 +132,17 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     await first;
 
     expect(JSON.stringify(events)).toContain('temperatureC');
-    expect(session.getGrants().categories).toEqual([]);
+    expect(session.getGrants().categories).toEqual(['read']);
 
-    // Same tool again: still gated, because no category was granted.
-    const second = session.sendMessage({ content: "What's the weather in Los Angeles?" });
-    await waitFor(() => gates() === 2, 15_000);
-    session.respondToToolApproval({ decision: 'approve' });
-    await second;
+    // Same tool again: runs straight through, no second gate.
+    const toolEnds = () => events.filter((e) => e.type === 'tool_end').length;
+    const endsBefore = toolEnds();
+    await session.sendMessage({ content: "What's the weather in Los Angeles?" });
 
     unsubscribe();
     await controller.destroy();
-    expect(gates()).toBe(2);
+    expect(gates()).toBe(1);
+    expect(toolEnds()).toBeGreaterThan(endsBefore);
   });
 
   // ONE agent, native subagents: the chat agent delegates to the `code` subagent via
