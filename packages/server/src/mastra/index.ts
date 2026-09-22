@@ -19,6 +19,7 @@ import { chatAgent } from './agents/chat';
 import {
   CHAT_RESOURCE_ID,
   getChatAgentController,
+  getChatAgentControllerInstance,
   getChatBrowser,
   getChatSession,
   WORKSPACE_ROOT,
@@ -127,6 +128,10 @@ const serverConfig = {
 export const mastra = new Mastra({
   server: serverConfig,
   agents: { chat: chatAgent },
+  // Registered so the controller runs on THIS Mastra (and its observability). Left
+  // unregistered, its init() moves chatAgent onto an internal Mastra with no
+  // tracing, and no run creates spans (mastra-chat-kit-9m3).
+  agentControllers: { chat: getChatAgentControllerInstance() },
   mcpServers: { baseMcp: mcpServer },
   storage,
   logger: new PinoLogger({
