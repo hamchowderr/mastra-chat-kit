@@ -13,6 +13,14 @@
       }
     },
     {
+      "_comment": "Declined weather call. A declined gated tool comes back as a tool result reading 'Tool call was not approved by the user' (Mastra core's default decline reason). toolResultContains matches only when that tool message is the request's LAST message. MUST precede the hasToolResult:true answer below, which would also match (first match wins).",
+      "match": {
+        "userMessage": "What's the weather in Los Angeles?",
+        "toolResultContains": "not approved by the user"
+      },
+      "response": { "content": "Okay, I won't check the weather." }
+    },
+    {
       "match": { "userMessage": "What's the weather in Los Angeles?", "hasToolResult": true },
       "response": { "content": "The weather in Los Angeles looks clear right now." }
     },

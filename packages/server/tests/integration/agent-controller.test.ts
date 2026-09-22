@@ -76,6 +76,77 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     expect(blob.toLowerCase()).toContain('los angeles');
   });
 
+  // Declining releases the run WITHOUT executing the tool: the model gets Mastra's
+  // "not approved" tool result instead, and the decline fixture answers from that.
+  it('declines getWeather: the tool never runs and the agent acknowledges', async () => {
+    const controller = createChatAgentController({
+      storage: new InMemoryStore(),
+      resourceId: 'u-ac-decline',
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-ac-decline' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide; we assert on .type
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+    });
+
+    await session.thread.create({ title: 'decline' });
+    const done = session.sendMessage({ content: "What's the weather in Los Angeles?" });
+    await waitFor(() => events.some((e) => e.type === 'tool_approval_required'), 15_000);
+
+    session.respondToToolApproval({ decision: 'decline' });
+    await done;
+
+    unsubscribe();
+    await controller.destroy();
+
+    const blob = JSON.stringify(events);
+    // getWeather's output carries temperatureC; a declined call never produces it.
+    expect(blob).not.toContain('temperatureC');
+    expect(blob).toContain("won't check the weather");
+  });
+
+  // This controller sets no `toolCategoryResolver`, and Mastra has no default, so
+  // per the Session JSDoc "always_allow_category" simply approves: nothing is
+  // granted and the next call to the same tool is gated again. Locks that in, so
+  // adding a resolver later shows up here as an intended change.
+  it('always_allow_category without a category resolver approves once, grants nothing', async () => {
+    const controller = createChatAgentController({
+      storage: new InMemoryStore(),
+      resourceId: 'u-ac-always',
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-ac-always' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide; we assert on .type
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+    });
+    const gates = () => events.filter((e) => e.type === 'tool_approval_required').length;
+
+    await session.thread.create({ title: 'always-allow' });
+    const first = session.sendMessage({ content: "What's the weather in Los Angeles?" });
+    await waitFor(() => gates() === 1, 15_000);
+    session.respondToToolApproval({ decision: 'always_allow_category' });
+    await first;
+
+    expect(JSON.stringify(events)).toContain('temperatureC');
+    expect(session.getGrants().categories).toEqual([]);
+
+    // Same tool again: still gated, because no category was granted.
+    const second = session.sendMessage({ content: "What's the weather in Los Angeles?" });
+    await waitFor(() => gates() === 2, 15_000);
+    session.respondToToolApproval({ decision: 'approve' });
+    await second;
+
+    unsubscribe();
+    await controller.destroy();
+    expect(gates()).toBe(2);
+  });
+
   // ONE agent, native subagents: the chat agent delegates to the `code` subagent via
   // the controller's built-in `subagent` tool. This proves the subagent_* event path
   // fires end-to-end (the fixture makes the model call `subagent`; the spawned code
