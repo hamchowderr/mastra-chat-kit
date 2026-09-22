@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "dev:mock": "aimock --config aimock.json",
-    "setup:browser": "playwright-core install chromium"
+    "setup:browser": "playwright-core install chromium",
+    "eval": "tsx scripts/eval.ts"
   },
   "keywords": [],
   "author": "",
