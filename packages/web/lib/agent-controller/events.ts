@@ -42,7 +42,13 @@ export type AgentControllerTaskItem = {
   status?: string;
 };
 
-export type PendingApproval = { toolCallId: string; toolName: string; args: unknown };
+export type PendingApproval = {
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+  /** The tool's Mastra category ('read', 'edit', ...). Null: no "always allow". */
+  category: string | null;
+};
 
 /** One selectable choice on an `ask_user` prompt (label is the answer value). */
 export type SuspensionOption = { label: string; description?: string };
