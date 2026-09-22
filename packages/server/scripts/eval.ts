@@ -26,14 +26,16 @@ import type { MastraScorer } from '@mastra/core/evals';
 const scratch = mkdtempSync(path.join(tmpdir(), 'chat-kit-eval-'));
 process.env.NODE_ENV = 'test';
 process.env.USE_AIMOCK = 'false';
-process.env.CHAT_MODEL ??= 'mastra/anthropic/claude-sonnet-4.6';
+process.env.CHAT_MODEL ??= 'vercel/anthropic/claude-sonnet-4.6';
 process.env.TURSO_DATABASE_URL = `file:${path.join(scratch, 'eval.db').replace(/\\/g, '/')}`;
 process.env.APP_SECRET ??= randomBytes(32).toString('hex');
 
 const model = process.env.CHAT_MODEL;
-if (model.startsWith('mastra/') && !process.env.MASTRA_GATEWAY_API_KEY) {
+// One model key per project: the Vercel AI Gateway. A real key starts with `vck_`.
+// Anything else, like an unresolved Infisical reference, would fail on the first call.
+if (model.startsWith('vercel/') && !process.env.AI_GATEWAY_API_KEY?.startsWith('vck_')) {
   console.error(
-    'MASTRA_GATEWAY_API_KEY is not set. Run this through `infisical run` (see header).',
+    'AI_GATEWAY_API_KEY is missing or is not a Vercel AI Gateway key. Run this through `infisical run` (see header).',
   );
   process.exit(1);
 }
