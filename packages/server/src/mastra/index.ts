@@ -6,7 +6,6 @@ import { configureAIMock } from './lib/aimock';
 
 configureAIMock();
 
-import { MastraJwtAuth } from '@mastra/auth';
 // 3. Mastra imports — agents/tools constructed below now see the right base URLs
 import { Mastra } from '@mastra/core/mastra';
 import { MastraCompositeStore } from '@mastra/core/storage';
@@ -14,7 +13,6 @@ import { DuckDBStore } from '@mastra/duckdb';
 import { MastraEditor } from '@mastra/editor';
 import { fastembed } from '@mastra/fastembed';
 import { PinoLogger } from '@mastra/loggers';
-import { MCPServer } from '@mastra/mcp';
 import { MastraStorageExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
 import { embed } from 'ai';
 import { chatAgent } from './agents/chat';
@@ -25,8 +23,10 @@ import {
   getChatSession,
   WORKSPACE_ROOT,
 } from './lib/agent-controller';
+import { createServerAuth } from './lib/auth';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
 import { getImage } from './lib/image-store';
+import { createMcpServer } from './lib/mcp';
 import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
 import { readWorkspaceFile, readWorkspaceTree } from './lib/workspace-files';
 // The AgentController route contract, split by surface — see routes/. The modules
@@ -39,24 +39,13 @@ import { createControllerRoutes } from './routes/controller';
 import { createThreadRoutes } from './routes/threads';
 import type { ChatServerDeps } from './routes/types';
 import { createWorkspaceRoutes } from './routes/workspace';
-import { doltTools } from './tools/dolt';
 
 // Bootstrap the versioned Dolt database on first boot (no-op if Dolt isn't configured).
 if (doltConfigured) {
   await ensureDatabase();
 }
 
-const mcpServer = new MCPServer({
-  // `id` forms the mount path — /api/mcp/<id>/mcp — so it is user-visible.
-  id: 'chat-kit',
-  name: 'mastra-chat-kit',
-  version: '0.1.0',
-  description: 'MCP server exposing mastra-chat-kit agents + Dolt tools',
-  // Dolt versioned-data tools exposed over MCP. To let an agent call them
-  // directly, spread `...doltTools` into the agent's own `tools`.
-  tools: { ...doltTools },
-  agents: { chat: chatAgent },
-});
+const mcpServer = createMcpServer();
 
 // libSQL is the primary store (default/editor/memory domains + vectors). Local dev
 // uses a file: DB — no server, no Docker; prod points TURSO_DATABASE_URL at a
@@ -124,13 +113,15 @@ const chatServerDeps: ChatServerDeps = {
   ]),
 };
 
+const auth = createServerAuth(env.MASTRA_JWT_SECRET);
+
 const serverConfig = {
   apiRoutes: [
     ...createThreadRoutes(chatServerDeps),
     ...createControllerRoutes(chatServerDeps),
     ...createWorkspaceRoutes(chatServerDeps),
   ],
-  ...(env.MASTRA_JWT_SECRET ? { auth: new MastraJwtAuth({ secret: env.MASTRA_JWT_SECRET }) } : {}),
+  ...(auth ? { auth } : {}),
 };
 
 export const mastra = new Mastra({

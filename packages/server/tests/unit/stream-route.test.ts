@@ -93,6 +93,26 @@ describe('/agent-controller/stream', () => {
     expect(off.sendMessage.mock.calls[0]?.[0]?.requestContext).toBeUndefined();
   });
 
+  it("maps the composer's attachments onto sendMessage files, and sends none without them", async () => {
+    const withFiles = fakeSession();
+    const url = 'data:text/plain;base64,aGVsbG8=';
+    await run(withFiles, {
+      text: 'read this',
+      files: [
+        { url, mediaType: 'text/plain', filename: 'hello.txt' },
+        { url, mediaType: 'text/plain' },
+      ],
+    });
+    expect(withFiles.sendMessage.mock.calls[0]?.[0]?.files).toEqual([
+      { data: url, mediaType: 'text/plain', filename: 'hello.txt' },
+      { data: url, mediaType: 'text/plain' },
+    ]);
+
+    const without = fakeSession();
+    await run(without, { text: 'hi' });
+    expect(without.sendMessage.mock.calls[0]?.[0]?.files).toBeUndefined();
+  });
+
   it('adds the tool category to tool_approval_required, null when uncategorized', async () => {
     const session = fakeSession(async () => {
       session.emit({
