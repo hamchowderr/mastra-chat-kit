@@ -6,27 +6,27 @@
     },
 
     {
-      "_comment": "Weather is exercised by BOTH the Single-Agent test and the AgentController test, which run in parallel against this one AIMock. sequenceIndex is a SHARED per-process counter, so the two suites race on it. turnIndex is stateless (counts assistant messages in the request) so each call resolves independently: turn 0 = the tool call, turn 1 = the grounded answer.",
-      "match": { "userMessage": "What's the weather in Los Angeles?", "turnIndex": 0 },
+      "_comment": "Weather is exercised by BOTH the Single-Agent test and the AgentController test, which run in parallel against this one AIMock. sequenceIndex is a SHARED per-process counter, so the two suites race on it. The two-step fixtures match on hasToolResult, which looks only at the CURRENT turn (messages after the last user message): false = the tool call, true = the grounded answer. Not turnIndex: it counts every assistant message in the request, and Memory's resource-scoped semantic recall injects replies from OTHER threads, so a fresh question could land on the answer fixture and skip the tool.",
+      "match": { "userMessage": "What's the weather in Los Angeles?", "hasToolResult": false },
       "response": {
         "toolCalls": [{ "name": "getWeather", "arguments": { "location": "Los Angeles" } }]
       }
     },
     {
-      "match": { "userMessage": "What's the weather in Los Angeles?", "turnIndex": 1 },
+      "match": { "userMessage": "What's the weather in Los Angeles?", "hasToolResult": true },
       "response": { "content": "The weather in Los Angeles looks clear right now." }
     },
 
     {
-      "_comment": "Reasoning + single-tool search, then a grounded answer. turnIndex (stateless, request-based) rather than sequenceIndex: the shared per-process counter is unreliable for the tool→answer hop under the streaming route + long-lived server. turn 0 = the tool call, turn 1 = the answer.",
-      "match": { "userMessage": "How do I use Mastra memory?", "turnIndex": 0 },
+      "_comment": "Reasoning + single-tool search, then a grounded answer. hasToolResult (stateless, current turn only) rather than sequenceIndex: the shared per-process counter is unreliable for the tool→answer hop under the streaming route + long-lived server. false = the tool call, true = the answer.",
+      "match": { "userMessage": "How do I use Mastra memory?", "hasToolResult": false },
       "response": {
         "reasoning": "This is a how-to question, so I'll search the knowledge base first.",
         "toolCalls": [{ "name": "searchKnowledge", "arguments": { "query": "Mastra memory" } }]
       }
     },
     {
-      "match": { "userMessage": "How do I use Mastra memory?", "turnIndex": 1 },
+      "match": { "userMessage": "How do I use Mastra memory?", "hasToolResult": true },
       "response": {
         "content": "Based on the docs (\"Overview: Mastra memory\"), Mastra memory supports threads, working memory, and semantic recall."
       }
@@ -34,7 +34,10 @@
 
     {
       "_comment": "Subagent delegation (AgentController). turn 0: the chat agent calls the built-in `subagent` tool (agentType:code). The controller then spawns the code subagent, whose OWN model call is matched by the systemMessage fixture below (its instructions contain 'coding subagent'), returning text so subagent_start/_text_delta/_end fire. turn 1: after the subagent result returns, the parent gives its final answer. Proves the subagent_* event path end-to-end (698.27).",
-      "match": { "userMessage": "Use the code subagent to create hello.txt", "turnIndex": 0 },
+      "match": {
+        "userMessage": "Use the code subagent to create hello.txt",
+        "hasToolResult": false
+      },
       "response": {
         "toolCalls": [
           {
@@ -53,7 +56,10 @@
       "response": { "content": "Created hello.txt with a short greeting." }
     },
     {
-      "match": { "userMessage": "Use the code subagent to create hello.txt", "turnIndex": 1 },
+      "match": {
+        "userMessage": "Use the code subagent to create hello.txt",
+        "hasToolResult": true
+      },
       "response": { "content": "Done — the code subagent created hello.txt with a greeting." }
     },
 
@@ -61,7 +67,7 @@
       "_comment": "Agent-driven goals. The agent recognizes a standing objective and calls its OWN setGoal tool (agents/chat.ts), which writes the objective to thread-state via setObjective. turn 0 = the setGoal tool call; the goal step then judges (its judge call falls through to the catch-all, which is fine — the objective is set regardless). maxRuns:1 caps the loop. Proves the tool bridges model-call -> setObjective end-to-end (698.29).",
       "match": {
         "userMessage": "Your goal is to greet me warmly. Keep going until done.",
-        "turnIndex": 0
+        "hasToolResult": false
       },
       "response": {
         "toolCalls": [
@@ -105,7 +111,7 @@
 
     {
       "_comment": "Agent-driven ask_user (698.30). The request is ambiguous (which environment?), so the agent calls the built-in ask_user tool, which SUSPENDS the run (emitting tool_suspended with the question). turn 0 = the ask_user call; after the user answers, the tool re-runs with the answer and turn 1 gives the final text. Proves the suspend→resume round-trip end-to-end.",
-      "match": { "userMessage": "Deploy the app for me.", "turnIndex": 0 },
+      "match": { "userMessage": "Deploy the app for me.", "hasToolResult": false },
       "response": {
         "toolCalls": [
           {
@@ -120,7 +126,7 @@
       }
     },
     {
-      "match": { "userMessage": "Deploy the app for me.", "turnIndex": 1 },
+      "match": { "userMessage": "Deploy the app for me.", "hasToolResult": true },
       "response": { "content": "Deploying to the selected environment now." }
     },
 
@@ -128,7 +134,7 @@
       "_comment": "Native task tracking (698.19). A multi-step request → the agent calls the built-in task_write (from TaskSignalProvider) to lay out the steps; the TaskStateProcessor projects the list onto the state-signal lane → the controller emits task_updated → the <Task> element. turn 0 = task_write; turn 1 = the final text.",
       "match": {
         "userMessage": "Build a small counter script: create it, then run it.",
-        "turnIndex": 0
+        "hasToolResult": false
       },
       "response": {
         "toolCalls": [
@@ -155,7 +161,7 @@
     {
       "match": {
         "userMessage": "Build a small counter script: create it, then run it.",
-        "turnIndex": 1
+        "hasToolResult": true
       },
       "response": { "content": "Done — counter.js created and verified." }
     },

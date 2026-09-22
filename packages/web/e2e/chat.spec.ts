@@ -4,9 +4,9 @@ import { expect, test } from '@playwright/test';
  * Full chat flow, end-to-end and AIMock-backed: real browser → Next web →
  * Mastra server → AIMock fixtures (fixtures/chat.json), no LLM spend.
  *
- * Each test starts on a fresh page load, which mints a new thread — so the turn
- * is the FIRST in its thread and the turn-indexed fixtures resolve
- * deterministically. Message assertions are scoped to the conversation `log`
+ * Each test starts on a fresh page load, which mints a new thread. Semantic recall
+ * still injects messages from earlier threads, so the fixtures match on
+ * hasToolResult (current turn only), not turn counts. Message assertions are scoped to the conversation `log`
  * (not the whole page) because the persistent history sidebar accumulates titles
  * from earlier turns and would otherwise match.
  */
@@ -42,20 +42,33 @@ test('streams a text answer to a greeting', async ({ page }) => {
   await expect(convo(page).getByText(/how can i help/i)).toBeVisible();
 });
 
-test('renders the getWeather tool call and a grounded answer', async ({ page }) => {
+/**
+ * The controller gates every tool behind approval, so a tool turn parks on a
+ * Confirmation card until someone decides. Assert the card, approve, and let the
+ * run finish — a run left parked leaks its pending tool call into the next test.
+ */
+async function approveTool(page: import('@playwright/test').Page, tool: string) {
+  const card = convo(page)
+    .getByRole('alert')
+    .filter({ hasText: `Run ${tool}?` });
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'Approve' }).click();
+}
+
+test('gates getWeather behind approval, then answers from the tool', async ({ page }) => {
   await send(page, "What's the weather in Los Angeles?");
   // The tool call renders (the <Tool> element surfaces the tool name)...
-  await expect(convo(page).getByText(/getWeather/i)).toBeVisible();
-  // ...and the model's grounded follow-up answer streams in.
+  await expect(convo(page).getByRole('button', { name: /getWeather/ })).toBeVisible();
+  await approveTool(page, 'getWeather');
+  // ...and after approval the model's grounded follow-up answer streams in.
   await expect(convo(page).getByText(/los angeles looks clear/i)).toBeVisible();
 });
 
-test('reasons and calls the searchKnowledge tool', async ({ page }) => {
+test('reasons, calls searchKnowledge on approval, and answers', async ({ page }) => {
   await send(page, 'How do I use Mastra memory?');
-  // The reasoning + search-tool call render. (The grounded answer that follows a
-  // reasoning+tool turn doesn't stream under AIMock — a mock-only quirk; real
-  // models render it, and the weather test already covers tool → answer.)
-  await expect(convo(page).getByText(/searchKnowledge/i)).toBeVisible();
+  await expect(convo(page).getByRole('button', { name: /searchKnowledge/ })).toBeVisible();
+  await approveTool(page, 'searchKnowledge');
+  await expect(convo(page).getByText(/Overview: Mastra memory/)).toBeVisible();
 });
 
 test('saves the finished chat to the history sidebar', async ({ page }) => {
