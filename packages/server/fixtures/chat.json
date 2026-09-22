@@ -244,6 +244,12 @@
     },
 
     {
+      "_comment": "Image generation (generateImage posts to OPENAI_BASE_URL/images/generations, which AIMock serves). endpoint:image keeps it from matching chat requests. The bytes are a stub; the tool only stores them. tests/unit/generate-image.test.ts.",
+      "match": { "endpoint": "image" },
+      "response": { "image": { "b64Json": "UklGRiQAAABXRUJQ" } }
+    },
+
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {
