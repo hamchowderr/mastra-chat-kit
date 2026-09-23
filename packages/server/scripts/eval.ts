@@ -9,7 +9,9 @@
  *   infisical run --path=/mastra-chat-kit --silent -- pnpm --filter @mastra-chat-kit/server eval
  *
  * Cost controls:
- * - Quick Checks make no LLM call; the only spend is the agent's own turns.
+ * - Quick Checks make no LLM call, and thread titling is switched off for the run
+ *   (each prompt uses a fresh thread, so memory would title every one with a
+ *   separate call the token total cannot see). The only spend is the agent's own turns.
  * - One prompt at a time, output capped per call, and a running token total that
  *   aborts the run past EVAL_TOKEN_BUDGET (default 60,000).
  * - generateImage is switched off for the run (image generation is billed per image).
@@ -41,6 +43,13 @@ if (model.startsWith('vercel/') && !process.env.AI_GATEWAY_API_KEY?.startsWith('
 }
 
 const BUDGET = Number(process.env.EVAL_TOKEN_BUDGET ?? 60_000);
+if (!Number.isFinite(BUDGET) || BUDGET <= 0) {
+  // A NaN budget would make the over-budget check never fire.
+  console.error(
+    `EVAL_TOKEN_BUDGET must be a positive number of tokens, got "${process.env.EVAL_TOKEN_BUDGET}".`,
+  );
+  process.exit(1);
+}
 const MAX_OUTPUT_TOKENS = 1024;
 
 const { runEvals } = await import('@mastra/core/evals');
@@ -94,7 +103,7 @@ for (const c of cases) {
     // A fresh thread per prompt, so no prompt sees another's answer. runEvals does
     // not inject one for a single-input item on core 1.52.1.
     targetOptions: {
-      memory: { resource: 'u-eval', thread: randomUUID() },
+      memory: { resource: 'u-eval', thread: randomUUID(), options: { generateTitle: false } },
       modelSettings: { maxOutputTokens: MAX_OUTPUT_TOKENS },
       activeTools,
     },
