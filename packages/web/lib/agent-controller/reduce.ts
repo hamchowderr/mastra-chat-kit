@@ -36,12 +36,15 @@ export function reduceAgentControllerEvent(
   switch (event.type) {
     case '__thread__':
       return { ...state, threadId: event.threadId ?? state.threadId };
+    // The stream closed. A pending ask_user question is deliberately KEPT: a
+    // suspending tool ends the run (agent_end reason 'suspended') and the server
+    // closes the stream while the question is still open (mastra-chat-kit-ymk). It
+    // clears when its tool ends, the server cancels it, or the user answers.
     case '__done__':
       return {
         ...state,
         done: true,
         pendingApproval: null,
-        pendingSuspension: null,
         // The run ended — any tool still marked "streaming input" is stale.
         activeTools: [],
         terminal: { ...state.terminal, running: false },
