@@ -318,6 +318,14 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
                     <ConfirmationAction onClick={() => approve('approve')}>
                       Approve
                     </ConfirmationAction>
+                    {pendingApproval.category && (
+                      <ConfirmationAction
+                        variant="outline"
+                        onClick={() => approve('always_allow_category')}
+                      >
+                        Always allow {pendingApproval.category} tools
+                      </ConfirmationAction>
+                    )}
                     <ConfirmationAction variant="outline" onClick={() => approve('decline')}>
                       Reject
                     </ConfirmationAction>
