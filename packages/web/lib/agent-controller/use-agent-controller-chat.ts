@@ -12,6 +12,43 @@ import { reduceAgentControllerEvent } from './reduce';
 
 export type AgentControllerStatus = 'ready' | 'streaming' | 'error';
 
+type ControllerEvent = { type: string; [k: string]: unknown };
+
+/**
+ * Read a `data:`-framed SSE response of AgentControllerEvents to the end, handing
+ * each parsed event to `onEvent`. Shared by a new message (/stream) and an ask_user
+ * answer (/answer), which both stream a run back the same way.
+ */
+async function readEventStream(res: Response, onEvent: (event: ControllerEvent) => void) {
+  if (!res.ok || !res.body) {
+    throw new Error(`controller stream failed: ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let chunk = await reader.read();
+  while (!chunk.done) {
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const frames = buffer.split('\n\n');
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      const dataLine = frame.split('\n').find((l) => l.startsWith('data:'));
+      const json = dataLine?.slice(5).trim();
+      if (!json) {
+        continue;
+      }
+      let event: ControllerEvent;
+      try {
+        event = JSON.parse(json);
+      } catch {
+        continue; // A malformed frame is skipped, not fatal.
+      }
+      onEvent(event);
+    }
+    chunk = await reader.read();
+  }
+}
+
 /**
  * The Agent Controller transport, mirroring `useChat`'s shape (`{ messages,
  * sendMessage, status }`) but speaking the AgentController SSE protocol instead of the
@@ -143,40 +180,12 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
             files: opts?.files,
           }),
         });
-        if (!res.ok || !res.body) {
-          throw new Error(`controller stream failed: ${res.status}`);
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let chunk = await reader.read();
-        while (!chunk.done) {
-          buffer += decoder.decode(chunk.value, { stream: true });
-          const frames = buffer.split('\n\n');
-          buffer = frames.pop() ?? '';
-          for (const frame of frames) {
-            const dataLine = frame.split('\n').find((l) => l.startsWith('data:'));
-            if (!dataLine) {
-              continue;
-            }
-            const json = dataLine.slice(5).trim();
-            if (!json) {
-              continue;
-            }
-            let event: { type: string; [k: string]: unknown };
-            try {
-              event = JSON.parse(json);
-            } catch {
-              continue;
-            }
-            if (event.type === '__thread__' && typeof event.threadId === 'string') {
-              threadRef.current = event.threadId;
-            }
-            setTranscript((s) => reduceAgentControllerEvent(s, event));
+        await readEventStream(res, (event) => {
+          if (event.type === '__thread__' && typeof event.threadId === 'string') {
+            threadRef.current = event.threadId;
           }
-          chunk = await reader.read();
-        }
+          setTranscript((s) => reduceAgentControllerEvent(s, event));
+        });
         setStatus('ready');
         // A completed turn may have created a new thread (or bumped an existing
         // one) — nudge the sidebar to refetch.
@@ -208,18 +217,37 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
 
   /**
    * Answer a parked `ask_user` suspension. Optimistically clear the prompt so it
-   * closes at once; the continuation events arrive on the still-open SSE from the
-   * original sendMessage (same pattern as `approve`). `answer` is a string (free-text
-   * / single choice) or a string[] of chosen labels (multi-select).
+   * closes at once. A suspending tool ENDS the run, so the original /stream response
+   * has already closed; the resumed run streams back on this /answer response
+   * instead (mastra-chat-kit-ymk). `answer` is a string (free-text / single choice)
+   * or a string[] of chosen labels (multi-select).
    */
-  const answerQuestion = useCallback(async (answer: string | string[], toolCallId?: string) => {
-    setTranscript((s) => ({ ...s, pendingSuspension: null }));
-    await fetch('/api/agent-controller/answer', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ answer, ...(toolCallId ? { toolCallId } : {}) }),
-    });
-  }, []);
+  const answerQuestion = useCallback(
+    async (answer: string | string[], toolCallId?: string) => {
+      setTranscript((s) => ({ ...s, pendingSuspension: null, error: null, done: false }));
+      setStatus('streaming');
+      try {
+        const res = await fetch('/api/agent-controller/answer', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ answer, ...(toolCallId ? { toolCallId } : {}) }),
+        });
+        await readEventStream(res, (event) =>
+          setTranscript((s) => reduceAgentControllerEvent(s, event)),
+        );
+        setStatus('ready');
+        setRefreshSignal((n) => n + 1);
+        refreshSchedules();
+      } catch (err) {
+        setTranscript((s) => ({
+          ...s,
+          error: err instanceof Error ? err.message : String(err),
+        }));
+        setStatus('error');
+      }
+    },
+    [refreshSchedules],
+  );
 
   /** Clear the workbench Terminal scrollback (the shell buffer is cumulative). */
   const clearTerminal = useCallback(() => {
