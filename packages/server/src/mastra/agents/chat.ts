@@ -5,6 +5,7 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '../../lib/env';
 import { putImage } from '../lib/image-store';
+import { liveScorers } from '../lib/live-scorers';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
 import { getChatWorkspace } from '../lib/workspace';
@@ -274,6 +275,7 @@ export const chatAgent = new Agent({
     providerOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 } } },
   },
   memory: createDefaultMemory(),
+  scorers: liveScorers,
   inputProcessors: defaultInputProcessors,
   outputProcessors: defaultOutputProcessors,
 });
