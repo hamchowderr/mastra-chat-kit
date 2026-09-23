@@ -54,8 +54,10 @@ parts. That is enough for a chat box and nothing more. The controller wraps the 
 `chatAgent`, plus the required `Workspace`) and gets-or-creates its `Session`.
 `POST /agent-controller/stream` subscribes to the Session, sends the user message, and
 streams each `AgentControllerEvent` as SSE. `POST /agent-controller/approve` resolves a
-parked approval gate, and `POST /agent-controller/answer` resolves an `ask_user`
-suspension — both on the same still-open stream.
+parked approval gate on the same still-open stream. An `ask_user` suspension ends the
+run, so `/stream` closes; `POST /agent-controller/answer` resolves it and streams the
+resumed run as SSE of its own (it used to return `{ok: true}` — an installed client that
+expects JSON from `/answer` must read the stream instead).
 
 The `Workspace` is what makes this a batteries-included agent rather than a chat loop.
 It bundles three capabilities, each auto-deriving its own approval-gated tools:

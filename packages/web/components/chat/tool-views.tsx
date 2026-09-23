@@ -245,8 +245,8 @@ export function GoalCard({ goal, onClear }: { goal: AgentControllerGoal; onClear
  * suspended awaiting the answer (see the `tool_suspended` reducer). Renders one of
  * three shapes from the suspend payload — free-text (a textarea), single-select
  * (choice buttons that answer on click), or multi-select (toggle chips + Send). The
- * answer resumes the suspended tool (POST /api/agent-controller/answer) and the run continues
- * on the still-open SSE. Focuses the input on mount so answering is immediate.
+ * answer resumes the suspended tool (POST /api/agent-controller/answer), which streams the
+ * resumed run as its own SSE. Focuses the input on mount so answering is immediate.
  */
 export function AskUserPrompt({
   suspension,
