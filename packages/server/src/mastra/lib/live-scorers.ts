@@ -9,17 +9,17 @@ import { env } from '../../lib/env';
  *
  * - noToolErrors on every reply: a Quick Check, no LLM call, free.
  * - answer relevancy on 10% of replies: an LLM judge (up to 3 judge calls per
- *   scored reply). Its model is CHAT_MODEL on purpose: under USE_AIMOCK that model
- *   is mocked, while a separate gateway model id would bypass the mock and bill.
- *   Off under NODE_ENV=test, where AIMock can't produce the judge's structured
- *   output.
+ *   scored reply). Its model is CHAT_MODEL, so it bills to the project's one model
+ *   key. Off under NODE_ENV=test or USE_AIMOCK: a mocked model can't produce the judge's
+ *   structured output (STRUCTURED_OUTPUT_SCHEMA_VALIDATION_FAILED), and a mock's verdict
+ *   would mean nothing anyway.
  */
 export const liveScorers = {
   noToolErrors: {
     scorer: checks.noToolErrors(),
     sampling: { type: 'ratio' as const, rate: 1 },
   },
-  ...(env.NODE_ENV !== 'test'
+  ...(env.NODE_ENV !== 'test' && !env.USE_AIMOCK
     ? {
         answerRelevancy: {
           scorer: createAnswerRelevancyScorer({ model: env.CHAT_MODEL }),
