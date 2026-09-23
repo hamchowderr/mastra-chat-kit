@@ -77,7 +77,8 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'pnpm --filter @mastra-chat-kit/server dev',
+      // Clear a stale mastra dev lock first (see e2e/clear-stale-dev-lock.mjs).
+      command: 'node e2e/clear-stale-dev-lock.mjs && pnpm --filter @mastra-chat-kit/server dev',
       url: `${SERVER_URL}/health`,
       reuseExistingServer: !process.env.CI,
       // A cold `mastra dev` bundle shares the CPU with the web server's `next build`

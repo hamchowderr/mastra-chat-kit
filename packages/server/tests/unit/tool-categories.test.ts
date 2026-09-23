@@ -14,6 +14,13 @@ describe('resolveToolCategory — what "Always allow" grants', () => {
     expect(resolveToolCategory(WORKSPACE_TOOLS.FILESYSTEM.DELETE)).toBeNull();
   });
 
+  it('keeps goals, schedules and subagents off the image grant', () => {
+    expect(resolveToolCategory('generateImage')).toBe('other');
+    for (const tool of ['setGoal', 'start_schedule', 'stop_schedule', 'subagent']) {
+      expect(resolveToolCategory(tool)).toBeNull();
+    }
+  });
+
   it('leaves unknown tools uncategorized, so no existing grant covers them', () => {
     expect(resolveToolCategory('some_new_mcp_tool')).toBeNull();
   });

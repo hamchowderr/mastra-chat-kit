@@ -8,10 +8,15 @@ const { FILESYSTEM, SANDBOX, SEARCH, LSP } = WORKSPACE_TOOLS;
  *
  * An "Always allow" decision grants the gated tool's CATEGORY for the rest of the
  * session, so every tool here must sit in the category a user would expect to
- * have agreed to. Two tools are deliberately left out, and so resolve to `null`:
+ * have agreed to. Some tools are deliberately left out, and so resolve to `null`:
  * an always-allow on them then approves just that one call.
  *
  * - `mastra_workspace_delete`: destructive, so it asks every time.
+ * - `setGoal`, `start_schedule`, `stop_schedule`, `subagent`: each hands the
+ *   agent more autonomy (a standing objective, a recurring background run, a
+ *   delegated run). `ToolCategory` is a closed set, so they cannot get a category
+ *   of their own, and sharing `other` with `generateImage` would let one
+ *   "Always allow" on an image request switch off every one of these gates.
  * - Any tool not listed (a new tool, an MCP tool): it must be categorized on
  *   purpose, not picked up by an existing grant.
  */
@@ -42,12 +47,8 @@ const CATEGORIES: Record<string, ToolCategory> = {
   [SANDBOX.EXECUTE_COMMAND]: 'execute',
   [SANDBOX.KILL_PROCESS]: 'execute',
 
-  // Other: acts on the user's behalf in some other way.
+  // Other: creates something for the user outside the workspace.
   generateImage: 'other',
-  setGoal: 'other',
-  start_schedule: 'other',
-  stop_schedule: 'other',
-  subagent: 'other',
 };
 
 export function resolveToolCategory(toolName: string): ToolCategory | null {

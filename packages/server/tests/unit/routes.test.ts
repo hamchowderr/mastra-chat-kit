@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createControllerRoutes } from '../../src/mastra/routes/controller';
 import { createThreadRoutes } from '../../src/mastra/routes/threads';
-import type { ChatServerDeps } from '../../src/mastra/routes/types';
 import { createWorkspaceRoutes } from '../../src/mastra/routes/workspace';
+import { ctx, deps, find } from '../helpers/route-harness';
 
 /**
  * The route modules are the portable half of this server — the HTTP contract the
@@ -14,62 +14,6 @@ import { createWorkspaceRoutes } from '../../src/mastra/routes/workspace';
  * object and call handlers with a fake Hono context. No Mastra instance, no
  * network, no AIMock.
  */
-
-/** Minimal stand-in for the bits of the Hono context the handlers touch. */
-function ctx(opts: { query?: Record<string, string>; param?: Record<string, string> } = {}) {
-  const captured: { body?: unknown; status?: number } = {};
-  return {
-    captured,
-    c: {
-      json(body: unknown, status?: number) {
-        captured.body = body;
-        captured.status = status ?? 200;
-        return { body, status: status ?? 200 };
-      },
-      req: {
-        query: (k: string) => opts.query?.[k],
-        param: (k: string) => opts.param?.[k],
-        raw: { signal: undefined },
-      },
-      get: () => {
-        throw new Error('handler reached for c.get("mastra") — not expected in this test');
-      },
-    },
-  };
-}
-
-/** A deps object with nothing wired up; individual tests override what they need. */
-function deps(over: Partial<ChatServerDeps> = {}): ChatServerDeps {
-  return {
-    getSession: () => Promise.reject(new Error('getSession not stubbed')),
-    getAgentController: () => Promise.reject(new Error('getAgentController not stubbed')),
-    agentId: 'chat',
-    workspace: {
-      root: '/tmp/workspace',
-      readTree: () => Promise.resolve([]),
-      readFile: () => Promise.resolve(null),
-    },
-    getImage: () => undefined,
-    getBrowser: () => Promise.reject(new Error('getBrowser not stubbed')),
-    modelAllowlist: new Set<string>(),
-    ...over,
-  } as ChatServerDeps;
-}
-
-const find = (routes: ReturnType<typeof createThreadRoutes>, path: string, method: string) => {
-  const r = routes.find((x) => x.path === path && x.method === method);
-  if (!r) {
-    throw new Error(`route not registered: ${method} ${path}`);
-  }
-  // registerApiRoute's return is a union — the `createHandler` variant has no
-  // `handler`. Every route here uses the plain-handler form, so narrow rather
-  // than casting blindly: if that ever changes, this throws instead of passing
-  // a test that silently stopped invoking anything.
-  if (!('handler' in r) || typeof r.handler !== 'function') {
-    throw new Error(`route ${method} ${path} has no direct handler to invoke`);
-  }
-  return r as typeof r & { handler: (c: unknown) => Promise<unknown> };
-};
 
 describe('the route contract', () => {
   // The web layer fetches these exact paths. Adding or renaming one is a breaking
