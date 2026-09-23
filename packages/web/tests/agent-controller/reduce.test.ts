@@ -49,6 +49,26 @@ describe('controller reducer', () => {
     expect(s.error).toBe('boom');
   });
 
+  it('keeps the category the server attached, or null when there is none', () => {
+    const withCategory = reduceAgentControllerEvent(emptyTranscript(), {
+      type: 'tool_approval_required',
+      toolCallId: 'c1',
+      toolName: 'getWeather',
+      args: {},
+      category: 'read',
+    });
+    expect(withCategory.pendingApproval?.category).toBe('read');
+
+    const without = reduceAgentControllerEvent(emptyTranscript(), {
+      type: 'tool_approval_required',
+      toolCallId: 'c2',
+      toolName: 'mastra_workspace_delete',
+      args: {},
+      category: null,
+    });
+    expect(without.pendingApproval?.category).toBeNull();
+  });
+
   it('clears pending approval once the gate resolves', () => {
     const armed = reduceAgentControllerEvent(emptyTranscript(), {
       type: 'tool_approval_required',

@@ -63,6 +63,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         await session.thread.create();
       }
       const activeThreadId = session.thread.requireId();
+      const agentController = await deps.getAgentController();
 
       const encoder = new TextEncoder();
       const stream = new ReadableStream<Uint8Array>({
@@ -83,7 +84,19 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
             }
           };
 
-          const unsubscribe = session.subscribe((event) => send(event));
+          // tool_approval_required carries only the tool name. Add its category so the
+          // UI can offer "Always allow <category> tools"; null means always-allow
+          // would approve just this one call, so the UI hides that option.
+          const unsubscribe = session.subscribe((event) =>
+            send(
+              event.type === 'tool_approval_required'
+                ? {
+                    ...event,
+                    category: agentController.getToolCategory({ toolName: event.toolName }),
+                  }
+                : event,
+            ),
+          );
           // On client disconnect: stop forwarding, drop the subscription, abort the run.
           c.req.raw.signal?.addEventListener('abort', () => {
             closed = true;

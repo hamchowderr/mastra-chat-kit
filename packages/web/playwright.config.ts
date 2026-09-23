@@ -34,7 +34,14 @@ const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 // Env for the Mastra server: route LLM calls at AIMock, point storage at a local
 // libSQL file DB, satisfy env.ts (an LLM key is required even under AIMock —
 // validation runs before the AIMock provider switch). All non-secret test values.
+//
+// MASTRA_SKIP_DOTENV is what makes these values stick. `mastra dev` otherwise loads
+// packages/server/.env and writes each of its keys OVER process.env, so on any
+// machine with a dev .env the e2e server ran on the dev DB (TURSO_DATABASE_URL)
+// instead of the one global-setup wipes. Recall then pulled old threads into each
+// request, AIMock's turnIndex matched the wrong fixture, and the tool tests failed.
 const serverEnv: Record<string, string> = {
+  MASTRA_SKIP_DOTENV: '1',
   USE_AIMOCK: 'true',
   AIMOCK_URL,
   PORT: String(SERVER_PORT),
@@ -73,7 +80,9 @@ export default defineConfig({
       command: 'pnpm --filter @mastra-chat-kit/server dev',
       url: `${SERVER_URL}/health`,
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      // A cold `mastra dev` bundle shares the CPU with the web server's `next build`
+      // below; 120s timed out before the server came up.
+      timeout: 240_000,
       env: serverEnv,
     },
     {

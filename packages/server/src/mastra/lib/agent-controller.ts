@@ -30,6 +30,7 @@ import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
 import { doltConfigured } from './dolt';
 import { createDefaultMemory, getSharedStore } from './memory';
+import { resolveToolCategory } from './tool-categories';
 import {
   createBrowser,
   getChatBrowserInstance,
@@ -95,6 +96,8 @@ export function createChatAgentController(opts?: {
     // agent switch operating profile (instructions/tool visibility) without
     // swapping agents — the controller surface a plain agent can't express.
     agent: chatAgent,
+    // Without a resolver, "always allow" just approves once (Mastra has no default).
+    toolCategoryResolver: resolveToolCategory,
     modes: [
       {
         id: 'chat',
