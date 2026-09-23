@@ -257,6 +257,11 @@
           "target": "src/mastra/routes/controller.ts"
         },
         {
+          "path": "../server/src/mastra/routes/session-sse.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/session-sse.ts"
+        },
+        {
           "path": "../server/src/mastra/routes/workspace.ts",
           "type": "registry:file",
           "target": "src/mastra/routes/workspace.ts"

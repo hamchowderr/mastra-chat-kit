@@ -291,6 +291,8 @@ const SERVER_FILES = [
   ['../server/src/mastra/routes/types.ts', 'src/mastra/routes/types.ts'],
   ['../server/src/mastra/routes/threads.ts', 'src/mastra/routes/threads.ts'],
   ['../server/src/mastra/routes/controller.ts', 'src/mastra/routes/controller.ts'],
+  // The SSE forwarder /stream and /answer share. Imports only @mastra/core types.
+  ['../server/src/mastra/routes/session-sse.ts', 'src/mastra/routes/session-sse.ts'],
   ['../server/src/mastra/routes/workspace.ts', 'src/mastra/routes/workspace.ts'],
   // Pure formatting helpers the thread routes need. No imports of its own.
   ['../server/src/mastra/lib/thread-utils.ts', 'src/mastra/lib/thread-utils.ts'],

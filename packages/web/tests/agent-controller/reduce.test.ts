@@ -153,8 +153,29 @@ describe('controller reducer', () => {
     expect(
       reduceAgentControllerEvent(armed, { type: 'agent_end' }).pendingSuspension,
     ).not.toBeNull();
-    // a finished run always clears it
-    expect(reduceAgentControllerEvent(armed, { type: '__done__' }).pendingSuspension).toBeNull();
+  });
+
+  // mastra-chat-kit-ymk. A suspending tool ENDS the run: the server emits
+  // agent_end { reason: 'suspended' } and then closes the stream with __done__, while
+  // the question is still open. Clearing the prompt on __done__ hid it before the user
+  // ever saw it. It stays until its tool ends, the server cancels it, or it's answered.
+  it('keeps the prompt when the stream closes on a suspended run', () => {
+    const s = reduceAgentControllerEvents(emptyTranscript(), [
+      {
+        type: 'tool_suspended',
+        toolCallId: 's1',
+        toolName: 'ask_user',
+        args: {},
+        suspendPayload: { question: 'Which environment should I deploy to?' },
+      },
+      { type: 'agent_end', reason: 'suspended' },
+      { type: '__done__' },
+    ]);
+    expect(s.pendingSuspension).toMatchObject({
+      toolCallId: 's1',
+      question: 'Which environment should I deploy to?',
+    });
+    expect(s.done).toBe(true);
   });
 
   it('drops the suspension when the server cancels it', () => {

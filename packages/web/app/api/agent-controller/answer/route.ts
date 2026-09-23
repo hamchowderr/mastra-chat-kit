@@ -1,6 +1,6 @@
 // Same-origin proxy → Mastra server's Agent Controller suspension endpoint.
-// Answers a parked `ask_user` prompt; the continuation streams on the
-// already-open /agent-controller/stream SSE.
+// Answers a parked `ask_user` prompt. A suspending tool ends the run, so the
+// resumed run streams back as SSE on THIS response (not the closed /stream one).
 const SERVER_URL = process.env.MASTRA_SERVER_URL ?? 'http://localhost:4111';
 
 export async function POST(req: Request) {
@@ -9,9 +9,14 @@ export async function POST(req: Request) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body,
+    // Forward client disconnects so the resumed run can abort upstream.
+    signal: req.signal,
   });
   return new Response(upstream.body, {
     status: upstream.status,
-    headers: { 'content-type': upstream.headers.get('content-type') ?? 'application/json' },
+    headers: {
+      'content-type': upstream.headers.get('content-type') ?? 'text/event-stream',
+      'cache-control': 'no-cache',
+    },
   });
 }
