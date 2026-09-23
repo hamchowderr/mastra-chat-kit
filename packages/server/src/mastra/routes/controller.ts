@@ -12,6 +12,7 @@
 
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
+import { sessionEventStream } from './session-sse';
 import type { ChatServerDeps } from './types';
 
 export const createControllerRoutes = (deps: ChatServerDeps) => [
@@ -65,80 +66,30 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       const activeThreadId = session.thread.requireId();
       const agentController = await deps.getAgentController();
 
-      const encoder = new TextEncoder();
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          // Guard every enqueue: once the client disconnects the stream controller
-          // closes, but the session keeps emitting events for a few ticks while the
-          // run finalizes — enqueueing then throws "Controller is already closed".
-          let closed = false;
-          // biome-ignore lint/suspicious/noExplicitAny: SSE payloads are heterogeneous AgentControllerEvents
-          const send = (obj: any) => {
-            if (closed) {
-              return;
-            }
-            try {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
-            } catch {
-              closed = true; // client went away mid-run
-            }
-          };
-
-          // tool_approval_required carries only the tool name. Add its category so the
-          // UI can offer "Always allow <category> tools"; null means always-allow
-          // would approve just this one call, so the UI hides that option.
-          const unsubscribe = session.subscribe((event) =>
-            send(
-              event.type === 'tool_approval_required'
-                ? {
-                    ...event,
-                    category: agentController.getToolCategory({ toolName: event.toolName }),
-                  }
-                : event,
-            ),
-          );
-          // On client disconnect: stop forwarding, drop the subscription, abort the run.
-          c.req.raw.signal?.addEventListener('abort', () => {
-            closed = true;
-            unsubscribe();
-            session.abort();
-          });
-
-          // Hand the client the active thread id so it can continue the conversation.
-          send({ type: '__thread__', threadId: activeThreadId });
-          try {
-            // Honor the composer's model pick (validated against MODEL_ALLOWLIST).
-            // Switching here — inside the subscribed
-            // stream — lets the resulting `model_changed` event flow to the client too.
-            if (model && deps.modelAllowlist.has(model)) {
-              await session.model.switch({ modelId: model });
-            }
-            await session.sendMessage({
-              content: text,
-              ...(messageFiles ? { files: messageFiles } : {}),
-              ...(requestContext ? { requestContext } : {}),
-            });
-          } catch (err) {
-            send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
-          } finally {
-            unsubscribe();
-            send({ type: '__done__' });
-            if (!closed) {
-              try {
-                controller.close();
-              } catch {
-                /* already closed */
-              }
-            }
+      return sessionEventStream({
+        session,
+        signal: c.req.raw.signal,
+        // tool_approval_required carries only the tool name. Add its category so the
+        // UI can offer "Always allow <category> tools"; null means always-allow
+        // would approve just this one call, so the UI hides that option.
+        decorate: (event) =>
+          event.type === 'tool_approval_required'
+            ? { ...event, category: agentController.getToolCategory({ toolName: event.toolName }) }
+            : event,
+        // Hand the client the active thread id so it can continue the conversation.
+        prelude: [{ type: '__thread__', threadId: activeThreadId }],
+        run: async () => {
+          // Honor the composer's model pick (validated against MODEL_ALLOWLIST).
+          // Switching here — inside the subscribed
+          // stream — lets the resulting `model_changed` event flow to the client too.
+          if (model && deps.modelAllowlist.has(model)) {
+            await session.model.switch({ modelId: model });
           }
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          'content-type': 'text/event-stream',
-          'cache-control': 'no-cache, no-transform',
-          connection: 'keep-alive',
+          await session.sendMessage({
+            content: text,
+            ...(messageFiles ? { files: messageFiles } : {}),
+            ...(requestContext ? { requestContext } : {}),
+          });
         },
       });
     },
@@ -168,12 +119,12 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
 
   // Agent Controller HITL: POST /agent-controller/answer resolves a parked tool SUSPENSION —
   // the agent-driven `ask_user` flow. When a request is ambiguous the agent calls
-  // the built-in `ask_user`, which suspends the run (emitting `tool_suspended` with
-  // the question); the matching /agent-controller/stream call is parked awaiting the answer.
-  // Posting the answer here resumes the SAME suspended tool and the continuation
-  // events flow on the still-open SSE. `answer` is a string (free-text / single
-  // choice) or string[] (multi-select labels); `toolCallId` selects which prompt to
-  // resolve when several are pending (optional when only one is).
+  // the built-in `ask_user`, which suspends the tool and ENDS the run
+  // (`agent_end` reason 'suspended'), so the /agent-controller/stream SSE has closed.
+  // Posting the answer resumes the SAME suspended tool, and this response streams
+  // the resumed run's events as SSE, the same shape /stream sends (mastra-chat-kit-ymk).
+  // `answer` is a string (free-text / single choice) or string[] (multi-select
+  // labels); `toolCallId` selects which prompt to resolve when several are pending.
   registerApiRoute('/agent-controller/answer', {
     method: 'POST',
     handler: async (c) => {
@@ -185,11 +136,15 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         return c.json({ error: 'answer must be a string or string[]' }, 400);
       }
       const session = await deps.getSession();
-      await session.respondToToolSuspension({
-        resumeData: answer,
-        ...(toolCallId ? { toolCallId } : {}),
+      return sessionEventStream({
+        session,
+        signal: c.req.raw.signal,
+        run: () =>
+          session.respondToToolSuspension({
+            resumeData: answer,
+            ...(toolCallId ? { toolCallId } : {}),
+          }),
       });
-      return c.json({ ok: true });
     },
   }),
 

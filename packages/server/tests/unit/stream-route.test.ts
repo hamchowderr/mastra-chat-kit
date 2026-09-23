@@ -151,6 +151,49 @@ describe('/agent-controller/stream', () => {
   });
 });
 
+// mastra-chat-kit-ymk. On core 1.52 a suspending tool (ask_user) ENDS the run, so the
+// /stream SSE has closed by the time the user answers. The resumed run's events must
+// come back on the /answer response itself, or the answer lands and nothing renders.
+describe('/agent-controller/answer', () => {
+  function answerRoute(session: AnyEvent) {
+    return find(
+      createControllerRoutes(
+        deps({
+          getSession: () =>
+            Promise.resolve(
+              session as unknown as Awaited<ReturnType<ChatServerDeps['getSession']>>,
+            ),
+        }),
+      ),
+      '/agent-controller/answer',
+      'POST',
+    );
+  }
+
+  it('streams the resumed run back as SSE, then __done__', async () => {
+    const session = fakeSession();
+    const respondToToolSuspension = vi.fn(async () => {
+      session.emit({ type: 'tool_end', toolCallId: 's1', result: 'production' });
+      session.emit({ type: 'agent_end', reason: 'complete' });
+    });
+    const withResume = { ...session, respondToToolSuspension };
+
+    const { c } = ctx({ body: { answer: 'production', toolCallId: 's1' } });
+    const res = (await answerRoute(withResume).handler(c)) as Response;
+    const events = (await res.text())
+      .split('\n\n')
+      .filter((chunk) => chunk.startsWith('data: '))
+      .map((chunk) => JSON.parse(chunk.slice('data: '.length)));
+
+    expect(respondToToolSuspension).toHaveBeenCalledWith({
+      resumeData: 'production',
+      toolCallId: 's1',
+    });
+    expect(events.map((e) => e.type)).toEqual(['tool_end', 'agent_end', '__done__']);
+    expect(session.unsubscribe).toHaveBeenCalled();
+  });
+});
+
 describe('chatAgent instructions follow the Search toggle', () => {
   it('adds the web-search instructions only when webSearch is on', async () => {
     const on = new RequestContext();
