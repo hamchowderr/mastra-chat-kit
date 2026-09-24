@@ -24,6 +24,7 @@ function fakeSession(sendMessage: (args: AnyEvent) => Promise<void> = async () =
       requireId: () => 'thread-1',
     },
     model: { switch: vi.fn(async () => {}) },
+    mode: { get: vi.fn(() => 'chat'), switch: vi.fn(async () => {}) },
     subscribe: vi.fn((fn: (e: AnyEvent) => void) => {
       listener = fn;
       return unsubscribe;
@@ -41,6 +42,7 @@ function streamRoute(session: FakeSession, over: Partial<ChatServerDeps> = {}) {
   const controller = {
     getToolCategory: ({ toolName }: { toolName: string }) =>
       toolName === 'getWeather' ? 'read' : null,
+    listModes: () => [{ id: 'chat' }, { id: 'plan' }],
   };
   return find(
     createControllerRoutes(
@@ -80,6 +82,20 @@ describe('/agent-controller/stream', () => {
     const blocked = fakeSession();
     await run(blocked, { text: 'hi', model: 'someone/expensive-model' });
     expect(blocked.model.switch).not.toHaveBeenCalled();
+  });
+
+  it("switches to the composer's mode when it differs, and ignores an unknown one", async () => {
+    const plan = fakeSession();
+    await run(plan, { text: 'plan this', mode: 'plan' });
+    expect(plan.mode.switch).toHaveBeenCalledWith({ modeId: 'plan' });
+
+    const same = fakeSession();
+    await run(same, { text: 'hi', mode: 'chat' });
+    expect(same.mode.switch).not.toHaveBeenCalled();
+
+    const unknown = fakeSession();
+    await run(unknown, { text: 'hi', mode: 'yolo' });
+    expect(unknown.mode.switch).not.toHaveBeenCalled();
   });
 
   it('passes the Search toggle as webSearch on the request context, only when on', async () => {
@@ -191,6 +207,24 @@ describe('/agent-controller/answer', () => {
     });
     expect(events.map((e) => e.type)).toEqual(['tool_end', 'agent_end', '__done__']);
     expect(session.unsubscribe).toHaveBeenCalled();
+  });
+
+  it('resumes a submitted plan with the decision object core expects', async () => {
+    const session = fakeSession();
+    const respondToToolSuspension = vi.fn(async () => {
+      session.emit({ type: 'agent_end', reason: 'complete' });
+    });
+    const withResume = { ...session, respondToToolSuspension };
+
+    const { c } = ctx({
+      body: { plan: { action: 'rejected', feedback: 'add Berlin' }, toolCallId: 'p1' },
+    });
+    await ((await answerRoute(withResume).handler(c)) as Response).text();
+
+    expect(respondToToolSuspension).toHaveBeenCalledWith({
+      resumeData: { action: 'rejected', feedback: 'add Berlin' },
+      toolCallId: 'p1',
+    });
   });
 });
 

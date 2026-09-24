@@ -43,14 +43,14 @@ natural element target.
 | message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ |
 | `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | ✅ (live input-streaming `<Tool>` via `activeTools`, suppressed once the settled message part lands — `698.25`) |
 | `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny → `POST /agent-controller/approve`) |
-| `tool_suspended` / `tool_suspension_cancelled` | `AskUserPrompt` | ✅ (agent-driven `ask_user`; answer → `POST /agent-controller/answer`, `698.30`) |
+| `tool_suspended` / `tool_suspension_cancelled` | `AskUserPrompt`; `SubmittedPlanCard` for `submit_plan` | ✅ (agent-driven `ask_user`; answer → `POST /agent-controller/answer`, `698.30`. A `submit_plan` suspension → the Plan card's Approve / Reject → the same route with `{ plan: { action } }`) |
 | `shell_output` (stdout/stderr) | `Terminal` | ✅ (`698.24`) |
 | `subagent_start/_text_delta/_tool_*/_end` | `Agent` (+ nested `Tool`) | ✅ (`SubagentCard`, `698.27`) |
 | `task_updated` (`TaskItemSnapshot[]`) | `Task` | ✅ (agent's native `TaskSignalProvider`, `698.19`) |
 | `goal_evaluation` (`objective`, `iteration`, `passed`, …) | `GoalCard` | ✅ (`698.29`) |
 | `follow_up_queued` | `Queue` | ✅ |
 | `agent_start` | `Shimmer` | ✅ |
-| `mode_changed` | `ModeSwitcher` (composer dropdown) | ✅ (`698.28`) |
+| `mode_changed` | composer Plan toggle + the Plan card's footer | ✅ (`698.28`; the toggle sends the turn's `mode`, and approving a plan switches Plan → Chat) |
 | `subagent_model_changed` | `Agent` header | ✅ |
 | `usage_update` (`TokenUsage`) | `Context` | ✅ |
 | `thread_created/_changed/_deleted` | conversation sidebar | ✅ (sidebar refetches on run-settle; **semantic** search over message bodies via the fastembed index — `698.16`) |
@@ -124,7 +124,7 @@ via `defaultOptions.providerOptions.anthropic.thinking`), AIMock off, keys via I
 | Image | `generateImage` tool (OpenAI `gpt-image-1-mini`, WebP/low) |
 | Confirmation | the controller approval gate (every side-effecting tool) |
 | Task | `task_write` → `task_updated` |
-| Plan | `submit_plan` → `{title, plan}` |
+| Plan | `submit_plan` → `{path}`: the plan file is read from the workspace, with Approve / Reject while pending |
 | ChainOfThought | the real tool-call sequence (`StepTrace`) |
 | Terminal | `execute_command` (real `execa` in the sandbox) stdout/stderr |
 | File Tree | the workspace file listing |

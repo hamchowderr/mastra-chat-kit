@@ -333,6 +333,8 @@ const CHAT_FILES = [
   'components/chat/chat-switcher.tsx',
   'components/chat/composer.tsx',
   'components/chat/agent-controller-chat.tsx',
+  // Plan mode UI (the composer's Plan toggle + the submit_plan card), imported by the chat.
+  'components/chat/plan-mode.tsx',
   // AgentController mode's own shell. chat-switcher.tsx imports agent-controller-sidebar and
   // workbench-panel directly, and workbench-panel pulls the four panels — so
   // omitting them shipped a chat-switcher that could not compile (bd b5y).
