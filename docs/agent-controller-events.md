@@ -42,7 +42,7 @@ source of truth for what each event means and where it should render.
 
 | # | event type | payload (key fields) | meaning | reducer | target element |
 |---|---|---|---|---|---|
-| 1 | `mode_changed` | `modeId`, `previousModeId` | Session switched controller mode | ✅ consumed | `ModeSwitcher` |
+| 1 | `mode_changed` | `modeId`, `previousModeId` | Session switched controller mode | ✅ consumed | composer Plan toggle + Plan card footer |
 | 2 | `model_changed` | `modelId`, `scope?`, `modeId?` | Active LLM changed at a scope | ⛔ dropped | `ModelSelector` (reflect) |
 | 3 | `thread_changed` | `threadId`, `previousThreadId` | Active thread switched | ⛔ dropped | conversation sidebar |
 | 4 | `thread_created` | `thread` (`id`, `title?`, …) | New thread created | ⛔ dropped | conversation sidebar |
@@ -55,7 +55,7 @@ source of truth for what each event means and where it should render.
 | 11 | `message_end` | `id` (core ≥1.69; earlier cores sent `message`) | Message finished | ✅ consumed | `Message` |
 | 12 | `tool_start` | `toolCallId`, `toolName`, `args` | Tool call started | ✅ consumed (`698.25`) | `Tool` (`input-available`) |
 | 13 | `tool_approval_required` | `toolCallId`, `toolName`, `args` | Tool gated, awaiting approval | ✅ consumed | `Confirmation` |
-| 14 | `tool_suspended` | `toolCallId`, `toolName`, `args`, `suspendPayload`, `resumeSchema?` | Tool `suspend()`ed (e.g. `ask_user`) | ✅ consumed (`698.30`) | `AskUserPrompt` (→ `POST /agent-controller/answer`) |
+| 14 | `tool_suspended` | `toolCallId`, `toolName`, `args`, `suspendPayload`, `resumeSchema?` | Tool `suspend()`ed (e.g. `ask_user`, `submit_plan`) | ✅ consumed (`698.30`) | `AskUserPrompt`; `SubmittedPlanCard` for `submit_plan` (both → `POST /agent-controller/answer`) |
 | 15 | `tool_suspension_cancelled` | `toolCallId`, `toolName`, `reason` | Parked suspension cancelled | ✅ consumed (`698.30`) | clears `AskUserPrompt` |
 | 16 | `tool_update` | `toolCallId`, `partialResult` | Incremental tool result | ⛔ dropped | `Tool` (settled message part already renders the full result) |
 | 17 | `tool_end` | `toolCallId`, `result`, `isError`, `providerMetadata?` | Tool completed | ✅ consumed | `Tool` (`ToolOutput`) |

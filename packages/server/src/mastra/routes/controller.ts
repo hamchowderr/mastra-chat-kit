@@ -3,11 +3,11 @@
 // resolvers (tool approval + tool suspension), and the read-only views the web
 // panels hydrate from (goal, observational memory, schedules).
 //
-// NOTE: modes (Chat / Plan) stay configured on the controller (see
-// lib/agent-controller.ts) and are exercised by the integration test, but there's
-// no HTTP switch route — planning is AGENT-DRIVEN (the agent calls the built-in
-// submit_plan when a task warrants a plan), so the UI has no manual mode switcher
-// to back.
+// Modes (Chat / Plan) are configured on the controller (lib/agent-controller.ts).
+// There's no separate switch route: a turn names its mode in the /stream body (the
+// composer's Plan toggle), and approving a plan switches Plan → Chat by itself
+// (the mode's `transitionsTo`). The agent can still plan unprompted from Chat mode by
+// calling the built-in submit_plan.
 // ──────────────────────────────────────────────────────────────────────────
 
 import { RequestContext } from '@mastra/core/request-context';
@@ -24,10 +24,12 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
   registerApiRoute('/agent-controller/stream', {
     method: 'POST',
     handler: async (c) => {
-      const { text, threadId, model, webSearch, files } = await c.req.json<{
+      const { text, threadId, model, mode, webSearch, files } = await c.req.json<{
         text?: string;
         threadId?: string;
         model?: string;
+        // The composer's Plan toggle: 'plan' | 'chat'. Unknown ids are ignored.
+        mode?: string;
         webSearch?: boolean;
         // The composer's attachments (FileUIPart): `url` is a data URL after the
         // client's submit-time blob→dataURL conversion, so it's safe to forward.
@@ -85,6 +87,14 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           if (model && deps.modelAllowlist.has(model)) {
             await session.model.switch({ modelId: model });
           }
+          // Same for the mode: switching inside the stream sends `mode_changed` too.
+          if (
+            mode &&
+            mode !== session.mode.get() &&
+            agentController.listModes().some((m) => m.id === mode)
+          ) {
+            await session.mode.switch({ modeId: mode });
+          }
           await session.sendMessage({
             content: text,
             ...(messageFiles ? { files: messageFiles } : {}),
@@ -118,7 +128,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
   }),
 
   // Agent Controller HITL: POST /agent-controller/answer resolves a parked tool SUSPENSION —
-  // the agent-driven `ask_user` flow. When a request is ambiguous the agent calls
+  // the agent-driven `ask_user` flow, or a submitted plan (`plan`: approve / reject it). When a request is ambiguous the agent calls
   // the built-in `ask_user`, which suspends the tool and ENDS the run
   // (`agent_end` reason 'suspended'), so the /agent-controller/stream SSE has closed.
   // Posting the answer resumes the SAME suspended tool, and this response streams
@@ -128,12 +138,29 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
   registerApiRoute('/agent-controller/answer', {
     method: 'POST',
     handler: async (c) => {
-      const { answer, toolCallId } = await c.req.json<{
+      const { answer, plan, toolCallId } = await c.req.json<{
         answer?: string | string[];
+        // A decision on a `submit_plan` suspension. Core routes it through plan approval:
+        // 'approved' switches to the mode's `transitionsTo` and resumes the agent on the
+        // plan; 'rejected' resumes it with the (optional) feedback to revise by.
+        plan?: { action?: string; feedback?: string };
         toolCallId?: string;
       }>();
-      if (typeof answer !== 'string' && !Array.isArray(answer)) {
-        return c.json({ error: 'answer must be a string or string[]' }, 400);
+      let resumeData: string | string[] | { action: 'approved' | 'rejected'; feedback?: string };
+      if (plan !== undefined) {
+        if (plan?.action !== 'approved' && plan?.action !== 'rejected') {
+          return c.json({ error: 'plan.action must be approved | rejected' }, 400);
+        }
+        resumeData = {
+          action: plan.action,
+          ...(typeof plan.feedback === 'string' && plan.feedback
+            ? { feedback: plan.feedback }
+            : {}),
+        };
+      } else if (typeof answer === 'string' || Array.isArray(answer)) {
+        resumeData = answer;
+      } else {
+        return c.json({ error: 'answer must be a string or string[], or plan an object' }, 400);
       }
       const session = await deps.getSession();
       return sessionEventStream({
@@ -141,7 +168,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         signal: c.req.raw.signal,
         run: () =>
           session.respondToToolSuspension({
-            resumeData: answer,
+            resumeData,
             ...(toolCallId ? { toolCallId } : {}),
           }),
       });
