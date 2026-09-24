@@ -209,6 +209,32 @@ export async function getChatBrowser(): Promise<BrowserViewer> {
 }
 
 /**
+ * Tools the live session runs without an approval gate: the controller's interaction
+ * and bookkeeping tools, where a gate would only be a redundant, confusing extra click.
+ *  - ask_user — the answer prompt IS the interaction; without this the user would
+ *    first approve "Run ask_user?" (showing the question as raw args), THEN the prompt.
+ *  - submit_plan — likewise: the plan card's Approve / Reject IS the decision. Gated,
+ *    the user would approve "Run submit_plan?" and only then see the plan to approve.
+ *  - task_write/update/complete/check — pure progress tracking that drives the <Task>
+ *    element; gating them makes the user approve "task_write" before seeing a to-do list.
+ *  - list_schedules — read-only view of existing schedules (the schedules panel + the
+ *    agent answering "what's scheduled?"). Its mutating siblings start_schedule /
+ *    stop_schedule stay GATED: creating a recurring background run is a real side effect,
+ *    so it flows through the approval gate (an intentional HITL demo).
+ * Everything with a real side effect (fs writes, shell, browser, subagents, start/stop
+ * schedule) stays gated. Exported so tests drive a session with the same grants.
+ */
+export const AUTO_ALLOWED_TOOLS = [
+  'ask_user',
+  'submit_plan',
+  'task_write',
+  'task_update',
+  'task_complete',
+  'task_check',
+  'list_schedules',
+] as const;
+
+/**
  * Get-or-create the process-wide Session for the single logical user, so the
  * `/agent-controller/stream` and `/agent-controller/approve` routes drive the SAME session (an
  * approval must resolve on the session that parked at the gate).
@@ -217,26 +243,8 @@ export async function getChatSession(): Promise<Session> {
   const controller = await getChatAgentController();
   const existing = await controller.getSessionByResource(CHAT_RESOURCE_ID);
   const session = existing ?? (await controller.createSession({ resourceId: CHAT_RESOURCE_ID }));
-  // Auto-allow the controller's informational, side-effect-free interaction tools so they
-  // never raise a (redundant, confusing) approval gate:
-  //  - ask_user — the answer prompt IS the interaction; without this the user would
-  //    first approve "Run ask_user?" (showing the question as raw args), THEN the prompt.
-  //  - task_write/update/complete/check — pure progress tracking that drives the <Task>
-  //    element; gating them makes the user approve "task_write" before seeing a to-do list.
-  //  - list_schedules — read-only view of existing schedules (the schedules panel + the
-  //    agent answering "what's scheduled?"). Its mutating siblings start_schedule /
-  //    stop_schedule stay GATED: creating a recurring background run is a real side effect,
-  //    so it flows through the approval gate (an intentional HITL demo).
-  // Everything with a real side effect (fs writes, shell, browser, subagents, start/stop
-  // schedule) stays gated. In-memory + idempotent, so re-granting each call is free.
-  for (const tool of [
-    'ask_user',
-    'task_write',
-    'task_update',
-    'task_complete',
-    'task_check',
-    'list_schedules',
-  ]) {
+  // In-memory + idempotent, so re-granting each call is free.
+  for (const tool of AUTO_ALLOWED_TOOLS) {
     session.grantTool(tool);
   }
   return session;
