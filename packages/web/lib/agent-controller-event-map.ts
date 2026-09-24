@@ -235,7 +235,7 @@ export const AGENT_CONTROLLER_EVENTS: AgentControllerEventRow[] = [
   {
     n: 10,
     type: 'message_update',
-    meaning: 'A message updated with new parts (text / reasoning / tool).',
+    meaning: 'A message delta: appended text or reasoning, or a part replaced at an index.',
     consumed: true,
     group: 'Messages',
     element: 'message',
@@ -245,7 +245,7 @@ export const AGENT_CONTROLLER_EVENTS: AgentControllerEventRow[] = [
   {
     n: 11,
     type: 'message_end',
-    meaning: 'A message reached its final form.',
+    meaning: 'A message finished (carries just its id).',
     consumed: true,
     group: 'Messages',
     element: 'message',
