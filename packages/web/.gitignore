@@ -57,3 +57,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# demo rehearsal screenshots (scripts/demo-rehearsal.mjs)
+/demo-rehearsal/

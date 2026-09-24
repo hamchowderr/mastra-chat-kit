@@ -260,6 +260,8 @@ It runs on Mastra's `AgentController` — the session controller Mastra's docs d
 
 **→ [`docs/agent-controller.md`](docs/agent-controller.md)** covers the controller in full, using Mastra's exact vocabulary.
 
+**→ [`docs/demo.md`](docs/demo.md)** is a 3–4 minute live-demo script that runs entirely on AIMock: plan mode, a code subagent, ask_user, image generation, schedules and cited research. It needs no keys and no network.
+
 ---
 
 ## 🧠 How it works
