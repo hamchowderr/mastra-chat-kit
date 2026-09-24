@@ -73,6 +73,17 @@ export type PendingSuspension = {
   selectionMode?: 'single_select' | 'multi_select';
 };
 
+/**
+ * A plan the agent submitted (`submit_plan`) that awaits the user's decision. Folded
+ * from `tool_suspended`: the suspend payload carries only the PATH of the plan file in
+ * the workspace, not its text. Approving resumes the run (and switches Plan mode to
+ * Chat); rejecting resumes it with the rejection. `null` when nothing is waiting.
+ */
+export type PendingPlan = {
+  toolCallId: string;
+  path: string;
+};
+
 /** Token usage from the AgentController `usage_update` event (→ the Context element). */
 export type AgentControllerUsage = {
   promptTokens?: number;
@@ -218,6 +229,8 @@ export type AgentControllerTranscript = {
   pendingApproval: PendingApproval | null;
   /** A parked `ask_user` suspension awaiting the user's answer (→ the AskUserPrompt). */
   pendingSuspension: PendingSuspension | null;
+  /** A submitted plan awaiting Approve / Reject (→ the Plan card's actions). */
+  pendingPlan: PendingPlan | null;
   usage: AgentControllerUsage | null;
   queuedFollowUps: number;
   terminal: AgentControllerTerminal;
@@ -245,6 +258,7 @@ export const emptyTranscript = (): AgentControllerTranscript => ({
   tasks: [],
   pendingApproval: null,
   pendingSuspension: null,
+  pendingPlan: null,
   usage: null,
   queuedFollowUps: 0,
   terminal: { output: '', running: false },

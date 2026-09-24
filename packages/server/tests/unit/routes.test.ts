@@ -194,6 +194,25 @@ describe('controller routes validate input before touching the session', () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  it('/agent-controller/answer rejects a plan decision that is neither approved nor rejected', async () => {
+    const getSession = vi.fn(() => Promise.reject(new Error('must not be called')));
+    const route = find(
+      createControllerRoutes(deps({ getSession })),
+      '/agent-controller/answer',
+      'POST',
+    );
+    const { c, captured } = ctx();
+    const withBody = {
+      ...c,
+      req: { ...c.req, json: () => Promise.resolve({ plan: { action: 'maybe' } }) },
+    };
+
+    await route.handler(withBody);
+
+    expect(captured.status).toBe(400);
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
   it('/agent-controller/stream rejects an empty message with 400', async () => {
     const getSession = vi.fn(() => Promise.reject(new Error('must not be called')));
     const route = find(

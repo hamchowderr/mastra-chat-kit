@@ -137,3 +137,29 @@ export function useGeneratedImage({
 
   return data;
 }
+
+/**
+ * Read one workspace file's text (null until it loads, or if it can't be read). Used for
+ * a submitted plan: `submit_plan` carries only the plan file's PATH, so the text is read
+ * from the workspace the agent wrote it to. Re-reads when `path` changes.
+ */
+export function useWorkspaceFile(path: string | undefined) {
+  const [content, setContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    setContent(null);
+    if (!path) return;
+    let active = true;
+    fetch(`/api/workspace/file?path=${encodeURIComponent(path)}`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ content?: string }>) : null))
+      .then((d) => {
+        if (active && typeof d?.content === 'string') setContent(d.content);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [path]);
+
+  return content;
+}

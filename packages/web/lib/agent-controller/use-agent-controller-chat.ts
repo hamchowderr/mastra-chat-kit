@@ -153,6 +153,8 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
       opts?: {
         model?: string;
         webSearch?: boolean;
+        /** Controller mode for this turn ('plan' | 'chat'); the server switches if it differs. */
+        mode?: string;
         files?: Array<{ url: string; mediaType: string; filename?: string }>;
       },
     ) => {
@@ -177,6 +179,7 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
             threadId: threadRef.current,
             model: opts?.model,
             webSearch: opts?.webSearch,
+            mode: opts?.mode,
             files: opts?.files,
           }),
         });
@@ -216,21 +219,26 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
   }, []);
 
   /**
-   * Answer a parked `ask_user` suspension. Optimistically clear the prompt so it
-   * closes at once. A suspending tool ENDS the run, so the original /stream response
-   * has already closed; the resumed run streams back on this /answer response
-   * instead (mastra-chat-kit-ymk). `answer` is a string (free-text / single choice)
-   * or a string[] of chosen labels (multi-select).
+   * Resume a parked suspension and stream the resumed run. A suspending tool ENDS the
+   * run, so the original /stream response has already closed; the resumed run streams
+   * back on this /answer response instead (mastra-chat-kit-ymk). The pending prompt is
+   * cleared optimistically so it closes at once.
    */
-  const answerQuestion = useCallback(
-    async (answer: string | string[], toolCallId?: string) => {
-      setTranscript((s) => ({ ...s, pendingSuspension: null, error: null, done: false }));
+  const resume = useCallback(
+    async (body: Record<string, unknown>) => {
+      setTranscript((s) => ({
+        ...s,
+        pendingSuspension: null,
+        pendingPlan: null,
+        error: null,
+        done: false,
+      }));
       setStatus('streaming');
       try {
         const res = await fetch('/api/agent-controller/answer', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ answer, ...(toolCallId ? { toolCallId } : {}) }),
+          body: JSON.stringify(body),
         });
         await readEventStream(res, (event) =>
           setTranscript((s) => reduceAgentControllerEvent(s, event)),
@@ -247,6 +255,30 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
       }
     },
     [refreshSchedules],
+  );
+
+  /**
+   * Answer a parked `ask_user` suspension. `answer` is a string (free-text / single
+   * choice) or a string[] of chosen labels (multi-select).
+   */
+  const answerQuestion = useCallback(
+    (answer: string | string[], toolCallId?: string) =>
+      resume({ answer, ...(toolCallId ? { toolCallId } : {}) }),
+    [resume],
+  );
+
+  /**
+   * Decide a submitted plan (`submit_plan`). Approving resumes the agent on the plan —
+   * and, in Plan mode, switches the session to Chat, which arrives as `mode_changed`.
+   * Rejecting resumes it with the rejection (and optional feedback to revise by).
+   */
+  const respondToPlan = useCallback(
+    (action: 'approved' | 'rejected', feedback?: string) =>
+      resume({
+        plan: { action, ...(feedback ? { feedback } : {}) },
+        ...(transcript.pendingPlan ? { toolCallId: transcript.pendingPlan.toolCallId } : {}),
+      }),
+    [resume, transcript.pendingPlan],
   );
 
   /** Clear the workbench Terminal scrollback (the shell buffer is cumulative). */
@@ -320,6 +352,12 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
     answerQuestion,
     /** The current `ask_user` prompt awaiting an answer (null when none). */
     pendingSuspension: transcript.pendingSuspension,
+    /** Approve or reject the submitted plan awaiting a decision. */
+    respondToPlan,
+    /** The submitted plan awaiting Approve / Reject (null when none). */
+    pendingPlan: transcript.pendingPlan,
+    /** The controller mode the last `mode_changed` reported (null before any switch). */
+    activeMode: transcript.activeMode,
     clearTerminal,
     openThread,
     reset,
