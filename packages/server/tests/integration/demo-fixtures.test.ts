@@ -75,7 +75,10 @@ afterAll(async () => {
  * gate, answer ask_user with `answer`, approve the plan. Returns the controller
  * events and the AIMock journal entries the flow produced.
  */
-async function runFlow(prompt: string, opts: { answer?: string } = {}) {
+async function runFlow(
+  prompt: string,
+  opts: { answer?: string; plan?: 'approved' | 'rejected' } = {},
+) {
   await fetch(`${AIMOCK}/__aimock/reset/journal`, { method: 'POST' });
   const session: Session = await controller.createSession({ resourceId: 'u-demo' });
   // The live session's grants (getChatSession).
@@ -110,7 +113,9 @@ async function runFlow(prompt: string, opts: { answer?: string } = {}) {
     await session.respondToToolSuspension({
       toolCallId: current.toolCallId,
       resumeData:
-        current.toolName === 'submit_plan' ? { action: 'approved' } : (opts.answer ?? 'Playful'),
+        current.toolName === 'submit_plan'
+          ? { action: opts.plan ?? 'approved' }
+          : (opts.answer ?? 'Playful'),
     });
   }
   await run.catch(() => {});
@@ -172,6 +177,16 @@ describe('demo flows resolve to their own fixtures (docs/demo.md)', () => {
     // The briefing quotes getWeather's real output for the three cities.
     expect(text(events)).toContain('"temperatureC":24');
     expect(text(events)).toContain('Weather briefing');
+  });
+
+  it('1b. rejecting the plan stops before any work', async () => {
+    const { events, journal } = await runFlow(
+      'Plan a weather briefing for Tokyo, Paris and New York, then carry it out.',
+      { plan: 'rejected' },
+    );
+    expectNoFallThrough(journal);
+    expect(text(events)).toContain("tell me what you'd like changed");
+    expect(events.some((e) => e.type === 'task_updated')).toBe(false);
   });
 
   it('2. code subagent writes and runs fizzbuzz.js; the parent re-runs it', async () => {
