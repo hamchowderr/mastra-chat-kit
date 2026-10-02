@@ -16,7 +16,9 @@ import type {
 } from './events';
 import {
   type AnyEvent,
+  applyMessageDelta,
   foldMemoryActivity,
+  type MessageDelta,
   safeStringify,
   settledToolCallIds,
   upsertActiveTool,
@@ -80,13 +82,21 @@ export function reduceAgentControllerEvent(
     // A settled message part is the canonical Tool render. After folding it in, drop any
     // live (input-streaming) entry whose tool_call now has a message part — so the live
     // <Tool> is replaced by the settled one, never rendered alongside it (no double-render).
+    //
+    // Core ≥1.69 sends the full message only on `message_start`; `message_update` then
+    // carries an id-addressed delta and `message_end` just the id. Earlier cores sent
+    // the whole message on all three, which still upserts.
     case 'message_start':
     case 'message_update':
     case 'message_end': {
-      if (!event.message) {
+      let messages: AgentControllerMessage[];
+      if (event.message) {
+        messages = upsertMessage(state.messages, event.message as AgentControllerMessage);
+      } else if (event.type === 'message_update' && typeof event.id === 'string' && event.event) {
+        messages = applyMessageDelta(state.messages, event.id, event.event as MessageDelta);
+      } else {
         return state;
       }
-      const messages = upsertMessage(state.messages, event.message as AgentControllerMessage);
       const settled = settledToolCallIds(messages);
       const activeTools = settled.size
         ? state.activeTools.filter((t) => !settled.has(t.toolCallId))

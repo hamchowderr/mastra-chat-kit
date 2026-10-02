@@ -25,6 +25,9 @@
     "overrides": {
       "@types/react": "19.2.17",
       "@types/react-dom": "19.2.3"
+    },
+    "patchedDependencies": {
+      "@mastra/core@1.69.0": "patches/@mastra__core@1.69.0.patch"
     }
   }
 }

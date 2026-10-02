@@ -47,8 +47,10 @@ function mapFormat2Part(p: any): AgentControllerContentPart | AgentControllerCon
   if (t === 'data-user-message' && typeof p.data?.contents === 'string') {
     return { type: 'text', text: p.data.contents };
   }
-  if (t === 'reasoning' && typeof p.text === 'string') {
-    return { type: 'thinking', thinking: p.text };
+  if (t === 'reasoning') {
+    // Core ≥1.69 keeps the text on `reasoning` (and `details`); earlier cores on `text`.
+    const thinking = typeof p.reasoning === 'string' ? p.reasoning : p.text;
+    return typeof thinking === 'string' && thinking ? { type: 'thinking', thinking } : null;
   }
   // v4-nested tool part — check BEFORE the flat `tool-` branch (its type also
   // starts with `tool-`, but its data lives under `toolInvocation`, not on `p`).
@@ -159,10 +161,12 @@ export function upsertMessage(
   messages: AgentControllerMessage[],
   msg: AgentControllerMessage,
 ): AgentControllerMessage[] {
+  const raw = (msg.content as { parts?: unknown } | null)?.parts;
   const m: AgentControllerMessage = {
     ...msg,
     role: effectiveRole(msg),
     content: Array.isArray(msg.content) ? msg.content : normalizeContent(msg.content),
+    ...(Array.isArray(raw) ? { parts: raw.slice() } : {}),
   };
   const idx = messages.findIndex((x) => x.id === m.id);
   if (idx === -1) {
@@ -170,6 +174,50 @@ export function upsertMessage(
   }
   const next = messages.slice();
   next[idx] = m;
+  return next;
+}
+
+/**
+ * One core ≥1.69 `message_update` delta. A message streams as a `message_start` carrying
+ * the initial MastraDBMessage, then these id-addressed deltas, then an id-only
+ * `message_end`.
+ */
+export type MessageDelta =
+  | { type: 'text-delta'; delta: string }
+  | { type: 'reasoning-delta'; index: number; delta: string }
+  | { type: 'part'; index: number; part: unknown };
+
+/**
+ * Apply a delta to the message with `id`, the way core folds it into its own display
+ * state: text appends to the LAST text part (or starts one), reasoning appends to the
+ * reasoning part at `index`, and `part` replaces the part at `index`. The rendered
+ * `content` is then re-derived from the raw parts. An unknown id is ignored.
+ */
+export function applyMessageDelta(
+  messages: AgentControllerMessage[],
+  id: string,
+  delta: MessageDelta,
+): AgentControllerMessage[] {
+  const idx = messages.findIndex((m) => m.id === id);
+  if (idx === -1) return messages;
+  const msg = messages[idx];
+  // biome-ignore lint/suspicious/noExplicitAny: format-2 parts are a heterogeneous union
+  const parts = (msg.parts ?? []).slice() as any[];
+  if (delta.type === 'text-delta') {
+    const at = parts.findLastIndex((p) => p?.type === 'text');
+    if (at === -1) parts.push({ type: 'text', text: delta.delta });
+    else parts[at] = { ...parts[at], text: String(parts[at].text ?? '') + delta.delta };
+  } else if (delta.type === 'reasoning-delta') {
+    const part = parts[delta.index];
+    if (part?.type === 'reasoning') {
+      const reasoning = String(part.reasoning ?? part.text ?? '') + delta.delta;
+      parts[delta.index] = { ...part, reasoning, details: [{ type: 'text', text: reasoning }] };
+    }
+  } else {
+    parts[delta.index] = delta.part;
+  }
+  const next = messages.slice();
+  next[idx] = { ...msg, parts, content: normalizeContent({ parts }) };
   return next;
 }
 

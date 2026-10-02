@@ -39,7 +39,7 @@ natural element target.
 
 | Controller event | Element target | Wired |
 |---|---|---|
-| `message_start/_update/_end` (`AgentControllerMessage`) | `Message` / `MessageResponse` | ✅ (handles the v4-nested `tool-invocation` shape core 1.52 emits — `698.26`) |
+| `message_start/_update/_end` (`AgentControllerMessage`) | `Message` / `MessageResponse` | ✅ (handles the v4-nested `tool-invocation` shape — `698.26`; core ≥1.69 streams id-addressed deltas after `message_start`, folded by `applyMessageDelta`) |
 | message content `text` / `thinking` / `tool_call`+`tool_result` | `MessageResponse` / `Reasoning` / `Tool` | ✅ |
 | `tool_start/_input_*/_update/_end` + `ActiveToolState` | `Tool` | ✅ (live input-streaming `<Tool>` via `activeTools`, suppressed once the settled message part lands — `698.25`) |
 | `tool_approval_required` + `pendingApproval` | `Confirmation` | ✅ (approve/deny → `POST /agent-controller/approve`) |

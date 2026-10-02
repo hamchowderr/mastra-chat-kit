@@ -1,0 +1,58 @@
+diff --git a/dist/agent-controller-BfGRTCic.js b/dist/agent-controller-BfGRTCic.js
+index 8149453ad6e82152b42278f0a55fc4f404f4dbca..2618a5329e4b7607584313cb16fb68eb4cf0ff03 100644
+--- a/dist/agent-controller-BfGRTCic.js
++++ b/dist/agent-controller-BfGRTCic.js
+@@ -4799,6 +4799,7 @@ Use this tool when:
+ 						threadId: null,
+ 						resourceId: ""
+ 					});
++					subagentRequestContext.delete("MastraMemory");
+ 				}
+ 			}
+ 			const startTime = Date.now();
+diff --git a/dist/agent-controller-Jel_P4BY.cjs b/dist/agent-controller-Jel_P4BY.cjs
+index b9e46f150b48f2a1de7437beb9f2a85010576c2c..ef4463da4646bc8460abafb9af8e16826aa6c7f9 100644
+--- a/dist/agent-controller-Jel_P4BY.cjs
++++ b/dist/agent-controller-Jel_P4BY.cjs
+@@ -4799,6 +4799,7 @@ Use this tool when:
+ 						threadId: null,
+ 						resourceId: ""
+ 					});
++					subagentRequestContext.delete("MastraMemory");
+ 				}
+ 			}
+ 			const startTime = Date.now();
+diff --git a/dist/trip-wire-BKew-MD4.js b/dist/trip-wire-BKew-MD4.js
+index 7a12936f51fca34372e11b95000591e73299d9fa..1d1142d9280fd9767f59f6ea42629e0bce4ac2c4 100644
+--- a/dist/trip-wire-BKew-MD4.js
++++ b/dist/trip-wire-BKew-MD4.js
+@@ -1394,11 +1394,11 @@ var ProcessorRunner = class ProcessorRunner {
+ 		const resolvedMemory = memory;
+ 		const resolvedThreadId = threadId ?? memoryContext?.thread?.id;
+ 		const resolvedResourceId = resourceId ?? memoryContext?.resourceId;
+-		if (!resolvedMemory) throw new Error(`[Processor:${processor.id}] computeStateSignal requires Mastra memory with an active resourceId and threadId`);
+ 		if (!resolvedThreadId || !resolvedResourceId) {
+ 			this.logger.debug(`[Processor:${processor.id}] computeStateSignal skipped — no threadId/resourceId resolved for this invocation`);
+ 			return;
+ 		}
++		if (!resolvedMemory) throw new Error(`[Processor:${processor.id}] computeStateSignal requires Mastra memory with an active resourceId and threadId`);
+ 		const loadedThread = await resolvedMemory.getThreadById({ threadId: resolvedThreadId }) ?? memoryContext?.thread;
+ 		if (!loadedThread) throw new Error(`[Processor:${processor.id}] computeStateSignal could not load thread ${resolvedThreadId}`);
+ 		let thread = {
+diff --git a/dist/trip-wire-B_Z55fc8.cjs b/dist/trip-wire-B_Z55fc8.cjs
+index 8dc60851bcd7f2690419cd17ee1674d74e67dc09..58670bfce0c4a319fde0b5a4ecdf4ef0755ad3b2 100644
+--- a/dist/trip-wire-B_Z55fc8.cjs
++++ b/dist/trip-wire-B_Z55fc8.cjs
+@@ -1394,11 +1394,11 @@ var ProcessorRunner = class ProcessorRunner {
+ 		const resolvedMemory = memory;
+ 		const resolvedThreadId = threadId ?? memoryContext?.thread?.id;
+ 		const resolvedResourceId = resourceId ?? memoryContext?.resourceId;
+-		if (!resolvedMemory) throw new Error(`[Processor:${processor.id}] computeStateSignal requires Mastra memory with an active resourceId and threadId`);
+ 		if (!resolvedThreadId || !resolvedResourceId) {
+ 			this.logger.debug(`[Processor:${processor.id}] computeStateSignal skipped — no threadId/resourceId resolved for this invocation`);
+ 			return;
+ 		}
++		if (!resolvedMemory) throw new Error(`[Processor:${processor.id}] computeStateSignal requires Mastra memory with an active resourceId and threadId`);
+ 		const loadedThread = await resolvedMemory.getThreadById({ threadId: resolvedThreadId }) ?? memoryContext?.thread;
+ 		if (!loadedThread) throw new Error(`[Processor:${processor.id}] computeStateSignal could not load thread ${resolvedThreadId}`);
+ 		let thread = {

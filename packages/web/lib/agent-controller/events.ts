@@ -33,6 +33,12 @@ export type AgentControllerMessage = {
   createdAt?: string;
   stopReason?: 'complete' | 'tool_use' | 'aborted' | 'error';
   errorMessage?: string;
+  /**
+   * The message's raw Mastra "format 2" parts, kept so core ≥1.69's id-addressed
+   * `message_update` deltas (appended text, a part replaced at an index) can be applied
+   * where they were emitted; `content` is re-derived from them after each delta.
+   */
+  parts?: unknown[];
 };
 
 export type AgentControllerTaskItem = {

@@ -54,9 +54,11 @@ Rules:
   // active resourceId and threadId` for a non-forked subagent when the workspace
   // carried a browser (the controller runs non-forked stateless — threadId:null,
   // resourceId:"" — yet built it with the browser-bearing workspace). We ran it
-  // forked as a workaround. On the CURRENT core it no longer reproduces — verified
-  // with the browser both unlaunched AND launched — so we run the real specialist.
-  // Guarded by tests/integration/subagent-browser-repro.test.ts (flips red if a core
-  // upgrade regresses it). See docs/agent-controller-events.md.
+  // forked as a workaround. It looked fixed later, but only because the guard's subagent
+  // answered in ONE step: core still copies the parent's `MastraMemory` context into a
+  // non-forked subagent, so its SECOND step throws the same error (1.52.1 through
+  // 1.70.0-alpha.1). patches/@mastra__core@1.69.0.patch fixes that; guarded by
+  // tests/integration/subagent-multistep.test.ts, which takes two steps. See
+  // docs/agent-controller-events.md.
   forked: false,
 };

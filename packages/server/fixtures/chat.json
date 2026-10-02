@@ -59,6 +59,49 @@
       }
     },
     {
+      "_comment": "698.32 guard, TWO-step subagent (tests/integration/subagent-multistep.test.ts). The hello.txt subagent below answers in one text step, which never reaches the per-step state signal, so it cannot catch the browser-context throw that killed a memoryless subagent on its SECOND step (patched in patches/@mastra__core@1.69.0.patch). Here the subagent lists the workspace (step 1), then reports (step 2). Later hops match toolCallId, the id given to the previous hop's call. MUST precede the generic 'coding subagent' fixture (first match wins).",
+      "match": {
+        "userMessage": "Guard 698.32: have the code subagent list the workspace",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_guard_subagent",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "code",
+              "task": "List the workspace files, then report what you found."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "coding subagent",
+        "userMessage": "List the workspace files, then report what you found.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_guard_list",
+            "name": "mastra_workspace_list_files",
+            "arguments": { "path": "." }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_guard_list" },
+      "response": { "content": "Listed the workspace." }
+    },
+    {
+      "match": { "toolCallId": "toolu_guard_subagent" },
+      "response": { "content": "The code subagent listed the workspace." }
+    },
+    {
       "_comment": "The spawned code subagent's own run. Matched on its distinctive system prompt ('coding subagent'), which the parent chat agent never has, so it only catches the subagent's call. Returns text (no nested tools) — a minimal deterministic subagent result.",
       "match": { "systemMessage": "coding subagent" },
       "response": { "content": "Created hello.txt with a short greeting." }
