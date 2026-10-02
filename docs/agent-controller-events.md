@@ -51,8 +51,8 @@ source of truth for what each event means and where it should render.
 | 7 | `agent_start` | *(none)* | An agent run began | ⛔ dropped | streaming indicator (`Shimmer`) |
 | 8 | `agent_end` | `reason?` (`complete`/`aborted`/`error`/`suspended`) | Run finished | ✅ consumed | clears approval, `running=false` |
 | 9 | `message_start` | `message: MastraDBMessage` | Message began streaming | ✅ consumed | `Message` (`upsertMessage`) |
-| 10 | `message_update` | `message` | Message updated w/ new parts | ✅ consumed | `Message` |
-| 11 | `message_end` | `message` | Message finished (final form) | ✅ consumed | `Message` |
+| 10 | `message_update` | `id`, `event` (`text-delta` / `reasoning-delta` / `part` at an index; core ≥1.69) | Message updated w/ a delta | ✅ consumed | `Message` (`applyMessageDelta`) |
+| 11 | `message_end` | `id` (core ≥1.69; earlier cores sent `message`) | Message finished | ✅ consumed | `Message` |
 | 12 | `tool_start` | `toolCallId`, `toolName`, `args` | Tool call started | ✅ consumed (`698.25`) | `Tool` (`input-available`) |
 | 13 | `tool_approval_required` | `toolCallId`, `toolName`, `args` | Tool gated, awaiting approval | ✅ consumed | `Confirmation` |
 | 14 | `tool_suspended` | `toolCallId`, `toolName`, `args`, `suspendPayload`, `resumeSchema?` | Tool `suspend()`ed (e.g. `ask_user`) | ✅ consumed (`698.30`) | `AskUserPrompt` (→ `POST /agent-controller/answer`) |

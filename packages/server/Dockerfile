@@ -19,6 +19,9 @@ RUN corepack enable
 
 # Manifests first, so a dependency-only change reuses the install layer.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm patchedDependencies (root package.json) — the lockfile pins each patch's hash,
+# so a frozen install fails if the patch files are missing.
+COPY patches patches
 COPY packages/server/package.json packages/server/
 RUN pnpm install --frozen-lockfile --filter @mastra-chat-kit/server...
 
