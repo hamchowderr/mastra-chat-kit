@@ -22,14 +22,6 @@ import {
   InlineCitationSource,
   InlineCitationText,
 } from '@/components/ai-elements/inline-citation';
-import { MessageResponse } from '@/components/ai-elements/message';
-import {
-  Plan,
-  PlanContent,
-  PlanDescription,
-  PlanHeader,
-  PlanTitle,
-} from '@/components/ai-elements/plan';
 import { Source, Sources, SourcesContent, SourcesTrigger } from '@/components/ai-elements/sources';
 import {
   Terminal,
@@ -120,21 +112,6 @@ export function GeneratedImage({
       // on the image edge); ring follows the rounded corners.
       className="max-w-sm rounded-md ring-1 ring-black/10 ring-inset dark:ring-white/10"
     />
-  );
-}
-
-/** Real `submit_plan` tool args → the Plan element. */
-export function PlanCard({ title, plan }: { title?: string; plan: string }) {
-  return (
-    <Plan>
-      <PlanHeader>
-        <PlanTitle>{title ?? 'Plan'}</PlanTitle>
-        <PlanDescription>Proposed by the agent</PlanDescription>
-      </PlanHeader>
-      <PlanContent>
-        <MessageResponse>{plan}</MessageResponse>
-      </PlanContent>
-    </Plan>
   );
 }
 

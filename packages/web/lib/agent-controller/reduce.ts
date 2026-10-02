@@ -73,6 +73,10 @@ export function reduceAgentControllerEvent(
           event.toolCallId && state.pendingSuspension?.toolCallId === event.toolCallId
             ? null
             : state.pendingSuspension,
+        pendingPlan:
+          event.toolCallId && state.pendingPlan?.toolCallId === event.toolCallId
+            ? null
+            : state.pendingPlan,
         // Drop the finished tool's live entry (agent_end has no id → clear all).
         activeTools: event.toolCallId
           ? state.activeTools.filter((t) => t.toolCallId !== event.toolCallId)
@@ -408,7 +412,13 @@ export function reduceAgentControllerEvent(
         question?: string;
         options?: SuspensionOption[];
         selectionMode?: 'single_select' | 'multi_select';
+        path?: string;
       };
+      // `submit_plan` parks on the user's verdict. Its payload names the plan FILE (the
+      // agent writes the plan to the workspace first), so the view reads the text itself.
+      if (event.toolName === 'submit_plan' && typeof p.path === 'string' && p.path) {
+        return { ...state, pendingPlan: { toolCallId: event.toolCallId, path: p.path } };
+      }
       // Only surface a prompt we can render — an ask_user-shaped payload with a
       // question. Other suspending tools without one pass through untouched.
       if (typeof p.question !== 'string' || !p.question) {
@@ -428,9 +438,12 @@ export function reduceAgentControllerEvent(
     // The suspension was cancelled server-side (e.g. the run failed before it could be
     // resumed) — drop the matching prompt so the user isn't left answering a dead one.
     case 'tool_suspension_cancelled':
-      return state.pendingSuspension?.toolCallId === event.toolCallId
-        ? { ...state, pendingSuspension: null }
-        : state;
+      return {
+        ...state,
+        pendingSuspension:
+          state.pendingSuspension?.toolCallId === event.toolCallId ? null : state.pendingSuspension,
+        pendingPlan: state.pendingPlan?.toolCallId === event.toolCallId ? null : state.pendingPlan,
+      };
     case 'error':
       return {
         ...state,

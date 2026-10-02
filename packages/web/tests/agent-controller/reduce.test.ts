@@ -366,6 +366,35 @@ describe('controller reducer', () => {
     expect(s.subagents[0]).toMatchObject({ toolCallId: 'sa9', text: 'hi', status: 'running' });
   });
 
+  it('folds a submit_plan suspension into a pending plan, not a question', () => {
+    const s = reduceAgentControllerEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 'p1',
+      toolName: 'submit_plan',
+      suspendPayload: { path: 'plans/weather-briefing.md' },
+    });
+    expect(s.pendingPlan).toEqual({ toolCallId: 'p1', path: 'plans/weather-briefing.md' });
+    expect(s.pendingSuspension).toBeNull();
+  });
+
+  it('clears the pending plan when its tool ends or the suspension is cancelled', () => {
+    const pending = reduceAgentControllerEvent(emptyTranscript(), {
+      type: 'tool_suspended',
+      toolCallId: 'p1',
+      toolName: 'submit_plan',
+      suspendPayload: { path: 'plan.md' },
+    });
+    const other = reduceAgentControllerEvent(pending, { type: 'tool_end', toolCallId: 'x' });
+    expect(other.pendingPlan).not.toBeNull();
+    const ended = reduceAgentControllerEvent(pending, { type: 'tool_end', toolCallId: 'p1' });
+    expect(ended.pendingPlan).toBeNull();
+    const cancelled = reduceAgentControllerEvent(pending, {
+      type: 'tool_suspension_cancelled',
+      toolCallId: 'p1',
+    });
+    expect(cancelled.pendingPlan).toBeNull();
+  });
+
   it('reflects the active mode from mode_changed', () => {
     const s = reduceAgentControllerEvent(emptyTranscript(), {
       type: 'mode_changed',

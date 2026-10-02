@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateImage } from '../../src/mastra/agents/chat';
+import { generateImage, sniffImageType } from '../../src/mastra/agents/chat';
 import { getImage } from '../../src/mastra/lib/image-store';
 import { callTool } from '../helpers/call-tool';
 
@@ -15,10 +15,25 @@ describe('generateImage', () => {
       { prompt: 'a teal square' },
     );
 
-    expect(out.mediaType).toBe('image/webp');
     expect(out.prompt).toBe('a teal square');
     // The model gets the id; the bytes stay server-side for GET /images/:id.
-    // These are the image fixture's exact bytes, so the request really went out.
-    expect(getImage(out.imageId)?.base64).toBe('UklGRiQAAABXRUJQ');
+    const stored = getImage(out.imageId);
+    // The fixture serves a real PNG (so the live demo renders an actual image),
+    // and the tool labels it by its bytes, not by the WebP it asked for.
+    const bytes = Buffer.from(stored?.base64 ?? '', 'base64');
+    expect(bytes.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    expect(out.mediaType).toBe('image/png');
+    expect(stored?.mediaType).toBe('image/png');
+  });
+});
+
+describe('sniffImageType', () => {
+  it('reads the format from the magic number and defaults to WebP', () => {
+    expect(sniffImageType('iVBORw0KGgoAAAANSUhEUg')).toBe('image/png');
+    expect(sniffImageType('/9j/4AAQSkZJRg')).toBe('image/jpeg');
+    expect(sniffImageType('R0lGODlhAQABAA')).toBe('image/gif');
+    expect(sniffImageType('UklGRiQAAABXRUJQ')).toBe('image/webp');
   });
 });
