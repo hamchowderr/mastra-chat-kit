@@ -1,6 +1,7 @@
 'use client';
 
 import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Agent, AgentContent, AgentHeader } from '@/components/ai-elements/agent';
 import {
   Confirmation,
@@ -51,19 +52,20 @@ import {
   ToolOutput,
 } from '@/components/ai-elements/tool';
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
+import { PlanModeToggle, SubmittedPlanCard } from '@/components/chat/plan-mode';
 import {
   AskUserPrompt,
   GeneratedImage,
   GoalCard,
   type KnowledgeResult,
   KnowledgeSources,
-  PlanCard,
   StepTrace,
 } from '@/components/chat/tool-views';
 import {
   type ActiveTool,
   type AgentControllerContentPart,
   collectToolResults,
+  type PendingPlan,
   type SubagentRun,
 } from '@/lib/agent-controller/events';
 import type { UseAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
@@ -127,11 +129,18 @@ function ThinkingIndicator() {
  */
 export function AgentControllerChat({ controller }: { controller: UseAgentControllerChat }) {
   const { transcript, status, sendMessage, approve, answerQuestion } = controller;
-  // Goals AND planning are agent-driven — the agent calls its own `setGoal` tool for a
-  // standing objective and the built-in `submit_plan` for tasks that warrant a plan, so
-  // there are no manual mode/goal controls in the composer. `clearGoal` backs the goal
-  // card's dismiss affordance (the user can abandon an active goal).
+  // Goals are agent-driven — the agent calls its own `setGoal` tool for a standing
+  // objective, so there's no goal control; `clearGoal` backs the goal card's dismiss.
   const { goal, clearGoal } = controller;
+  // Planning is agent-driven too (the agent can call `submit_plan` from Chat), but the
+  // composer's Plan toggle starts a turn in Plan mode to ask for one. Approving the plan
+  // switches the session back to Chat — `mode_changed` — so the toggle follows it off.
+  const { pendingPlan, activeMode, respondToPlan } = controller;
+  const [planMode, setPlanMode] = useState(false);
+  useEffect(() => {
+    if (activeMode === 'chat') setPlanMode(false);
+  }, [activeMode]);
+  const planView: PlanView = { pendingPlan, activeMode, respondToPlan };
   const {
     messages,
     tasks,
@@ -153,6 +162,7 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
     sendMessage(text, {
       model,
       webSearch,
+      mode: planMode ? 'plan' : 'chat',
       files: files?.map((f) => ({ url: f.url, mediaType: f.mediaType, filename: f.filename })),
     });
 
@@ -184,10 +194,11 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
 
   // White composer so it pops against the zinc canvas. Rendered under the hero on the
   // empty state, or pinned at the bottom once the chat is going. The token-usage Context
-  // rides in its footer. No composer controls for modes/goals — those are agent-driven.
+  // rides in its footer; the Plan toggle leads its tools row.
   const composer = (
     <Composer
       onSend={handleSend}
+      toolsExtra={<PlanModeToggle on={planMode} onToggle={() => setPlanMode((v) => !v)} />}
       status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
       className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
       footerExtra={contextSlot}
@@ -264,7 +275,7 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
                       <MessageContent>
                         {steps.length > 0 && <StepTrace steps={steps} />}
                         {m.content.map((part, i) =>
-                          renderContent(part, i, resultsById, subagentsById),
+                          renderContent(part, i, resultsById, subagentsById, planView),
                         )}
                       </MessageContent>
                       {m.role === 'assistant' && (
@@ -472,11 +483,19 @@ function ActiveToolCard({ tool }: { tool: ActiveTool }) {
   );
 }
 
+/** What a `submit_plan` card needs from the controller to offer and report a decision. */
+type PlanView = {
+  pendingPlan: PendingPlan | null;
+  activeMode: string | null;
+  respondToPlan: UseAgentControllerChat['respondToPlan'];
+};
+
 function renderContent(
   part: AgentControllerContentPart,
   i: number,
   resultsById: Map<string, AgentControllerContentPart>,
   subagentsById: Map<string, SubagentRun>,
+  planView: PlanView,
 ) {
   if (part.type === 'text') {
     return <MessageResponse key={i}>{(part as { text: string }).text}</MessageResponse>;
@@ -511,10 +530,20 @@ function renderContent(
       const task = (call.args as { task?: string } | undefined)?.task;
       return <SubagentCard key={i} run={run} fallbackTask={task} />;
     }
-    // submit_plan → the <Plan> element.
+    // submit_plan → the <Plan> element, with Approve / Reject while it awaits a decision.
     if (call.name === 'submit_plan') {
-      const a = call.args as { title?: string; plan?: string };
-      return <PlanCard key={i} title={a?.title} plan={a?.plan ?? ''} />;
+      const a = call.args as { path?: string; title?: string; plan?: string };
+      return (
+        <SubmittedPlanCard
+          key={i}
+          path={a?.path}
+          title={a?.title}
+          plan={a?.plan}
+          pending={planView.pendingPlan?.toolCallId === call.id}
+          activeMode={planView.activeMode}
+          onDecide={(d) => planView.respondToPlan(d)}
+        />
+      );
     }
     // generateImage → the <Image> element (fetches bytes by id).
     const img = output as { imageId?: string; mediaType?: string; prompt?: string } | undefined;

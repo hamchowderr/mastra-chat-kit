@@ -148,9 +148,14 @@ export function createDefaultMemory(template: string = DEFAULT_WORKING_MEMORY_TE
       // context ACROSS conversations (scope: 'resource'), not just within a thread. It runs
       // its own model (uses env.CHAT_MODEL rather than the default Google model, so a single
       // provider key suffices). ALWAYS ON — it's core to the kit, not a user option — except
-      // under NODE_ENV=test, where the Observer/Reflector need real structured output AIMock
-      // can't stand in for. Emits the om_* events the controller forwards (Memory panel).
-      ...(env.NODE_ENV !== 'test'
+      // under NODE_ENV=test or USE_AIMOCK, where the Observer/Reflector need real output a
+      // mock can't give. In resource scope the Observer must answer with <thread id="…">
+      // blocks keyed by LIVE thread ids, which no static fixture can know; and its request
+      // replays the conversation, so it substring-matches the demo fixtures and gets their
+      // tool calls back — failed observations persisted mid-demo. Off under the mock, the
+      // Memory panel shows its empty state instead. Emits the om_* events the controller
+      // forwards (Memory panel).
+      ...(env.NODE_ENV !== 'test' && !env.USE_AIMOCK
         ? {
             observationalMemory: {
               model: env.CHAT_MODEL,

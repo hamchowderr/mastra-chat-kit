@@ -84,6 +84,18 @@ export const searchKnowledge = createTool({
 });
 
 /**
+ * The media type of base64 image bytes, read from their magic number. We ask
+ * OpenAI for WebP, but a provider (or an AIMock fixture) can hand back another
+ * format, and a wrong label breaks the rendered <Image>. Defaults to WebP.
+ */
+export function sniffImageType(base64: string): string {
+  if (base64.startsWith('iVBORw0KGgo')) return 'image/png';
+  if (base64.startsWith('/9j/')) return 'image/jpeg';
+  if (base64.startsWith('R0lGOD')) return 'image/gif';
+  return 'image/webp';
+}
+
+/**
  * Generates a real image via OpenAI's image API → exercises the <Image> element
  * with model-produced output. Cross-provider on purpose: the chat model (e.g.
  * Claude) decides to call this; the tool itself hits OpenAI's image endpoint.
@@ -126,11 +138,12 @@ export const generateImage = createTool({
     }
     const json = (await res.json()) as { data?: Array<{ b64_json?: string }> };
     const base64 = json.data?.[0]?.b64_json ?? '';
+    const mediaType = sniffImageType(base64);
     // Stash the bytes server-side; hand the model only a tiny id (served via
     // GET /images/:id), so the image never enters the model context.
     const imageId = randomUUID();
-    putImage(base64, 'image/webp', imageId);
-    return { imageId, mediaType: 'image/webp', prompt };
+    putImage(base64, mediaType, imageId);
+    return { imageId, mediaType, prompt };
   },
 });
 

@@ -70,8 +70,9 @@ const envSchema = z
     CHAT_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
     // Observational memory + the agent workspace are ALWAYS on (they're core to the
-    // kit, not user options) — no env toggle. Both are gated OFF only when NODE_ENV is
-    // 'test' so AIMock runs stay hermetic; see lib/memory.ts + agents/chat.ts.
+    // kit, not user options) — no env toggle. Both are gated OFF when NODE_ENV is 'test'
+    // so AIMock runs stay hermetic, and OM is also off under USE_AIMOCK (a mock can't play
+    // its Observer); see lib/memory.ts + agents/chat.ts.
 
     USE_AIMOCK: boolish.default(false),
     AIMOCK_URL: z.string().url().default('http://localhost:4010'),

@@ -288,8 +288,6 @@
         "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/inline-citation.json",
-        "https://ai-sdk.dev/elements/api/registry/message.json",
-        "https://ai-sdk.dev/elements/api/registry/plan.json",
         "https://ai-sdk.dev/elements/api/registry/sources.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json"
       ],
@@ -313,6 +311,7 @@
         "sonner"
       ],
       "registryDependencies": [
+        "button",
         "dialog",
         "dropdown-menu",
         "tabs",
@@ -328,6 +327,7 @@
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
         "https://ai-sdk.dev/elements/api/registry/model-selector.json",
+        "https://ai-sdk.dev/elements/api/registry/plan.json",
         "https://ai-sdk.dev/elements/api/registry/prompt-input.json",
         "https://ai-sdk.dev/elements/api/registry/queue.json",
         "https://ai-sdk.dev/elements/api/registry/reasoning.json",
@@ -353,6 +353,11 @@
           "path": "components/chat/agent-controller-chat.tsx",
           "type": "registry:component",
           "target": "components/chat/agent-controller-chat.tsx"
+        },
+        {
+          "path": "components/chat/plan-mode.tsx",
+          "type": "registry:component",
+          "target": "components/chat/plan-mode.tsx"
         },
         {
           "path": "components/chat/agent-controller-sidebar.tsx",

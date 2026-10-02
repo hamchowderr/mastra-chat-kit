@@ -161,7 +161,7 @@ export const AGENT_CONTROLLER_EVENTS: AgentControllerEventRow[] = [
     meaning: 'The session switched controller mode (Chat ⇄ Plan).',
     consumed: true,
     group: 'Session & modes',
-    target: 'Active-mode state (agent-driven; plan→build transition).',
+    target: 'Composer Plan toggle + the Plan card footer (approving a plan switches Plan → Chat).',
     prompt: P.plan,
     note: 'Wired in 698.28.',
   },
@@ -335,7 +335,8 @@ export const AGENT_CONTROLLER_EVENTS: AgentControllerEventRow[] = [
     meaning: 'A tool called suspend() — e.g. the agent-driven ask_user.',
     consumed: true,
     group: 'Tools & HITL',
-    target: 'Ask-user prompt (resumes via /agent-controller/answer).',
+    target:
+      'Ask-user prompt, or the Plan card for submit_plan (both resume via /agent-controller/answer).',
     prompt: P.askUser,
     note: 'Wired in 698.30 — an ambiguous request makes the agent ask you a question.',
   },

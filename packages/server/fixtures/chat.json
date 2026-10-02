@@ -1,6 +1,577 @@
 {
   "fixtures": [
     {
+      "_comment": "DEMO FLOWS (docs/demo.md) — this fixture down to the end of DEMO 6. Each flow's FIRST hop matches its opening prompt with hasToolResult:false, like the fixtures below. Every LATER hop matches toolCallId: the id this block assigns to the previous hop's tool call, which comes back on the tool result that ends the next request. That is exact per hop and immune to what surrounds it — earlier threads that semantic recall pulls into the system prompt, or history from a re-run — where turnIndex (a count of assistant messages) and hasToolResult (true for every hop after the first) are not. This block sits FIRST so its title and subagent fixtures win over the generic ones further down (first match wins). tests/integration/demo-fixtures.test.ts proves every hop resolves here and not to the catch-all.",
+      "match": {
+        "systemMessage": "3-6 word title",
+        "userMessage": "Plan a weather briefing for Tokyo, Paris and New York, then carry it out."
+      },
+      "response": {
+        "content": "Three-City Weather Briefing"
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "3-6 word title",
+        "userMessage": "Have the code subagent build a FizzBuzz script and run it."
+      },
+      "response": {
+        "content": "FizzBuzz Script Build"
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "3-6 word title",
+        "userMessage": "Draft a one-line announcement for tonight's meetup."
+      },
+      "response": {
+        "content": "Meetup Announcement Draft"
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "3-6 word title",
+        "userMessage": "Generate an image of a sunset over the mountains."
+      },
+      "response": {
+        "content": "Mountain Sunset Image"
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "3-6 word title",
+        "userMessage": "Every weekday at 9am, remind me to post my standup update."
+      },
+      "response": {
+        "content": "Weekday Standup Reminder"
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "3-6 word title",
+        "userMessage": "Research what the AgentController does and cite your sources."
+      },
+      "response": {
+        "content": "AgentController Research"
+      }
+    },
+    {
+      "_comment": "DEMO 1 — plan mode. submit_plan takes a PATH, so the agent writes the plan file first, then submits it. Approving the plan resumes submit_plan with \"Plan approved…\" and the run carries on by itself; each step then flips the task list (task_write) and does the work. Rejecting it takes the \"not approved\" branch.",
+      "match": {
+        "userMessage": "Plan a weather briefing for Tokyo, Paris and New York, then carry it out.",
+        "hasToolResult": false
+      },
+      "response": {
+        "reasoning": "Three cities and a write-up: worth agreeing a plan before doing the work. I will write the plan to a file and submit it for review.",
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_write",
+            "name": "mastra_workspace_write_file",
+            "arguments": {
+              "path": "plans/weather-briefing.md",
+              "content": "# Weather briefing: Tokyo, Paris, New York\n\n1. Check the weather in Tokyo\n2. Check the weather in Paris\n3. Check the weather in New York\n4. Write a one-paragraph briefing comparing the three\n",
+              "overwrite": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_write"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_submit",
+            "name": "submit_plan",
+            "arguments": {
+              "path": "plans/weather-briefing.md"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_submit",
+        "toolResultContains": "Plan approved"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_t1",
+            "name": "task_write",
+            "arguments": {
+              "tasks": [
+                {
+                  "id": "check-tokyo",
+                  "content": "Check the weather in Tokyo",
+                  "status": "in_progress",
+                  "activeForm": "Checking the weather in Tokyo"
+                },
+                {
+                  "id": "check-paris",
+                  "content": "Check the weather in Paris",
+                  "status": "pending",
+                  "activeForm": "Checking the weather in Paris"
+                },
+                {
+                  "id": "check-new-york",
+                  "content": "Check the weather in New York",
+                  "status": "pending",
+                  "activeForm": "Checking the weather in New York"
+                },
+                {
+                  "id": "write-briefing",
+                  "content": "Write the briefing",
+                  "status": "pending",
+                  "activeForm": "Writing the briefing"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_submit"
+      },
+      "response": {
+        "content": "No problem — tell me what you'd like changed and I'll revise the plan."
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_t1"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_w1",
+            "name": "getWeather",
+            "arguments": {
+              "location": "Tokyo"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_w1"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_t2",
+            "name": "task_write",
+            "arguments": {
+              "tasks": [
+                {
+                  "id": "check-tokyo",
+                  "content": "Check the weather in Tokyo",
+                  "status": "completed",
+                  "activeForm": "Checking the weather in Tokyo"
+                },
+                {
+                  "id": "check-paris",
+                  "content": "Check the weather in Paris",
+                  "status": "in_progress",
+                  "activeForm": "Checking the weather in Paris"
+                },
+                {
+                  "id": "check-new-york",
+                  "content": "Check the weather in New York",
+                  "status": "pending",
+                  "activeForm": "Checking the weather in New York"
+                },
+                {
+                  "id": "write-briefing",
+                  "content": "Write the briefing",
+                  "status": "pending",
+                  "activeForm": "Writing the briefing"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_t2"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_w2",
+            "name": "getWeather",
+            "arguments": {
+              "location": "Paris"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_w2"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_t3",
+            "name": "task_write",
+            "arguments": {
+              "tasks": [
+                {
+                  "id": "check-tokyo",
+                  "content": "Check the weather in Tokyo",
+                  "status": "completed",
+                  "activeForm": "Checking the weather in Tokyo"
+                },
+                {
+                  "id": "check-paris",
+                  "content": "Check the weather in Paris",
+                  "status": "completed",
+                  "activeForm": "Checking the weather in Paris"
+                },
+                {
+                  "id": "check-new-york",
+                  "content": "Check the weather in New York",
+                  "status": "in_progress",
+                  "activeForm": "Checking the weather in New York"
+                },
+                {
+                  "id": "write-briefing",
+                  "content": "Write the briefing",
+                  "status": "pending",
+                  "activeForm": "Writing the briefing"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_t3"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_w3",
+            "name": "getWeather",
+            "arguments": {
+              "location": "New York"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_plan_w3"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_plan_t4",
+            "name": "task_write",
+            "arguments": {
+              "tasks": [
+                {
+                  "id": "check-tokyo",
+                  "content": "Check the weather in Tokyo",
+                  "status": "completed",
+                  "activeForm": "Checking the weather in Tokyo"
+                },
+                {
+                  "id": "check-paris",
+                  "content": "Check the weather in Paris",
+                  "status": "completed",
+                  "activeForm": "Checking the weather in Paris"
+                },
+                {
+                  "id": "check-new-york",
+                  "content": "Check the weather in New York",
+                  "status": "completed",
+                  "activeForm": "Checking the weather in New York"
+                },
+                {
+                  "id": "write-briefing",
+                  "content": "Write the briefing",
+                  "status": "completed",
+                  "activeForm": "Writing the briefing"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_comment": "The numbers are getWeather's real deterministic output for these three cities (agents/chat.ts derives them from the city name), so the briefing matches the tool cards above it.",
+      "match": {
+        "toolCallId": "toolu_demo_plan_t4"
+      },
+      "response": {
+        "content": "**Weather briefing**\n\n- **Tokyo** — 24 °C and clear, the warmest of the three.\n- **Paris** — 21 °C and cloudy.\n- **New York** — 21 °C and cloudy, the same as Paris.\n\nPack light for Tokyo; Paris and New York call for a layer."
+      }
+    },
+    {
+      "_comment": "DEMO 2 — code subagent. The parent delegates (one approval). The subagent's own tools run ungated: it writes fizzbuzz.js (Files tab) and runs it (output in the subagent card). A subagent's shell output never reaches the Terminal tab, which only carries the MAIN agent's shell_output events, so the parent re-runs the script itself to verify it — a second approval, and the output lands in the Terminal.",
+      "match": {
+        "userMessage": "Have the code subagent build a FizzBuzz script and run it.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_code_subagent",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "code",
+              "task": "Create fizzbuzz.js in the workspace root that prints FizzBuzz for 1 to 15, one value per line, then run it with node and report the output."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_comment": "The spawned code subagent's run, hop 1: write the file. Keyed on its system prompt AND this flow's task text, so the generic 'coding subagent' fixture further down (the hello.txt test) is untouched.",
+      "match": {
+        "systemMessage": "coding subagent",
+        "userMessage": "Create fizzbuzz.js in the workspace root that prints FizzBuzz for 1 to 15, one value per line, then run it with node and report the output.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_code_write",
+            "name": "mastra_workspace_write_file",
+            "arguments": {
+              "path": "fizzbuzz.js",
+              "content": "for (let i = 1; i <= 15; i++) {\n  const out = i % 15 === 0 ? 'FizzBuzz' : i % 3 === 0 ? 'Fizz' : i % 5 === 0 ? 'Buzz' : String(i);\n  console.log(out);\n}\n",
+              "overwrite": false
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_code_write"
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_code_run",
+            "name": "mastra_workspace_execute_command",
+            "arguments": {
+              "command": "node fizzbuzz.js"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_code_run"
+      },
+      "response": {
+        "content": "Created `fizzbuzz.js` and ran it with `node fizzbuzz.js`: it prints 1 to 15, with Fizz on multiples of 3, Buzz on multiples of 5, and FizzBuzz on 15."
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_code_subagent"
+      },
+      "response": {
+        "content": "The code subagent wrote `fizzbuzz.js`. I'll run it myself to double-check the output.",
+        "toolCalls": [
+          {
+            "id": "toolu_demo_code_verify",
+            "name": "mastra_workspace_execute_command",
+            "arguments": {
+              "command": "node fizzbuzz.js"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_code_verify"
+      },
+      "response": {
+        "content": "Verified — the output is in the **Terminal** tab and the file is in **Files**. 3, 6, 9 and 12 print Fizz; 5 and 10 print Buzz; 15 prints FizzBuzz."
+      }
+    },
+    {
+      "_comment": "DEMO 3 — ask_user. The tone is ambiguous, so the agent asks. The answer resumes the tool with 'User answered: <label>', and the reply depends on which option was clicked. The last fixture catches a typed answer.",
+      "match": {
+        "userMessage": "Draft a one-line announcement for tonight's meetup.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_ask_tone",
+            "name": "ask_user",
+            "arguments": {
+              "question": "What tone should the announcement have?",
+              "options": [
+                {
+                  "label": "Playful"
+                },
+                {
+                  "label": "Professional"
+                }
+              ],
+              "selectionMode": "single_select"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_ask_tone",
+        "toolResultContains": "User answered: Playful"
+      },
+      "response": {
+        "content": "\"Tonight: live agents, zero API keys, and one very brave demo. Come watch it not break. 🍕\""
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_ask_tone",
+        "toolResultContains": "User answered: Professional"
+      },
+      "response": {
+        "content": "\"Join us tonight for a live walkthrough of building agent UIs with Mastra, followed by Q&A.\""
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_ask_tone"
+      },
+      "response": {
+        "content": "\"Tonight at the meetup: a live tour of an agent chat kit — come say hi.\""
+      }
+    },
+    {
+      "_comment": "DEMO 4 — image generation. generateImage's own request goes to the image endpoint and is answered by the endpoint:image fixture (a real 256x256 PNG).",
+      "match": {
+        "userMessage": "Generate an image of a sunset over the mountains.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_image",
+            "name": "generateImage",
+            "arguments": {
+              "prompt": "A warm sunset over layered purple mountains, flat vector style"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_image"
+      },
+      "response": {
+        "content": "Here is your sunset over the mountains."
+      }
+    },
+    {
+      "_comment": "DEMO 5 — schedules. start_schedule is gated (one approval) and writes a persisted schedule the Schedules tab lists. Weekdays at 09:00, so it does not fire during an evening demo. If it ever does fire, its prompt is answered by the fixture after this flow instead of the catch-all.",
+      "match": {
+        "userMessage": "Every weekday at 9am, remind me to post my standup update.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_demo_schedule",
+            "name": "start_schedule",
+            "arguments": {
+              "cron": "0 9 * * 1-5",
+              "prompt": "Remind me to post my standup update.",
+              "name": "Weekday standup reminder"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_schedule"
+      },
+      "response": {
+        "content": "Done — **Weekday standup reminder** runs at 09:00 Monday to Friday and posts into this conversation. It's listed in the **Schedules** tab."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Remind me to post my standup update."
+      },
+      "response": {
+        "content": "⏰ Standup time — post your update in the team channel."
+      }
+    },
+    {
+      "_comment": "DEMO 6 — research with sources. Two sequential searchKnowledge calls (a local, deterministic tool: no network, no browser) and a cited answer. Clicking \"Always allow read tools\" on the first search lets the second one run without a card.",
+      "match": {
+        "userMessage": "Research what the AgentController does and cite your sources.",
+        "hasToolResult": false
+      },
+      "response": {
+        "reasoning": "I'll search the knowledge base for an overview first, then look up how approvals work.",
+        "toolCalls": [
+          {
+            "id": "toolu_demo_research_1",
+            "name": "searchKnowledge",
+            "arguments": {
+              "query": "Mastra AgentController"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_research_1"
+      },
+      "response": {
+        "reasoning": "The overview covers the basics. Approvals are the part people ask about, so one more search.",
+        "toolCalls": [
+          {
+            "id": "toolu_demo_research_2",
+            "name": "searchKnowledge",
+            "arguments": {
+              "query": "AgentController tool approvals"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_demo_research_2"
+      },
+      "response": {
+        "content": "The **AgentController** wraps one agent with the orchestration a plain model stream can't carry: threads, modes, subagents, task tracking and tool approvals, all streamed to the UI as typed events (\"Overview: Mastra AgentController\"). Tool calls with side effects park at an approval gate until you approve, decline, or always-allow that category for the session (\"Overview: AgentController tool approvals\")."
+      }
+    },
+
+    {
       "match": { "userMessage": "Hello" },
       "response": { "content": "Hi! I'm the chat assistant. How can I help?" }
     },
@@ -287,9 +858,13 @@
     },
 
     {
-      "_comment": "Image generation (generateImage posts to OPENAI_BASE_URL/images/generations, which AIMock serves). endpoint:image keeps it from matching chat requests. The bytes are a stub; the tool only stores them. tests/unit/generate-image.test.ts.",
+      "_comment": "Image generation (generateImage posts to OPENAI_BASE_URL/images/generations, which AIMock serves). endpoint:image keeps it from matching chat requests. The bytes are a real 256x256 PNG (a sunset over mountains) so the demo renders an actual image; generateImage sniffs the format from the bytes. tests/unit/generate-image.test.ts.",
       "match": { "endpoint": "image" },
-      "response": { "image": { "b64Json": "UklGRiQAAABXRUJQ" } }
+      "response": {
+        "image": {
+          "b64Json": "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"
+        }
+      }
     },
 
     {
