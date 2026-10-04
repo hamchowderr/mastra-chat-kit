@@ -210,12 +210,14 @@ const SUBAGENT_GUIDE: Record<keyof ChatFeatures['subagents'], string> = {
   writer: '"writer" for drafting long-form content (docs, summaries, posts, explanations)',
   review:
     '"review" to audit existing code or a draft and report findings — it is read-only, so send it work that already exists and act on its findings yourself',
-  data: '"data" for SQL against the versioned Dolt database (only offered when Dolt is configured)',
+  data: '"data" for SQL against the versioned Dolt database',
 };
 
 /**
- * The chat agent's instructions for a set of features: a line per tool or specialist
- * that is switched on, so the agent is never told about something it can't call.
+ * The chat agent's instructions for a set of RESOLVED features: a line per tool, and
+ * a guide entry per specialist actually offered (resolveFeatures already dropped code
+ * without a sandbox, research without a browser, data without Dolt), so the agent is
+ * never told about something it can't call.
  */
 export function chatInstructions(f: ChatFeatures): string {
   const enabled = (Object.keys(SUBAGENT_GUIDE) as (keyof ChatFeatures['subagents'])[]).filter(

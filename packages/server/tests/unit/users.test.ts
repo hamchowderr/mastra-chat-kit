@@ -2,7 +2,11 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { createServerAuth } from '../../src/mastra/lib/auth';
 import { createControllerRoutes } from '../../src/mastra/routes/controller';
+import { planDirFor } from '../../src/mastra/routes/resource';
 import { createThreadRoutes } from '../../src/mastra/routes/threads';
+import { createWorkspaceRoutes } from '../../src/mastra/routes/workspace';
+import { listSchedules, stopSchedule } from '../../src/mastra/tools/schedule';
+import { callTool } from '../helpers/call-tool';
 import { ctx, deps, find } from '../helpers/route-harness';
 
 /**
@@ -20,17 +24,27 @@ function signHs256(payload: Record<string, unknown>, secret: string): string {
 
 const secret = 'test-jwt-secret-at-least-32-characters-long';
 
+const exp = () => Math.floor(Date.now() / 1000) + 300;
+
 describe('auth → resource id', () => {
   it("maps the token's sub to the resource id", async () => {
-    const auth = createServerAuth(secret, 'shared');
-    const user = await auth?.authenticateToken(signHs256({ sub: 'sam' }, secret));
+    const auth = createServerAuth(secret);
+    const user = await auth?.authenticateToken(signHs256({ sub: 'sam', exp: exp() }, secret));
     expect(auth?.mapUserToResourceId?.(user ?? {})).toBe('sam');
   });
 
-  it('maps a token with no sub to the shared user', async () => {
-    const auth = createServerAuth(secret, 'shared');
-    const user = await auth?.authenticateToken(signHs256({ role: 'admin' }, secret));
-    expect(auth?.mapUserToResourceId?.(user ?? {})).toBe('shared');
+  it('refuses a token with no sub, a blank sub or a non-string sub', async () => {
+    const auth = createServerAuth(secret);
+    for (const payload of [{ role: 'admin' }, { sub: '  ' }, { sub: 42 }]) {
+      await expect(
+        auth?.authenticateToken(signHs256({ ...payload, exp: exp() }, secret)),
+      ).rejects.toThrow();
+    }
+  });
+
+  it('refuses a token with no exp', async () => {
+    const auth = createServerAuth(secret);
+    await expect(auth?.authenticateToken(signHs256({ sub: 'sam' }, secret))).rejects.toThrow();
   });
 });
 
@@ -102,5 +116,112 @@ describe('routes drive the signed-in user’s Session', () => {
     );
     await route.handler(ctx({ query: { q: 'grants' }, resourceId: 'sam' }).c);
     expect(query).toHaveBeenCalledWith([0.1], 24, 'sam');
+  });
+});
+
+describe('workspace files with auth on', () => {
+  const tree = [
+    {
+      name: 'plans',
+      path: 'plans',
+      type: 'dir' as const,
+      children: [
+        {
+          name: planDirFor('sam').split('/')[1],
+          path: planDirFor('sam'),
+          type: 'dir' as const,
+          children: [{ name: 'a.md', path: `${planDirFor('sam')}/a.md`, type: 'file' as const }],
+        },
+        {
+          name: planDirFor('bob').split('/')[1],
+          path: planDirFor('bob'),
+          type: 'dir' as const,
+          children: [{ name: 'b.md', path: `${planDirFor('bob')}/b.md`, type: 'file' as const }],
+        },
+      ],
+    },
+    { name: 'notes.txt', path: 'notes.txt', type: 'file' as const },
+  ];
+  const readFile = vi.fn(async (p: string) => ({ path: p, content: 'x', truncated: false }));
+  const routes = createWorkspaceRoutes(
+    deps({ workspace: { root: '/w', readTree: async () => tree, readFile } }),
+  );
+
+  it("lists only the user's own plan files", async () => {
+    const { c, captured } = ctx({ resourceId: 'sam' });
+    await find(routes, '/workspace/files', 'GET').handler(c);
+    expect((captured.body as { tree: { path: string }[] }).tree.map((n) => n.path)).toEqual([
+      `${planDirFor('sam')}/a.md`,
+    ]);
+  });
+
+  it('lists everything without auth, as before', async () => {
+    const { c, captured } = ctx();
+    await find(routes, '/workspace/files', 'GET').handler(c);
+    expect((captured.body as { tree: unknown[] }).tree).toHaveLength(2);
+  });
+
+  it("refuses another user's plan, a file outside plans, and a .. escape", async () => {
+    for (const path of [
+      `${planDirFor('bob')}/b.md`,
+      'notes.txt',
+      `${planDirFor('sam')}/../${planDirFor('bob').split('/')[1]}/b.md`,
+    ]) {
+      const { c, captured } = ctx({ query: { path }, resourceId: 'sam' });
+      await find(routes, '/workspace/file', 'GET').handler(c);
+      expect(captured.status).toBe(404);
+    }
+    const own = ctx({ query: { path: `${planDirFor('sam')}/a.md` }, resourceId: 'sam' });
+    await find(routes, '/workspace/file', 'GET').handler(own.c);
+    expect(own.captured.status).toBe(200);
+  });
+});
+
+describe('schedules are per user', () => {
+  const rows = [
+    { id: 's1', agentId: 'chat', resourceId: 'sam', cron: '0 9 * * *', prompt: 'a' },
+    { id: 's2', agentId: 'chat', resourceId: 'bob', cron: '0 9 * * *', prompt: 'b' },
+  ];
+  const schedules = {
+    list: vi.fn(async (f: { resourceId?: string }) =>
+      rows.filter((r) => !f.resourceId || r.resourceId === f.resourceId),
+    ),
+    get: vi.fn(async (id: string) => rows.find((r) => r.id === id) ?? null),
+    pause: vi.fn(async (id: string) => ({ ...rows.find((r) => r.id === id), status: 'paused' })),
+  };
+
+  it('the schedules route lists only the signed-in user’s', async () => {
+    const route = find(createControllerRoutes(deps()), '/agent-controller/schedules', 'GET');
+    const { c, captured } = ctx({ resourceId: 'sam', mastra: { schedules } });
+    await route.handler(c);
+    expect((captured.body as { schedules: { id: string }[] }).schedules.map((s) => s.id)).toEqual([
+      's1',
+    ]);
+  });
+
+  it('list_schedules lists only the run’s user’s', async () => {
+    const out = await callTool<{ schedules: { id: string }[] }>(
+      listSchedules,
+      {},
+      { mastra: { schedules }, agent: { resourceId: 'bob' } },
+    );
+    expect(out.schedules.map((s) => s.id)).toEqual(['s2']);
+  });
+
+  it("stop_schedule won't stop another user's schedule", async () => {
+    await expect(
+      callTool(
+        stopSchedule,
+        { scheduleId: 's2' },
+        { mastra: { schedules }, agent: { resourceId: 'sam' } },
+      ),
+    ).rejects.toThrow(/No schedule/);
+    expect(schedules.pause).not.toHaveBeenCalled();
+    await callTool(
+      stopSchedule,
+      { scheduleId: 's1' },
+      { mastra: { schedules }, agent: { resourceId: 'sam' } },
+    );
+    expect(schedules.pause).toHaveBeenCalledWith('s1');
   });
 });

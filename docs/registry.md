@@ -262,7 +262,8 @@ import { createControllerRoutes } from './mastra/routes/controller';
 import { createWorkspaceRoutes } from './mastra/routes/workspace';
 
 const deps = {
-  getSession, getAgentController, getBrowser,   // your AgentController
+  getSession, getAgentController, getBrowser,   // your AgentController;
+                                                 // getSession(resourceId?) → that user's Session
   agentId: 'chat',
   workspace: { root, readTree, readFile },
   getImage,
@@ -394,10 +395,11 @@ changes anything when unset.
 
 **1. `MASTRA_JWT_SECRET` — the same value on both sides.** On the Mastra server it
 gates Studio, every `/api/*` route and all 16 contract routes behind a Bearer JWT
-(`MastraJwtAuth`). In the web app (server-side env only, never `NEXT_PUBLIC_`)
-`lib/mastra-proxy.ts` signs every forwarded request with a 5-minute HS256 token. A
-deployed server with the secret set refuses anything that did not come through
-your proxy.
+(`MastraJwtAuth`). A token must carry a non-blank string `sub` (the user) and an
+`exp`; anything else is refused with 401 — there is no fallback to a shared user.
+In the web app (server-side env only, never `NEXT_PUBLIC_`) `lib/mastra-proxy.ts`
+signs every forwarded request with a 5-minute HS256 token. A deployed server with
+the secret set refuses anything that did not come through your proxy.
 
 **2. `configureChatKitProxy({ getUserId })` — who the user is.** Call it once at
 startup from `instrumentation.ts`:
@@ -412,18 +414,55 @@ export async function register() {
 }
 ```
 
-`getUserId(request)` returns the signed-in user's id, or `null`. With it set:
+`getUserId(request)` returns the signed-in user's id, or `null`. A request with no
+user (null, blank) is answered **401 by the proxy** and never reaches the server.
 
-- a request with no user is answered **401 by the proxy** and never reaches the server;
-- the user's id becomes the token's `sub`. The server's `mapUserToResourceId` turns
-  it into the request's resource id, and every route drives **that user's own
-  Session** — their own threads, approvals, plans, memory and search. A thread id
-  from another user answers 404.
+**It fails closed.** With `MASTRA_JWT_SECRET` set, a user is required: until
+`getUserId` is configured, every proxied request is 401 — the proxy never signs a
+shared-user token by accident. A host that is single-user on purpose opts out with
+`configureChatKitProxy({ requireUser: false })`; every request is then signed as
+the one shared user.
 
-Per-user Sessions need both: without the secret there is no trusted way to tell
-the server who the user is, so it stays single-user. The hook lives on
-`globalThis` because Next bundles `instrumentation.ts` and each route handler
-separately; a module variable would not be shared between them.
+**The proxy routes do not check a session themselves.** Without `getUserId` (and
+without the secret) `/api/agent-controller/*`, `/api/workspace/*`,
+`/api/browser/*` and `/api/images/*` are open to anyone who can reach your app,
+unless your own middleware guards them. Set `getUserId`, or put them behind your
+sign-in.
+
+The hook lives on `globalThis` because Next bundles `instrumentation.ts` and each
+route handler separately; a module variable would not be shared between them. The
+route handlers must run on the **Node.js runtime** (the default; the proxy uses
+`node:crypto`), the same runtime `register()` configures.
+
+#### What is per user, and what is shared
+
+With both settings on, the token's `sub` becomes the request's resource id
+(`mapUserToResourceId`), and:
+
+| Per user | How |
+|---|---|
+| Session (mode, approvals, "always allow" grants, model) | `getSession(resourceId)` — one Session per user |
+| Threads and their messages | the user's own Session; another user's thread id answers 404 on read, rename, delete and resume |
+| Thread search | the vector query is filtered to the user |
+| Observational and working memory | resource-scoped Mastra memory |
+| Plan files | `write_plan` writes to `plans/u-<hash of the user>/`; the Files panel and `/workspace/file` serve a user only that folder |
+| Schedules | `/agent-controller/schedules` and `list_schedules` show only the user's; `stop_schedule` refuses another user's |
+
+| Shared by everyone | Why |
+|---|---|
+| The workspace folder (`WORKSPACE_ROOT`) | one folder on the server. In `full` mode the agent's file and shell tools work in it for every user; with auth on, users can only *view* their own plan files through the routes, but the agent's tools are not confined. Use `WORKSPACE_MODE=plans` (or no auth) when that matters. |
+| The browser (`WORKSPACE_BROWSER`) | one headless Chrome per server; the Browser panel shows whatever any user's agent is doing. Switch it off for a multi-user app. |
+| Generated images (`/images/:id`) | an in-memory store keyed by a random id |
+
+Sessions are kept in memory for the life of the server process.
+
+### Upgrading
+
+- `lib/mastra-proxy.ts` no longer exports `proxy(path, init)`. Use
+  `forward(request, path, init)` — it needs the incoming request to know the user.
+- `ChatServerDeps.getSession` now takes an optional `resourceId` (the signed-in user;
+  `undefined` = the shared user), and `search.query` a third `resourceId` argument.
+  A custom deps object that ignores them stays single-user.
 
 ## Building / maintaining the registry
 

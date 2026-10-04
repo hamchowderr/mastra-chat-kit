@@ -1,3 +1,4 @@
+import { MASTRA_RESOURCE_ID_KEY } from '@mastra/core/request-context';
 import type { ChatServerDeps } from '../../src/mastra/routes/types';
 
 /**
@@ -15,6 +16,8 @@ export function ctx(
     signal?: AbortSignal;
     /** The signed-in user, as Mastra's auth middleware would set it (routes/resource.ts). */
     resourceId?: string;
+    /** What `c.get('mastra')` returns, for the routes that reach the Mastra instance. */
+    mastra?: unknown;
   } = {},
 ) {
   const captured: { body?: unknown; status?: number } = {};
@@ -34,8 +37,12 @@ export function ctx(
       },
       get: (key: string) => {
         if (key === 'requestContext') {
-          return opts.resourceId ? { get: () => opts.resourceId } : undefined;
+          // Mastra's auth middleware stores the user under MASTRA_RESOURCE_ID_KEY only.
+          return {
+            get: (k: string) => (k === MASTRA_RESOURCE_ID_KEY ? opts.resourceId : undefined),
+          };
         }
+        if (key === 'mastra' && opts.mastra) return opts.mastra;
         throw new Error('handler reached for c.get("mastra") — not expected in this test');
       },
     },

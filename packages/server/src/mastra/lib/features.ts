@@ -1,4 +1,5 @@
 import { env } from '../../lib/env';
+import { doltConfigured } from './dolt';
 
 /**
  * # What the agent can do
@@ -44,14 +45,34 @@ export const FULL_FEATURES: ChatFeatures = {
   demoTools: true,
 };
 
-/** Resolve the switches, applying what `plans` mode implies. */
-export function resolveFeatures(input: ChatFeatures): ChatFeatures {
+/**
+ * Resolve the switches into what is actually available. A specialist is only offered
+ * when what it works with is there, so the agent is never told about one that would
+ * fail every call:
+ * - `plans` mode turns the sandbox and browser off;
+ * - `code` needs the sandbox (it builds AND runs code);
+ * - `research` needs the browser (it reads the live web);
+ * - `review` needs the file tools (it reads the workspace), which `plans` mode hides;
+ * - `data` needs Dolt.
+ */
+export function resolveFeatures(
+  input: ChatFeatures,
+  { dolt = doltConfigured }: { dolt?: boolean } = {},
+): ChatFeatures {
   const plans = input.workspaceMode === 'plans';
+  const sandbox = plans ? false : input.sandbox;
+  const browser = plans ? false : input.browser;
   return {
     ...input,
-    sandbox: plans ? false : input.sandbox,
-    browser: plans ? false : input.browser,
-    subagents: { ...input.subagents },
+    sandbox,
+    browser,
+    subagents: {
+      ...input.subagents,
+      code: input.subagents.code && sandbox,
+      research: input.subagents.research && browser,
+      review: input.subagents.review && !plans,
+      data: input.subagents.data && dolt,
+    },
   };
 }
 

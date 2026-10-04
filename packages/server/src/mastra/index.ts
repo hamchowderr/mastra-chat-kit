@@ -114,7 +114,7 @@ const chatServerDeps: ChatServerDeps = {
   ]),
 };
 
-const auth = createServerAuth(env.MASTRA_JWT_SECRET, CHAT_RESOURCE_ID);
+const auth = createServerAuth(env.MASTRA_JWT_SECRET);
 
 const serverConfig = {
   apiRoutes: [

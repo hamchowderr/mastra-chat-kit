@@ -9,6 +9,7 @@ import {
   createChatAgentController,
 } from '../../src/mastra/lib/agent-controller';
 import { type ChatFeatures, resolveFeatures } from '../../src/mastra/lib/features';
+import { planDirFor } from '../../src/mastra/routes/resource';
 
 /**
  * WORKSPACE_MODE=plans through the real AgentController, on AIMock. Every workspace tool
@@ -61,8 +62,14 @@ describe('plans workspace mode (AIMock)', () => {
       (e) => e.type === 'tool_suspended' && e.toolName === 'submit_plan',
     );
     expect(suspended).toBeDefined();
-    expect(JSON.stringify(suspended)).toContain('plans/grant-application.md');
-    expect(existsSync(path.join(root, 'plans/grant-application.md'))).toBe(true);
+    // write_plan put the plan in this user's own folder, under a collision-proof name.
+    // (AIMock can't echo that generated path into its submit_plan call, so the fixture
+    // submits a fixed one; a real model passes back what write_plan returned.)
+    const written = new RegExp(
+      `"(${planDirFor('u-plans')}/grant-application-[a-z0-9]+\\.md)"`,
+    ).exec(JSON.stringify(events))?.[1];
+    expect(written).toBeDefined();
+    expect(existsSync(path.join(root, written as string))).toBe(true);
 
     await session.respondToToolSuspension({ resumeData: { action: 'approved' } });
     unsubscribe();
