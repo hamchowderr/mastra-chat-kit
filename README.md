@@ -263,7 +263,7 @@ told about a tool or specialist it does not have. Pair them with the
 
 ### Fit it into your app, users and auth
 
-`<ChatSwitcher>` takes options for its sizing, workbench tabs, suggestions, greeting, model picker and web-search toggle, and the proxy can sign every request and give each signed-in user their own Session (it fails closed: with the secret set, no user means 401). Both are documented in [`docs/registry.md`](docs/registry.md) → *Fit it into your app* and *Users and auth*.
+`<ChatSwitcher>` takes options for its sizing, workbench tabs, suggestions, greeting, model picker and web-search toggle, and the proxy can sign every request and give each signed-in user their own Session. Both are documented in [`docs/registry.md`](docs/registry.md) → *Fit it into your app* and *Users and auth*.
 
 ---
 

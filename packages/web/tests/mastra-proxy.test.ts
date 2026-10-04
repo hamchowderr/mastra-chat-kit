@@ -46,16 +46,8 @@ describe('mastra-proxy', () => {
     expect(calls[0].auth).toBeNull();
   });
 
-  it('fails closed: with the secret set and no user hook, every request is 401', async () => {
+  it('signs every request when MASTRA_JWT_SECRET is set (shared user)', async () => {
     process.env.MASTRA_JWT_SECRET = SECRET;
-    const res = await forward(req(), '/agent-controller/threads');
-    expect(res.status).toBe(401);
-    expect(calls).toEqual([]);
-  });
-
-  it('signs as the shared user only when the host opts out of requiring one', async () => {
-    process.env.MASTRA_JWT_SECRET = SECRET;
-    configureChatKitProxy({ requireUser: false });
     await forward(req(), '/agent-controller/threads');
     const token = calls[0].auth?.replace(/^Bearer /, '') ?? '';
     const { valid, payload } = decode(token);
@@ -64,19 +56,11 @@ describe('mastra-proxy', () => {
     expect(payload.exp - payload.iat).toBe(300);
   });
 
-  it('treats a blank user id as nobody', async () => {
-    process.env.MASTRA_JWT_SECRET = SECRET;
-    configureChatKitProxy({ getUserId: () => '  ' });
-    expect((await forward(req(), '/agent-controller/threads')).status).toBe(401);
-  });
-
   it('puts the signed-in user in the token', async () => {
     process.env.MASTRA_JWT_SECRET = SECRET;
     configureChatKitProxy({ getUserId: (r) => r.headers.get('x-test-user') });
     await forward(req({ 'x-test-user': 'simone' }), '/agent-controller/threads');
-    const { payload } = decode(calls[0].auth?.replace(/^Bearer /, '') ?? '');
-    expect(payload.sub).toBe('simone');
-    expect(typeof payload.exp).toBe('number');
+    expect(decode(calls[0].auth?.replace(/^Bearer /, '') ?? '').payload.sub).toBe('simone');
   });
 
   it('answers 401 without calling the server when nobody is signed in', async () => {
