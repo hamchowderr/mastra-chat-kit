@@ -5,7 +5,30 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import { registerApiRoute } from '@mastra/core/server';
-import type { ChatServerDeps } from './types';
+import { planDirFor, resourceIdOf } from './resource';
+import type { ChatServerDeps, WorkspaceNode } from './types';
+
+/** The nodes under `dir` (e.g. `plans/u-…`), or [] when it does not exist yet. */
+function subtree(nodes: WorkspaceNode[], dir: string): WorkspaceNode[] {
+  let level = nodes;
+  for (const part of dir.split('/')) {
+    const next = level.find((n) => n.type === 'dir' && n.name === part);
+    if (!next) return [];
+    level = next.children ?? [];
+  }
+  return level;
+}
+
+/** Whether a requested path is inside `dir` (normalized; no `..` escapes). */
+function within(requested: string, dir: string): boolean {
+  const parts: string[] = [];
+  for (const seg of requested.replace(/\\/g, '/').split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') return false;
+    parts.push(seg);
+  }
+  return parts.join('/').startsWith(`${dir}/`);
+}
 
 export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
   // Serves a generated image's bytes by id (the generateImage tool stashes them
@@ -24,10 +47,20 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
   // Workbench Files panel: read the controller agent's workspace (WORKSPACE_ROOT)
   // directly off disk. GET /workspace/files → the file tree; GET /workspace/file
   // ?path=<rel> → one file's text (confined to WORKSPACE_ROOT by the reader).
+  //
+  // The workspace is ONE folder shared by everyone. With auth on (a signed-in user on
+  // the request), a user sees only their own plan files (`plans/u-<hash>`, which
+  // write_plan writes) and nothing else in it.
   registerApiRoute('/workspace/files', {
     method: 'GET',
-    handler: async (c) =>
-      c.json({ root: deps.workspace.root, tree: await deps.workspace.readTree() }),
+    handler: async (c) => {
+      const tree = await deps.workspace.readTree();
+      const user = resourceIdOf(c);
+      return c.json({
+        root: deps.workspace.root,
+        tree: user ? subtree(tree, planDirFor(user)) : tree,
+      });
+    },
   }),
   registerApiRoute('/workspace/file', {
     method: 'GET',
@@ -35,6 +68,10 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
       const p = c.req.query('path');
       if (!p) {
         return c.json({ error: 'path query is required' }, 400);
+      }
+      const user = resourceIdOf(c);
+      if (user && !within(p, planDirFor(user))) {
+        return c.json({ error: 'not found' }, 404);
       }
       const file = await deps.workspace.readFile(p);
       if (!file) {

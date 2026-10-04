@@ -32,7 +32,6 @@ import { dataSubagent } from '../agents/data';
 import { researchSubagent } from '../agents/research';
 import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
-import { doltConfigured } from './dolt';
 import { type ChatFeatures, features as defaultFeatures } from './features';
 import { createDefaultMemory, getSharedStore } from './memory';
 import { resolveToolCategory } from './tool-categories';
@@ -60,14 +59,11 @@ const CHAT_MODEL_ID = env.CHAT_MODEL;
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
 
 /**
- * The specialist roster for a set of features. `data` also needs Dolt: a specialist
- * whose every tool call fails against an absent database is worse than none. Research
- * keeps `searchKnowledge` only while the demo tools are on.
+ * The specialist roster for a set of RESOLVED features (lib/features.ts — `data` is
+ * already off without Dolt, `code` without a sandbox, `research` without a browser).
+ * Research keeps `searchKnowledge` only while the demo tools are on.
  */
-export function chatSubagents(
-  f: ChatFeatures,
-  dolt: boolean = doltConfigured,
-): AgentControllerSubagent[] {
+export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
   return [
     ...(f.subagents.code ? [codeSubagent] : []),
     ...(f.subagents.research
@@ -75,7 +71,7 @@ export function chatSubagents(
       : []),
     ...(f.subagents.writer ? [writerSubagent] : []),
     ...(f.subagents.review ? [reviewerSubagent] : []),
-    ...(f.subagents.data && dolt ? [dataSubagent] : []),
+    ...(f.subagents.data ? [dataSubagent] : []),
   ];
 }
 

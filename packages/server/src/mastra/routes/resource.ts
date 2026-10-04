@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { MASTRA_RESOURCE_ID_KEY } from '@mastra/core/request-context';
 
 /**
@@ -16,4 +17,17 @@ export function resourceIdOf(c: any): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Plan files live here, relative to the workspace root. */
+export const PLANS_DIR = 'plans';
+
+/**
+ * The folder that holds one user's plan files: `plans/u-<hash>`. A hash, not the id
+ * itself, so any resource id (an email, a UUID) makes a safe, fixed-length folder name.
+ * `write_plan` writes here, and with auth on the workspace routes serve a user nothing
+ * outside it.
+ */
+export function planDirFor(resourceId: string): string {
+  return `${PLANS_DIR}/u-${createHash('sha256').update(resourceId).digest('hex').slice(0, 16)}`;
 }

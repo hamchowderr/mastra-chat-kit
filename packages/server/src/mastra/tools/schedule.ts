@@ -103,6 +103,14 @@ export const stopSchedule = createTool({
     if (!schedules) {
       throw new Error('Scheduling is unavailable in this context (no Mastra instance).');
     }
+    // Only the run's own user's schedules can be stopped; another's reads as missing.
+    const existing = await schedules.get(scheduleId);
+    // biome-ignore lint/suspicious/noExplicitAny: AnySchedule union — agent schedules carry resourceId
+    const owner = (existing as any)?.resourceId;
+    const resourceId = ctx?.agent?.resourceId;
+    if (!existing || (resourceId && owner && owner !== resourceId)) {
+      throw new Error(`No schedule with id ${scheduleId}.`);
+    }
     const paused = await schedules.pause(scheduleId);
     return toView(paused);
   },
@@ -111,7 +119,7 @@ export const stopSchedule = createTool({
 export const listSchedules = createTool({
   id: 'list_schedules',
   description:
-    "List the recurring schedules currently set up in this app, with their ids, cron cadence, prompt, and status. Read-only — use it to tell the user what's scheduled or to find a schedule id to pause.",
+    "List the user's recurring schedules, with their ids, cron cadence, prompt, and status. Read-only — use it to tell the user what's scheduled or to find a schedule id to pause.",
   inputSchema: z.object({}),
   outputSchema: z.object({ schedules: z.array(scheduleView) }),
   execute: async (_input, ctx) => {
@@ -119,7 +127,12 @@ export const listSchedules = createTool({
     if (!schedules) {
       return { schedules: [] };
     }
-    const rows = await schedules.list({ agentId: AGENT_ID });
+    // Only this run's user's schedules.
+    const resourceId = ctx?.agent?.resourceId;
+    const rows = await schedules.list({
+      agentId: AGENT_ID,
+      ...(resourceId ? { resourceId } : {}),
+    });
     // list() returns the mixed union; agent schedules carry an `agentId`.
     return {
       schedules: (Array.isArray(rows) ? rows : [])

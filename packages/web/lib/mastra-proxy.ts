@@ -9,7 +9,12 @@
 // - configureChatKitProxy({ getUserId }) (call it once from instrumentation.ts): the
 //   signed-in user becomes the JWT `sub`, so the server gives each user their own
 //   Session and threads. A request with no user gets 401 and never reaches the server.
-// Neither set: the open, single-user default.
+// Fails closed: with the secret set, a user is REQUIRED — until getUserId is
+// configured every request gets 401, never a shared-user token. A deliberate
+// single-user host opts out with configureChatKitProxy({ requireUser: false }).
+// Neither set: the open, single-user default. These route handlers do not check a
+// session themselves: they are open to anyone who can reach the app unless getUserId
+// is set or the host's own middleware guards /api/*.
 import { createHmac } from 'node:crypto';
 
 const SERVER_URL = process.env.MASTRA_SERVER_URL ?? 'http://localhost:4111';
@@ -20,6 +25,12 @@ export type ChatKitProxyConfig = {
    * from your auth library (a session cookie, a header your middleware sets).
    */
   getUserId?: (request: Request) => Promise<string | null | undefined> | string | null | undefined;
+  /**
+   * Refuse (401) any request without a user. Defaults to ON whenever MASTRA_JWT_SECRET
+   * is set, so a missing getUserId fails closed. Set `false` only for a host that is
+   * single-user on purpose: every request is then signed as the one shared user.
+   */
+  requireUser?: boolean;
 };
 
 // Kept on globalThis: route handlers and instrumentation.ts are bundled separately, so
@@ -52,20 +63,24 @@ export const SHARED_USER = 'chat-kit-user';
 
 /**
  * The headers that identify a request to the Mastra server, or a 401 Response when a
- * user hook is configured and nobody is signed in.
+ * user is required (a getUserId hook is set, or MASTRA_JWT_SECRET is set and the host
+ * did not opt out with `requireUser: false`) and there is none.
  */
 export async function serverHeaders(request: Request): Promise<Headers | Response> {
   const headers = new Headers();
-  const { getUserId } = proxyConfig();
-  let user = SHARED_USER;
+  const { getUserId, requireUser } = proxyConfig();
+  const secret = process.env.MASTRA_JWT_SECRET;
+  let user: string | null = null;
   if (getUserId) {
     const id = await getUserId(request);
-    if (!id) {
+    user = typeof id === 'string' && id.trim() ? id.trim() : null;
+  }
+  if (!user) {
+    if (getUserId || (requireUser ?? Boolean(secret))) {
       return Response.json({ error: 'not signed in' }, { status: 401 });
     }
-    user = id;
+    user = SHARED_USER;
   }
-  const secret = process.env.MASTRA_JWT_SECRET;
   if (secret) {
     headers.set('authorization', `Bearer ${signServerToken(secret, user)}`);
   }
