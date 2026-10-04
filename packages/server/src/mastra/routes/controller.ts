@@ -249,11 +249,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
   registerApiRoute('/agent-controller/schedules', {
     method: 'GET',
     handler: async (c) => {
-      // With auth on, only the signed-in user's schedules; without it, all of them.
-      const user = resourceIdOf(c);
-      const rows = await c
-        .get('mastra')
-        .schedules.list({ agentId: deps.agentId, ...(user ? { resourceId: user } : {}) });
+      const rows = await c.get('mastra').schedules.list({ agentId: deps.agentId });
       const schedules = rows
         // biome-ignore lint/suspicious/noExplicitAny: AnySchedule union — agent schedules carry agentId
         .filter((s: any) => s?.agentId)

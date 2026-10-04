@@ -73,8 +73,6 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   use: {
     baseURL: WEB_URL,
-    // With auth on, every request in the suite is one signed-in user (instrumentation.ts).
-    ...(E2E_JWT_SECRET ? { extraHTTPHeaders: { 'x-e2e-user': 'e2e-user-a' } } : {}),
     trace: 'on-first-retry',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
@@ -109,9 +107,7 @@ export default defineConfig({
       env: {
         MASTRA_SERVER_URL: SERVER_URL,
         NODE_ENV: 'production',
-        ...(E2E_JWT_SECRET
-          ? { MASTRA_JWT_SECRET: E2E_JWT_SECRET, CHAT_KIT_E2E_USER_HEADER: '1' }
-          : {}),
+        ...(E2E_JWT_SECRET ? { MASTRA_JWT_SECRET: E2E_JWT_SECRET } : {}),
       },
     },
   ],

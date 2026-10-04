@@ -30,19 +30,14 @@ describe('server auth (MASTRA_JWT_SECRET)', () => {
 
   it('accepts a token signed with the secret', async () => {
     const auth = createServerAuth(secret);
-    const user = await auth?.authenticateToken(
-      signHs256({ sub: 'sam', exp: Math.floor(Date.now() / 1000) + 300 }, secret),
-    );
+    const user = await auth?.authenticateToken(signHs256({ sub: 'sam' }, secret));
 
     expect(user).toMatchObject({ sub: 'sam' });
   });
 
   it('rejects a token signed with a different secret', async () => {
     const auth = createServerAuth(secret);
-    const forged = signHs256(
-      { sub: 'mallory', exp: Math.floor(Date.now() / 1000) + 300 },
-      'some-other-secret-also-32-characters',
-    );
+    const forged = signHs256({ sub: 'mallory' }, 'some-other-secret-also-32-characters');
 
     await expect(auth?.authenticateToken(forged)).rejects.toThrow();
   });

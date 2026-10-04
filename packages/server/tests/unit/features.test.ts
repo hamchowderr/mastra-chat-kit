@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { chatInstructions, chatTools } from '../../src/mastra/agents/chat';
 import {
   AUTO_ALLOWED_TOOLS,
@@ -11,8 +11,7 @@ import {
 import { type ChatFeatures, FULL_FEATURES, resolveFeatures } from '../../src/mastra/lib/features';
 import { resolveToolCategory } from '../../src/mastra/lib/tool-categories';
 import { createChatWorkspace } from '../../src/mastra/lib/workspace';
-import { planDirFor } from '../../src/mastra/routes/resource';
-import { createWritePlanTool, newPlanFileName, planSlug } from '../../src/mastra/tools/plan';
+import { createWritePlanTool, planFileName } from '../../src/mastra/tools/plan';
 import { callTool } from '../helpers/call-tool';
 
 /**
@@ -131,51 +130,25 @@ describe('feature switches — a narrow assistant', () => {
 });
 
 describe('write_plan', () => {
-  let root: string;
-  beforeAll(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'plans-'));
-  });
-  afterAll(async () => {
-    await rm(root, { recursive: true, force: true });
-  });
-  const write = (resourceId: string, input: Record<string, unknown>) =>
-    callTool<{ path: string }>(createWritePlanTool(root), input, { agent: { resourceId } });
-
-  it("writes into the user's own folder, under a name that can't collide", async () => {
-    const a = await write('alice', { title: 'Grant application', plan: '1. Read the call' });
-    const b = await write('bob', { title: 'Grant application', plan: '1. Draft the budget' });
-    const a2 = await write('alice', { title: 'Grant application', plan: '1. Another' });
-    expect(path.posix.dirname(a.path)).toBe(planDirFor('alice'));
-    expect(path.posix.dirname(b.path)).toBe(planDirFor('bob'));
-    expect(new Set([a.path, b.path, a2.path]).size).toBe(3);
-    expect(await readFile(path.join(root, a.path), 'utf8')).toContain('1. Read the call');
-    expect(await readFile(path.join(root, b.path), 'utf8')).toContain('1. Draft the budget');
+  it('writes a Markdown plan under plans/ and returns its path', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'plans-'));
+    try {
+      const out = await callTool<{ path: string }>(createWritePlanTool(root), {
+        title: 'Grant application',
+        plan: '1. Read the call\n2. Draft the budget',
+      });
+      expect(out.path).toBe('plans/grant-application.md');
+      const text = await readFile(path.join(root, out.path), 'utf8');
+      expect(text).toContain('# Grant application');
+      expect(text).toContain('2. Draft the budget');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
-  it('revises the same file when given back its path', async () => {
-    const first = await write('alice', { title: 'Budget', plan: '1. Old' });
-    const again = await write('alice', { title: 'Budget', plan: '1. New', path: first.path });
-    expect(again.path).toBe(first.path);
-    expect(await readFile(path.join(root, first.path), 'utf8')).toContain('1. New');
-  });
-
-  it("won't revise a file outside the user's folder", async () => {
-    const bobs = await write('bob', { title: 'Secret', plan: '1. Bob only' });
-    const out = await write('alice', { title: 'Secret', plan: '1. Alice', path: bobs.path });
-    expect(out.path).not.toBe(bobs.path);
-    expect(await readFile(path.join(root, bobs.path), 'utf8')).toContain('1. Bob only');
-    const escaped = await write('alice', {
-      title: 'Escape',
-      plan: '1. x',
-      path: `${planDirFor('alice')}/../../etc.md`,
-    });
-    expect(path.posix.dirname(escaped.path)).toBe(planDirFor('alice'));
-  });
-
-  it('names non-Latin titles safely, still unique', () => {
-    expect(planSlug('../../etc/passwd')).toBe('etc-passwd');
-    expect(newPlanFileName('助成金の申請', 'abcd1234')).toBe('plan-abcd1234.md');
-    expect(newPlanFileName('助成金の申請')).not.toBe(newPlanFileName('助成金の申請'));
+  it('cannot write outside plans/, whatever the title', () => {
+    expect(planFileName('../../etc/passwd')).toBe('etc-passwd.md');
+    expect(planFileName('!!!')).toBe('plan.md');
   });
 
   it('runs without an approval card and sits in the edit category', () => {
