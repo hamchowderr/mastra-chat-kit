@@ -6,16 +6,26 @@
 // to the first user message (chat-app convention) until AI titling lands (698.11).
 // ──────────────────────────────────────────────────────────────────────────
 
+import type { Session } from '@mastra/core/agent-controller';
 import { registerApiRoute } from '@mastra/core/server';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from '../lib/thread-utils';
+import { resourceIdOf } from './resource';
 import type { ChatServerDeps } from './types';
+
+/**
+ * Whether a thread belongs to this Session's user. `session.thread.list()` lists only
+ * that resource's threads, so one user can never open, rename or delete another's.
+ */
+export async function ownsThread(session: Session, threadId: string): Promise<boolean> {
+  return (await session.thread.list()).some((t) => t.id === threadId);
+}
 
 export const createThreadRoutes = (deps: ChatServerDeps) => [
   // List the controller's conversations (newest first) with a display title.
   registerApiRoute('/agent-controller/threads', {
     method: 'GET',
     handler: async (c) => {
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       const threads = await session.thread.list();
       const items: Array<{
         id: string;
@@ -75,7 +85,7 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
         return c.json({ threads: [] });
       }
       const embedding = await deps.search.embed(q);
-      const hits = await deps.search.query(embedding, 24);
+      const hits = await deps.search.query(embedding, 24, resourceIdOf(c));
       // Best (highest-ranked) hit per thread → snippet from the matched message.
       const seen = new Map<string, { snippet: string; score: number }>();
       for (const h of hits) {
@@ -95,7 +105,7 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
       // Resolve display titles for the matched threads from the controller's own
       // thread list (explicit title → first non-assistant message). Only threads
       // that still exist are returned.
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       const threads = await session.thread.list();
       const byId = new Map(threads.map((t) => [t.id, t]));
       const matchedIds = [...seen.keys()].filter((id) => byId.has(id));
@@ -137,7 +147,10 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
   registerApiRoute('/agent-controller/threads/:id/messages', {
     method: 'GET',
     handler: async (c) => {
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
+      if (!(await ownsThread(session, c.req.param('id')))) {
+        return c.json({ error: 'not found' }, 404);
+      }
       const messages = await session.thread.listMessages({ threadId: c.req.param('id') });
       return c.json({ messages: messages.map(toUIMessage) });
     },
@@ -147,7 +160,10 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
   registerApiRoute('/agent-controller/threads/:id', {
     method: 'DELETE',
     handler: async (c) => {
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
+      if (!(await ownsThread(session, c.req.param('id')))) {
+        return c.json({ error: 'not found' }, 404);
+      }
       await session.thread.delete({ threadId: c.req.param('id') });
       return c.json({ ok: true });
     },
@@ -163,6 +179,10 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
     method: 'PATCH',
     handler: async (c) => {
       const id = c.req.param('id');
+      const session = await deps.getSession(resourceIdOf(c));
+      if (!(await ownsThread(session, id))) {
+        return c.json({ error: 'not found' }, 404);
+      }
       const body = await c.req.json<{ archived?: boolean; title?: string }>();
       const memory = await c.get('mastra').getAgent(deps.agentId).getMemory();
       if (!memory) {

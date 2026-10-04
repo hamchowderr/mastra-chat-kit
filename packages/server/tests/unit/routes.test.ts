@@ -100,7 +100,8 @@ describe('/agent-controller/threads/search — deps.search is optional', () => {
     await route.handler(c);
 
     expect(embed).toHaveBeenCalledWith('hello world');
-    expect(query).toHaveBeenCalledWith([0.1, 0.2], 24);
+    // No signed-in user on the request → the shared user (undefined resource id).
+    expect(query).toHaveBeenCalledWith([0.1, 0.2], 24, undefined);
     expect(captured.body).toEqual({ threads: [] });
   });
 });

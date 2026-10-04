@@ -51,6 +51,25 @@ const envSchema = z
     // (or a `playwright install chromium` cache) if launch can't find one.
     BROWSER_EXECUTABLE_PATH: z.string().optional(),
 
+    // What the agent can do. Every switch defaults to the full kit; turn pieces off for
+    // an assistant that should not have them (lib/features.ts reads these).
+    //
+    // WORKSPACE_MODE: `full` = filesystem + shell sandbox + browser, every file tool on.
+    // `plans` = a filesystem for plan files only: no sandbox, no browser, every workspace
+    // tool hidden from the agent, and a `write_plan` tool so Plan mode still works.
+    WORKSPACE_MODE: z.enum(['full', 'plans']).default('full'),
+    WORKSPACE_SANDBOX: boolish.default(true),
+    WORKSPACE_BROWSER: boolish.default(true),
+    // The specialist subagents the chat agent may delegate to. `data` also needs Dolt.
+    SUBAGENT_CODE: boolish.default(true),
+    SUBAGENT_RESEARCH: boolish.default(true),
+    SUBAGENT_WRITER: boolish.default(true),
+    SUBAGENT_REVIEW: boolish.default(true),
+    SUBAGENT_DATA: boolish.default(true),
+    // generateImage (needs OPENAI_API_KEY), and the demo tools getWeather + searchKnowledge.
+    TOOL_GENERATE_IMAGE: boolish.default(true),
+    TOOL_DEMO: boolish.default(true),
+
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.
     DOLT_HOST: z.string().optional(),
@@ -69,8 +88,8 @@ const envSchema = z
     // provider automatically (lib/memory.ts). Override to run a cheap model in dev.
     CHAT_MODEL: z.string().default('anthropic/claude-sonnet-4-6'),
 
-    // Observational memory + the agent workspace are ALWAYS on (they're core to the
-    // kit, not user options) — no env toggle. Both are gated OFF when NODE_ENV is 'test'
+    // Observational memory is ALWAYS on (core to the kit) — no env toggle; what the
+    // workspace carries has its own switches below. OM and the agent's workspace are gated OFF when NODE_ENV is 'test'
     // so AIMock runs stay hermetic, and OM is also off under USE_AIMOCK (a mock can't play
     // its Observer); see lib/memory.ts + agents/chat.ts.
 
@@ -83,8 +102,11 @@ const envSchema = z
     MASTRA_CLOUD_ACCESS_TOKEN: z.string().optional(),
 
     // Shared HMAC secret for JWT auth (@mastra/auth). When set, the server
-    // gates all /api/* routes AND Studio behind a Bearer JWT signed with this
-    // secret. Leave unset for open local dev. Must be HS256-safe (>=32 chars).
+    // gates all /api/* routes, the chat-kit contract routes AND Studio behind a
+    // Bearer JWT signed with this secret. Leave unset for open local dev. Must be
+    // HS256-safe (>=32 chars). The web proxy signs its requests with the same
+    // secret, and the token's `sub` (the signed-in user) picks that user's Session,
+    // so each user gets their own threads. Unset = one shared Session.
     MASTRA_JWT_SECRET: z.string().min(32, 'MASTRA_JWT_SECRET must be at least 32 chars').optional(),
   })
   .refine(

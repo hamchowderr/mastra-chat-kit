@@ -267,6 +267,11 @@
           "target": "src/mastra/routes/workspace.ts"
         },
         {
+          "path": "../server/src/mastra/routes/resource.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/resource.ts"
+        },
+        {
           "path": "../server/src/mastra/lib/thread-utils.ts",
           "type": "registry:file",
           "target": "src/mastra/lib/thread-utils.ts"

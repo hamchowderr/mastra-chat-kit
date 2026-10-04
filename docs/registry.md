@@ -252,7 +252,8 @@ So install the other half into your Mastra project:
 npx shadcn@latest add @mastra-chat-kit/chat-server
 ```
 
-Five files — the three route modules, the `ChatServerDeps` type, and one pure
+Seven files — the three route modules, the SSE forwarder they share, the helper
+that reads which user a request is for, the `ChatServerDeps` type, and one pure
 formatting helper. Then register them and supply the dependencies:
 
 ```ts
@@ -261,7 +262,8 @@ import { createControllerRoutes } from './mastra/routes/controller';
 import { createWorkspaceRoutes } from './mastra/routes/workspace';
 
 const deps = {
-  getSession, getAgentController, getBrowser,   // your AgentController
+  getSession, getAgentController, getBrowser,   // your AgentController;
+                                                 // getSession(resourceId?) → that user's Session
   agentId: 'chat',
   workspace: { root, readTree, readFile },
   getImage,
@@ -355,6 +357,79 @@ Then mount `<ChatSwitcher />` (the AgentController shell — sidebar │ chat �
 it is not a mode toggle — there is only one engine)
 from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
 `<Toaster />` in your root layout if you want notifications.
+
+### Fit it into your app
+
+`<ChatSwitcher />` takes options, so a host app changes what it needs without
+editing installed files (which a reinstall would overwrite). All are optional;
+the defaults are the kit's own demo setup.
+
+```tsx
+<ChatSwitcher
+  className="h-full"                       // root sizing; default h-dvh (whole screen)
+  workbenchTabs={['memory', 'schedules']}  // default all five; [] removes the workbench
+  suggestions={[{ label: 'Grants closing soon', prompt: 'Which grants close this month?' }]}
+  greeting={{ title: 'Hi Simone', description: 'Ask about your work.' }}
+  models={false}                           // hide the picker (server CHAT_MODEL), or pass a list
+  webSearch={false}                        // hide the "Search the web" toggle
+/>
+```
+
+| Prop | Default | What it changes |
+|---|---|---|
+| `className` | `h-dvh` | The shell's root. Inside a host layout pass the height it should take, e.g. `h-full`. |
+| `workbenchTabs` | `['files','terminal','browser','memory','schedules']` | Which workbench tabs show, in that order. `[]` removes the workbench and its toggle. Drop `terminal`/`browser` when the server runs without a sandbox/browser (see the server switches below). |
+| `suggestions` | the demo prompts | The empty-state pills: `{ label, prompt }[]`. `[]` shows none. |
+| `greeting` | "What's on your mind today?" | The empty-state heading and the line under it. |
+| `models` | the kit's Anthropic + OpenAI list | The composer's model picker: a `{ id, name, provider }[]` list (first one selected), or `false` to hide it so every turn runs on the server's `CHAT_MODEL`. The server only honours ids on its model allowlist. |
+| `webSearch` | `true` | Show the composer's "Search the web" toggle. It drives the workspace browser, so hide it when the browser is off. |
+
+`WorkbenchPanel` takes the same `tabs` list if you mount it yourself.
+
+### Users and auth
+
+By default the routes forward with no identity and the server keeps **one shared
+Session**. Two settings change that; neither changes anything when unset.
+
+**1. `MASTRA_JWT_SECRET` — the same value on both sides.** On the Mastra server it
+gates Studio, every `/api/*` route and all 16 contract routes behind a Bearer JWT
+(`MastraJwtAuth`). In the web app (server-side env only, never `NEXT_PUBLIC_`)
+`lib/mastra-proxy.ts` signs every forwarded request with an HS256 token that
+expires after 5 minutes. A deployed server with the secret set refuses anything
+that did not come through your proxy. This is all a single-user app needs: with no
+user hook, the proxy signs every request as the one shared user.
+
+**2. `configureChatKitProxy({ getUserId })` — optional, for more than one user.**
+Call it once at startup from `instrumentation.ts`:
+
+```ts
+// instrumentation.ts
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const { configureChatKitProxy } = await import('@/lib/mastra-proxy');
+  const { getUserIdFromRequest } = await import('@/lib/auth'); // your auth library
+  configureChatKitProxy({ getUserId: (request) => getUserIdFromRequest(request) });
+}
+```
+
+`getUserId(request)` returns the signed-in user's id, or `null`. With it set, a
+request with no user is answered **401 by the proxy**, and the user's id becomes the
+token's `sub`, which the server maps to the request's resource id. Per-user
+Sessions need the secret too: without it there is no trusted way to tell the server
+who the user is.
+
+**What is per user:** the Session and its threads (another user's thread id answers
+404 on read, rename, delete and resume) and thread search. **Everything else is
+shared by everyone on the server:** plan files, schedules, the workspace folder, the
+browser and generated images.
+
+**The proxy routes do not check a session themselves.** They are open to anyone who
+can reach your app unless `getUserId` is set or your own middleware guards
+`/api/agent-controller/*`, `/api/workspace/*`, `/api/browser/*` and `/api/images/*`.
+
+The hook lives on `globalThis` because Next bundles `instrumentation.ts` and each
+route handler separately; a module variable would not be shared between them. The
+route handlers run on the Node.js runtime (the proxy uses `node:crypto`).
 
 ## Building / maintaining the registry
 
