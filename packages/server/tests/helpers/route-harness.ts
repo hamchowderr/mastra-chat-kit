@@ -13,6 +13,8 @@ export function ctx(
     param?: Record<string, string>;
     body?: unknown;
     signal?: AbortSignal;
+    /** The signed-in user, as Mastra's auth middleware would set it (routes/resource.ts). */
+    resourceId?: string;
   } = {},
 ) {
   const captured: { body?: unknown; status?: number } = {};
@@ -30,7 +32,10 @@ export function ctx(
         json: () => Promise.resolve(opts.body),
         raw: { signal: opts.signal },
       },
-      get: () => {
+      get: (key: string) => {
+        if (key === 'requestContext') {
+          return opts.resourceId ? { get: () => opts.resourceId } : undefined;
+        }
         throw new Error('handler reached for c.get("mastra") — not expected in this test');
       },
     },

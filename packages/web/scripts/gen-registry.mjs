@@ -104,6 +104,8 @@ function classify(relFiles) {
         key = spec.slice(2); // strip "@/"
       } else if (spec.startsWith('.')) {
         key = toPosix(relative(WEB, resolve(dirname(abs), spec)));
+      } else if (spec.startsWith('node:')) {
+        continue; // a Node built-in (the proxy's node:crypto), not an npm package
       } else {
         const pkg = pkgName(spec);
         if (!HOST_PKGS.has(pkg)) npm.add(withVersion(pkg));
@@ -294,6 +296,8 @@ const SERVER_FILES = [
   // The SSE forwarder /stream and /answer share. Imports only @mastra/core types.
   ['../server/src/mastra/routes/session-sse.ts', 'src/mastra/routes/session-sse.ts'],
   ['../server/src/mastra/routes/workspace.ts', 'src/mastra/routes/workspace.ts'],
+  // Which user a request is for (Mastra's auth sets it). Imports only @mastra/core.
+  ['../server/src/mastra/routes/resource.ts', 'src/mastra/routes/resource.ts'],
   // Pure formatting helpers the thread routes need. No imports of its own.
   ['../server/src/mastra/lib/thread-utils.ts', 'src/mastra/lib/thread-utils.ts'],
 ];

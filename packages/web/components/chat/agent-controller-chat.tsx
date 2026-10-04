@@ -51,7 +51,7 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
-import { Composer, type ComposerSubmit } from '@/components/chat/composer';
+import { Composer, type ComposerSubmit, type ModelOption } from '@/components/chat/composer';
 import { PlanModeToggle, SubmittedPlanCard } from '@/components/chat/plan-mode';
 import {
   AskUserPrompt,
@@ -75,7 +75,25 @@ import { cn } from '@/lib/utils';
  * Empty-state suggestion pills — a short label the user sees, and the fuller `prompt`
  * actually sent on click (so the pills read evenly while still exercising real tools).
  */
-const STARTERS: { label: string; prompt: string }[] = [
+/** An empty-state suggestion: a short label, and the prompt it sends. */
+export type ChatSuggestion = { label: string; prompt: string };
+
+/**
+ * What a host can change about the chat without forking it. Every field is optional and
+ * defaults to the kit's own demo setup.
+ */
+export type ChatOptions = {
+  /** The empty-state suggestion pills. `[]` shows none. */
+  suggestions?: ChatSuggestion[];
+  /** The composer's model picker. `false` hides it (the server's CHAT_MODEL is used). */
+  models?: ModelOption[] | false;
+  /** Show the composer's "Search the web" toggle. */
+  webSearch?: boolean;
+  /** The empty-state heading and line under it. */
+  greeting?: { title: string; description?: string };
+};
+
+const STARTERS: ChatSuggestion[] = [
   { label: 'Weather in LA', prompt: "What's the weather in Los Angeles?" },
   {
     label: 'Fibonacci demo',
@@ -127,7 +145,18 @@ function ThinkingIndicator() {
  * Image, submit_plan → Plan, the step sequence → ChainOfThought, task_updated → Task,
  * approvals → Confirmation. Only the engine behind the shared <Composer> differs.
  */
-export function AgentControllerChat({ controller }: { controller: UseAgentControllerChat }) {
+export function AgentControllerChat({
+  controller,
+  options = {},
+}: {
+  controller: UseAgentControllerChat;
+  options?: ChatOptions;
+}) {
+  const suggestions = options.suggestions ?? STARTERS;
+  const greeting = options.greeting ?? {
+    title: 'What’s on your mind today?',
+    description: 'Ask a question, run some code, or browse the web.',
+  };
   const { transcript, status, sendMessage, approve, answerQuestion } = controller;
   // Goals are agent-driven — the agent calls its own `setGoal` tool for a standing
   // objective, so there's no goal control; `clearGoal` backs the goal card's dismiss.
@@ -202,13 +231,15 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
       status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
       className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
       footerExtra={contextSlot}
+      models={options.models}
+      webSearch={options.webSearch ?? true}
     />
   );
 
   // Suggestion pills → a fuller prompt on click. Reused in the empty state above the composer.
-  const starterPills = (
+  const starterPills = suggestions.length ? (
     <div className="flex w-full max-w-3xl flex-wrap items-center justify-center gap-2">
-      {STARTERS.map((s) => (
+      {suggestions.map((s) => (
         <Suggestion
           key={s.prompt}
           suggestion={s.prompt}
@@ -219,7 +250,7 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
         </Suggestion>
       ))}
     </div>
-  );
+  ) : null;
 
   return (
     // Flat chat pane. NO h-full here — an explicit height opts the flex item out of
@@ -232,11 +263,11 @@ export function AgentControllerChat({ controller }: { controller: UseAgentContro
         <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
           <div className="animate-fade-up space-y-2 text-center">
             <h1 className="text-balance font-semibold text-3xl tracking-tight sm:text-4xl">
-              What&rsquo;s on your mind today?
+              {greeting.title}
             </h1>
-            <p className="text-base text-muted-foreground">
-              Ask a question, run some code, or browse the web.
-            </p>
+            {greeting.description && (
+              <p className="text-base text-muted-foreground">{greeting.description}</p>
+            )}
           </div>
           {starterPills}
           <div className="w-full max-w-3xl">{composer}</div>

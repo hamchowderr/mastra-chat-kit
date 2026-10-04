@@ -51,7 +51,13 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
   registerApiRoute('/browser/screencast', {
     method: 'GET',
     handler: async (c) => {
-      const browser = await deps.getBrowser();
+      let browser: Awaited<ReturnType<ChatServerDeps['getBrowser']>>;
+      try {
+        browser = await deps.getBrowser();
+      } catch {
+        // The browser is switched off (WORKSPACE_BROWSER / WORKSPACE_MODE=plans).
+        return c.json({ error: 'browser not available' }, 404);
+      }
       try {
         if (!browser.isBrowserRunning()) {
           await browser.launch();
