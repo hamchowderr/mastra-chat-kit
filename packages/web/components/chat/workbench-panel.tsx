@@ -19,6 +19,10 @@ import type { AgentControllerWorkspace } from '@/lib/agent-controller/events';
 import type { UseAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 import { cn } from '@/lib/utils';
 
+/** The workbench tabs, in display order. */
+export const WORKBENCH_TABS = ['files', 'terminal', 'browser', 'memory', 'schedules'] as const;
+export type WorkbenchTab = (typeof WORKBENCH_TABS)[number];
+
 /**
  * The agent workbench — a collapsible right panel that surfaces what the controller
  * agent's Workspace is doing, on three tabs:
@@ -33,42 +37,59 @@ import { cn } from '@/lib/utils';
 export function WorkbenchPanel({
   controller,
   onCollapse,
+  tabs = WORKBENCH_TABS,
 }: {
   controller: UseAgentControllerChat;
   onCollapse?: () => void;
+  /**
+   * Which tabs to show, in the order given. Defaults to all five. A host whose agent has
+   * no sandbox or browser can drop `terminal` and `browser`, and so on.
+   */
+  tabs?: readonly WorkbenchTab[];
 }) {
   const { terminal, workspace, memory } = controller.transcript;
   const { schedules } = controller;
+  const show = (tab: WorkbenchTab) => tabs.includes(tab);
 
   return (
     // Flush to the window edge — the right rail is part of the recessed frame; the chat
     // floats inset between the two rails (see ChatSwitcher).
     <div className="flex min-h-0 w-[26rem] shrink-0 flex-col bg-sidebar">
-      <Tabs defaultValue="files" className="flex min-h-0 flex-1 flex-col gap-0">
+      <Tabs defaultValue={tabs[0] ?? 'files'} className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList
           variant="line"
           className="w-full justify-start gap-1 rounded-none border-border border-b px-2 py-1"
         >
-          <TabsTrigger value="files">
-            <FilesIcon />
-            Files
-          </TabsTrigger>
-          <TabsTrigger value="terminal">
-            <TerminalIcon />
-            Terminal
-          </TabsTrigger>
-          <TabsTrigger value="browser">
-            <GlobeIcon />
-            Browser
-          </TabsTrigger>
-          <TabsTrigger value="memory">
-            <BrainIcon />
-            Memory
-          </TabsTrigger>
-          <TabsTrigger value="schedules">
-            <CalendarClockIcon />
-            Schedules
-          </TabsTrigger>
+          {show('files') && (
+            <TabsTrigger value="files">
+              <FilesIcon />
+              Files
+            </TabsTrigger>
+          )}
+          {show('terminal') && (
+            <TabsTrigger value="terminal">
+              <TerminalIcon />
+              Terminal
+            </TabsTrigger>
+          )}
+          {show('browser') && (
+            <TabsTrigger value="browser">
+              <GlobeIcon />
+              Browser
+            </TabsTrigger>
+          )}
+          {show('memory') && (
+            <TabsTrigger value="memory">
+              <BrainIcon />
+              Memory
+            </TabsTrigger>
+          )}
+          {show('schedules') && (
+            <TabsTrigger value="schedules">
+              <CalendarClockIcon />
+              Schedules
+            </TabsTrigger>
+          )}
           {/* Workspace status dot — reflects the controller workspace lifecycle. */}
           <WorkspaceStatus workspace={workspace} className="ml-auto self-center" />
           {/* Collapse control lives in the panel header (not floating over it). */}
@@ -82,31 +103,42 @@ export function WorkbenchPanel({
           </button>
         </TabsList>
 
-        <TabsContent value="files" className="min-h-0 flex-1 overflow-hidden p-3">
-          <WorkbenchFiles controller={controller} />
-        </TabsContent>
-        <TabsContent value="terminal" className="min-h-0 flex-1 overflow-auto p-4">
-          {terminal.output ? (
-            <Terminal
-              output={terminal.output}
-              isStreaming={terminal.running}
-              onClear={controller.clearTerminal}
-            />
-          ) : (
-            <PanelPlaceholder>
-              Shell output streams here when the agent runs a command.
-            </PanelPlaceholder>
-          )}
-        </TabsContent>
-        <TabsContent value="browser" className="min-h-0 flex-1 overflow-hidden p-3">
-          <WorkbenchBrowser />
-        </TabsContent>
-        <TabsContent value="memory" className="min-h-0 flex-1 overflow-hidden p-3">
-          <WorkbenchMemory memory={memory} />
-        </TabsContent>
-        <TabsContent value="schedules" className="min-h-0 flex-1 overflow-hidden p-3">
-          <WorkbenchSchedules schedules={schedules} />
-        </TabsContent>
+        {show('files') && (
+          <TabsContent value="files" className="min-h-0 flex-1 overflow-hidden p-3">
+            <WorkbenchFiles controller={controller} />
+          </TabsContent>
+        )}
+        {show('terminal') && (
+          <TabsContent value="terminal" className="min-h-0 flex-1 overflow-auto p-4">
+            {terminal.output ? (
+              <Terminal
+                output={terminal.output}
+                isStreaming={terminal.running}
+                onClear={controller.clearTerminal}
+              />
+            ) : (
+              <PanelPlaceholder>
+                Shell output streams here when the agent runs a command.
+              </PanelPlaceholder>
+            )}
+          </TabsContent>
+        )}
+        {/* Mounted only when shown: the Browser tab opens the screencast stream. */}
+        {show('browser') && (
+          <TabsContent value="browser" className="min-h-0 flex-1 overflow-hidden p-3">
+            <WorkbenchBrowser />
+          </TabsContent>
+        )}
+        {show('memory') && (
+          <TabsContent value="memory" className="min-h-0 flex-1 overflow-hidden p-3">
+            <WorkbenchMemory memory={memory} />
+          </TabsContent>
+        )}
+        {show('schedules') && (
+          <TabsContent value="schedules" className="min-h-0 flex-1 overflow-hidden p-3">
+            <WorkbenchSchedules schedules={schedules} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -40,6 +40,12 @@ const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 // machine with a dev .env the e2e server ran on the dev DB (TURSO_DATABASE_URL)
 // instead of the one global-setup wipes. Recall then pulled old threads into each
 // request, AIMock's turnIndex matched the wrong fixture, and the tool tests failed.
+// E2E_AUTH=1 runs the whole stack with auth on: the same MASTRA_JWT_SECRET on the
+// server and the web proxy, so every request in every spec goes through the signed
+// path (docs/registry.md → "Users and auth"), and e2e/auth.spec.ts checks the server
+// refuses anything unsigned. A fixed, non-secret test value.
+const E2E_JWT_SECRET = process.env.E2E_AUTH ? 'e2e-jwt-secret-at-least-32-characters-long' : '';
+
 const serverEnv: Record<string, string> = {
   MASTRA_SKIP_DOTENV: '1',
   USE_AIMOCK: 'true',
@@ -52,6 +58,7 @@ const serverEnv: Record<string, string> = {
   CHAT_MODEL: 'anthropic/claude-sonnet-4-6',
   MASTRA_TELEMETRY_DISABLED: '1',
   LOG_LEVEL: 'info',
+  ...(E2E_JWT_SECRET ? { MASTRA_JWT_SECRET: E2E_JWT_SECRET } : {}),
 };
 
 export default defineConfig({
@@ -97,7 +104,11 @@ export default defineConfig({
       timeout: 240_000,
       // NODE_ENV=production is required: a `next build` inheriting NODE_ENV=development
       // builds in dev mode and its error-page prerender crashes (useContext of null).
-      env: { MASTRA_SERVER_URL: SERVER_URL, NODE_ENV: 'production' },
+      env: {
+        MASTRA_SERVER_URL: SERVER_URL,
+        NODE_ENV: 'production',
+        ...(E2E_JWT_SECRET ? { MASTRA_JWT_SECRET: E2E_JWT_SECRET } : {}),
+      },
     },
   ],
 });

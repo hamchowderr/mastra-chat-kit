@@ -164,6 +164,7 @@ const REL = [
   'mastra/routes/threads.ts',
   'mastra/routes/controller.ts',
   'mastra/routes/workspace.ts',
+  'mastra/routes/resource.ts',
   'mastra/lib/thread-utils.ts',
 ];
 const BASE = existsSync(join(PROJECT, 'src', 'mastra')) ? 'src/' : '';

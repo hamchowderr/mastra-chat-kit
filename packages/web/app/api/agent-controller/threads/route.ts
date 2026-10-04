@@ -1,6 +1,6 @@
-import { proxy } from '@/lib/mastra-proxy';
+import { forward } from '@/lib/mastra-proxy';
 
 // GET /api/agent-controller/threads → list the controller's conversations (newest first).
-export async function GET() {
-  return proxy('/agent-controller/threads');
+export async function GET(req: Request) {
+  return forward(req, '/agent-controller/threads');
 }
