@@ -27,6 +27,7 @@ import { BrowserViewer } from '@mastra/browser-viewer';
 import type { MastraBrowser } from '@mastra/core/browser';
 import { LocalFilesystem, LocalSandbox, WORKSPACE_TOOLS, Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
+import { type ChatFeatures, features as defaultFeatures } from './features';
 
 // Absolute root for the agent's workspace (filesystem + sandbox share it). Under
 // `mastra dev` the cwd shifts, so resolve a relative WORKSPACE_ROOT once here.
@@ -63,19 +64,33 @@ export function getChatBrowserInstance(): BrowserViewer {
  * The kit's workspace: filesystem + sandbox rooted at one folder, with its safety
  * policy. The ONE place that policy lives, so tests that pass a temp `root`
  * exercise the same rules the live app runs with.
+ *
+ * `features` (lib/features.ts) decides what it carries. `plans` mode keeps only the
+ * filesystem — the folder `write_plan` writes to and the Plan card reads from — and
+ * hides every workspace tool from the agent. In `full` mode the sandbox and browser
+ * each have their own switch.
  */
 export function createChatWorkspace({
   root = WORKSPACE_ROOT,
   browser,
+  features = defaultFeatures,
 }: {
   root?: string;
   browser?: MastraBrowser;
+  features?: ChatFeatures;
 } = {}): Workspace {
+  if (features.workspaceMode === 'plans') {
+    return new Workspace({
+      id: 'chat-workspace',
+      filesystem: new LocalFilesystem({ basePath: root }),
+      tools: { enabled: false },
+    });
+  }
   return new Workspace({
     id: 'chat-workspace',
     filesystem: new LocalFilesystem({ basePath: root }),
-    sandbox: new LocalSandbox({ workingDirectory: root }),
-    ...(browser ? { browser } : {}),
+    ...(features.sandbox ? { sandbox: new LocalSandbox({ workingDirectory: root }) } : {}),
+    ...(browser && features.browser ? { browser } : {}),
     // Per-tool safety policy (698.21). requireReadBeforeWrite forces the agent to read
     // a file before overwriting/editing it; delete always needs explicit approval.
     tools: {
@@ -95,7 +110,9 @@ let workspaceSingleton: Workspace | null = null;
  */
 export function getChatWorkspace(): Workspace {
   if (!workspaceSingleton) {
-    workspaceSingleton = createChatWorkspace({ browser: getChatBrowserInstance() });
+    workspaceSingleton = createChatWorkspace(
+      defaultFeatures.browser ? { browser: getChatBrowserInstance() } : {},
+    );
   }
   return workspaceSingleton;
 }

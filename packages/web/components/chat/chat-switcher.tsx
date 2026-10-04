@@ -2,10 +2,25 @@
 
 import { PanelLeftIcon, PanelRightIcon } from 'lucide-react';
 import { useState } from 'react';
-import { AgentControllerChat } from '@/components/chat/agent-controller-chat';
+import { AgentControllerChat, type ChatOptions } from '@/components/chat/agent-controller-chat';
 import { AgentControllerSidebar } from '@/components/chat/agent-controller-sidebar';
-import { WorkbenchPanel } from '@/components/chat/workbench-panel';
+import {
+  WORKBENCH_TABS,
+  WorkbenchPanel,
+  type WorkbenchTab,
+} from '@/components/chat/workbench-panel';
 import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
+import { cn } from '@/lib/utils';
+
+export type ChatSwitcherProps = ChatOptions & {
+  /**
+   * Classes for the shell's root. It fills the whole screen (`h-dvh`) by default; inside
+   * a host layout, pass the height it should take instead, e.g. `h-full`.
+   */
+  className?: string;
+  /** Which workbench tabs to show. `[]` removes the workbench and its toggle. */
+  workbenchTabs?: readonly WorkbenchTab[];
+};
 
 /**
  * The app shell — sidebar │ chat │ workbench, no top header bar so the chat runs
@@ -17,7 +32,11 @@ import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-control
  * shell sandbox + browser) backs all three panes, so history, transcript, and the
  * workbench's Files/Terminal/Browser reflect the same run.
  */
-export function ChatSwitcher() {
+export function ChatSwitcher({
+  className,
+  workbenchTabs = WORKBENCH_TABS,
+  ...options
+}: ChatSwitcherProps = {}) {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   // Workbench starts CLOSED so the default view is a clean chat, not an IDE.
   const [rightCollapsed, setRightCollapsed] = useState(true);
@@ -37,7 +56,7 @@ export function ChatSwitcher() {
   return (
     // Recessed frame: the shell + both rails share the sidebar tone; the chat floats inset
     // as a raised rounded panel (the "inset" layout — clean, subtle separation).
-    <div className="relative flex h-dvh overflow-hidden bg-sidebar">
+    <div className={cn('relative flex h-dvh overflow-hidden bg-sidebar', className)}>
       <AgentControllerSidebar
         activeThreadId={controller.activeThreadId}
         onSelect={controller.openThread}
@@ -64,13 +83,13 @@ export function ChatSwitcher() {
         {/* The chat is the raised, floating panel: inset margin + rounded + border + soft
             shadow, over the recessed sidebar-tone frame. */}
         <div className="m-1.5 flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background shadow-sm">
-          <AgentControllerChat controller={controller} />
+          <AgentControllerChat controller={controller} options={options} />
         </div>
 
         {/* Only when the panel is CLOSED does the toggle float in the chat's empty
             top-right gutter — open, it would overlap the panel, so the collapse
             control lives in the panel's own header instead. */}
-        {rightCollapsed && (
+        {rightCollapsed && workbenchTabs.length > 0 && (
           <button
             type="button"
             aria-label="Show workbench"
@@ -81,8 +100,12 @@ export function ChatSwitcher() {
           </button>
         )}
 
-        {!rightCollapsed && (
-          <WorkbenchPanel controller={controller} onCollapse={() => setRightCollapsed(true)} />
+        {!rightCollapsed && workbenchTabs.length > 0 && (
+          <WorkbenchPanel
+            controller={controller}
+            tabs={workbenchTabs}
+            onCollapse={() => setRightCollapsed(true)}
+          />
         )}
       </div>
     </div>

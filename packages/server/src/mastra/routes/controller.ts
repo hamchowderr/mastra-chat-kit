@@ -12,6 +12,7 @@
 
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
+import { resourceIdOf } from './resource';
 import { sessionEventStream } from './session-sse';
 import type { ChatServerDeps } from './types';
 
@@ -56,11 +57,15 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           }))
         : undefined;
 
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       // Resume the given thread, or start a fresh thread when none is sent. No
       // placeholder title — the sidebar derives the display title from the first
       // user message (chat-app convention) until AI titling lands (see 698.11).
       if (threadId) {
+        // Only this user's own threads can be resumed.
+        if (!(await session.thread.list()).some((t) => t.id === threadId)) {
+          return c.json({ error: 'thread not found' }, 404);
+        }
         await session.thread.switch({ threadId });
       } else {
         await session.thread.create();
@@ -121,7 +126,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       ) {
         return c.json({ error: 'decision must be approve | decline | always_allow_category' }, 400);
       }
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       session.respondToToolApproval({ decision });
       return c.json({ ok: true });
     },
@@ -162,7 +167,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       } else {
         return c.json({ error: 'answer must be a string or string[], or plan an object' }, 400);
       }
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       return sessionEventStream({
         session,
         signal: c.req.raw.signal,
@@ -188,7 +193,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
     method: 'GET',
     handler: async (c) => {
       const controller = await deps.getAgentController();
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       const threadId = session.thread.getId();
       if (!threadId) {
         return c.json({ objective: null });
@@ -204,7 +209,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
     method: 'DELETE',
     handler: async (c) => {
       const controller = await deps.getAgentController();
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       const threadId = session.thread.getId();
       if (threadId) {
         await controller.getCurrentAgent(session).clearObjective({ threadId });
@@ -222,7 +227,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
     method: 'GET',
     handler: async (c) => {
       const controller = await deps.getAgentController();
-      const session = await deps.getSession();
+      const session = await deps.getSession(resourceIdOf(c));
       const record = await controller.getObservationalMemoryRecord(session);
       const observations =
         record?.activeObservations?.replace(/<\/?thread[^>]*>/g, '').trim() || null;

@@ -17,18 +17,23 @@
  */
 
 import type { BrowserViewer } from '@mastra/browser-viewer';
-import { AgentController, type Session } from '@mastra/core/agent-controller';
+import {
+  AgentController,
+  type AgentControllerSubagent,
+  type Session,
+} from '@mastra/core/agent-controller';
 import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
 import type { Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
-import { chatAgent } from '../agents/chat';
+import { chatAgent, createChatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
 import { dataSubagent } from '../agents/data';
 import { researchSubagent } from '../agents/research';
 import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
 import { doltConfigured } from './dolt';
+import { type ChatFeatures, features as defaultFeatures } from './features';
 import { createDefaultMemory, getSharedStore } from './memory';
 import { resolveToolCategory } from './tool-categories';
 import {
@@ -47,8 +52,39 @@ export { createBrowser, WORKSPACE_ROOT };
 
 const CHAT_MODEL_ID = env.CHAT_MODEL;
 
-/** Fixed resource id for the single logical user this reference serves. */
+/**
+ * The resource id of the one shared Session the kit serves by default. With
+ * MASTRA_JWT_SECRET set, each signed-in user's id (the proxy's JWT `sub`) is the
+ * resource id instead, so every user gets their own Session and threads.
+ */
 export const CHAT_RESOURCE_ID = 'chat-kit-user';
+
+/**
+ * The specialist roster for a set of features. `data` also needs Dolt: a specialist
+ * whose every tool call fails against an absent database is worse than none. Research
+ * keeps `searchKnowledge` only while the demo tools are on.
+ */
+export function chatSubagents(
+  f: ChatFeatures,
+  dolt: boolean = doltConfigured,
+): AgentControllerSubagent[] {
+  return [
+    ...(f.subagents.code ? [codeSubagent] : []),
+    ...(f.subagents.research
+      ? [f.demoTools ? researchSubagent : { ...researchSubagent, tools: {} }]
+      : []),
+    ...(f.subagents.writer ? [writerSubagent] : []),
+    ...(f.subagents.review ? [reviewerSubagent] : []),
+    ...(f.subagents.data && dolt ? [dataSubagent] : []),
+  ];
+}
+
+/** Plan mode's extra instructions; in `plans` mode the plan goes through write_plan. */
+export function planModeInstructions(f: ChatFeatures): string {
+  return f.workspaceMode === 'plans'
+    ? 'You are in PLAN mode. Investigate the request and produce a concise, ordered plan. Write it with write_plan, then call submit_plan with the path write_plan returns. Do NOT change anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.'
+    : 'You are in PLAN mode. Investigate the request and produce a concise, ordered plan, then call submit_plan with it. Do NOT create, edit, or run anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.';
+}
 
 /**
  * The live singleton's persistent thread/message store. It MUST be the very same
@@ -80,16 +116,33 @@ export function createChatAgentController(opts?: {
    * the `browser` option instead, keeping AIMock runs hermetic.
    */
   workspace?: Workspace;
+  /**
+   * Which parts of the kit are on (lib/features.ts). Omit it for the env switches and the
+   * shared `chatAgent`; pass it (tests) to build an agent, roster and workspace for
+   * exactly that combination.
+   */
+  features?: ChatFeatures;
+  /** With `features`: the workspace root for the agent's own tools (write_plan). */
+  root?: string;
 }): AgentController {
-  const browser = opts?.browser === null ? undefined : (opts?.browser ?? createBrowser());
-  const workspace = opts?.workspace ?? createChatWorkspace({ ...(browser ? { browser } : {}) });
+  const f = opts?.features ?? defaultFeatures;
+  const agent = opts?.features ? createChatAgent(opts.features, opts.root) : chatAgent;
+  const browser =
+    opts?.browser === null || !f.browser ? undefined : (opts?.browser ?? createBrowser());
+  const workspace =
+    opts?.workspace ??
+    createChatWorkspace({
+      features: f,
+      ...(opts?.root ? { root: opts.root } : {}),
+      ...(browser ? { browser } : {}),
+    });
   return new AgentController({
     id: 'chat-agent-controller',
     defaultModeId: 'chat',
     // Shared backing agent that EVERY mode forks + decorates. Modes let the one
     // agent switch operating profile (instructions/tool visibility) without
     // swapping agents — the controller surface a plain agent can't express.
-    agent: chatAgent,
+    agent,
     // Without a resolver, "always allow" just approves once (Mastra has no default).
     toolCategoryResolver: resolveToolCategory,
     modes: [
@@ -105,8 +158,7 @@ export function createChatAgentController(opts?: {
         description: 'Research and propose a plan; approving it switches to Chat to execute.',
         defaultModelId: CHAT_MODEL_ID,
         // Layered ABOVE the backing agent's own instructions for this mode only.
-        instructions:
-          'You are in PLAN mode. Investigate the request and produce a concise, ordered plan, then call submit_plan with it. Do NOT create, edit, or run anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.',
+        instructions: planModeInstructions(f),
         // submit_plan approval in this mode flips the session to `chat` (plan→build).
         transitionsTo: 'chat',
       },
@@ -135,13 +187,10 @@ export function createChatAgentController(opts?: {
     // `data` is CONDITIONAL: Dolt is opt-in and off by default, and a specialist whose
     // every tool call fails against an absent database is worse than no specialist —
     // the subagent tool's auto-generated description would still advertise it.
-    subagents: [
-      codeSubagent,
-      researchSubagent,
-      writerSubagent,
-      reviewerSubagent,
-      ...(doltConfigured ? [dataSubagent] : []),
-    ],
+    //
+    // Each specialist has its own switch (SUBAGENT_* — lib/features.ts); with none on,
+    // the controller offers no `subagent` tool at all.
+    ...(chatSubagents(f).length ? { subagents: chatSubagents(f) } : {}),
     // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.
@@ -201,6 +250,9 @@ export function getChatAgentController(): Promise<AgentController> {
  * the agent drives. The `/browser/screencast` route uses it to stream frames.
  */
 export async function getChatBrowser(): Promise<BrowserViewer> {
+  if (!defaultFeatures.browser) {
+    throw new Error('the browser is switched off (WORKSPACE_BROWSER / WORKSPACE_MODE)');
+  }
   await getChatAgentController();
   if (!singletonBrowser) {
     throw new Error('chat browser not initialized');
@@ -232,17 +284,20 @@ export const AUTO_ALLOWED_TOOLS = [
   'task_complete',
   'task_check',
   'list_schedules',
+  // Writes a draft plan file in `plans` workspace mode; approving the plan is the decision.
+  'write_plan',
 ] as const;
 
 /**
- * Get-or-create the process-wide Session for the single logical user, so the
+ * Get-or-create the Session for one user (a resource id), so the
  * `/agent-controller/stream` and `/agent-controller/approve` routes drive the SAME session (an
- * approval must resolve on the session that parked at the gate).
+ * approval must resolve on the session that parked at the gate). Without auth every
+ * request is the one shared user, `CHAT_RESOURCE_ID`.
  */
-export async function getChatSession(): Promise<Session> {
+export async function getChatSession(resourceId: string = CHAT_RESOURCE_ID): Promise<Session> {
   const controller = await getChatAgentController();
-  const existing = await controller.getSessionByResource(CHAT_RESOURCE_ID);
-  const session = existing ?? (await controller.createSession({ resourceId: CHAT_RESOURCE_ID }));
+  const existing = await controller.getSessionByResource(resourceId);
+  const session = existing ?? (await controller.createSession({ resourceId }));
   // In-memory + idempotent, so re-granting each call is free.
   for (const tool of AUTO_ALLOWED_TOOLS) {
     session.grantTool(tool);

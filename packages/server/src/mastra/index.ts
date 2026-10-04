@@ -93,12 +93,12 @@ const chatServerDeps: ChatServerDeps = {
   // fastembed is a LOCAL ONNX model — querying the sidebar costs no API spend.
   search: {
     embed: async (query) => (await embed({ model: fastembed, value: query })).embedding,
-    query: (embedding, topK) =>
+    query: (embedding, topK, resourceId) =>
       getSharedVector().query({
         indexName: MESSAGE_VECTOR_INDEX,
         queryVector: embedding,
         topK,
-        filter: { resource_id: CHAT_RESOURCE_ID },
+        filter: { resource_id: resourceId ?? CHAT_RESOURCE_ID },
       }),
   },
   // Models the composer's picker may request. Keep in sync with web `MODELS` in
@@ -114,7 +114,7 @@ const chatServerDeps: ChatServerDeps = {
   ]),
 };
 
-const auth = createServerAuth(env.MASTRA_JWT_SECRET);
+const auth = createServerAuth(env.MASTRA_JWT_SECRET, CHAT_RESOURCE_ID);
 
 const serverConfig = {
   apiRoutes: [

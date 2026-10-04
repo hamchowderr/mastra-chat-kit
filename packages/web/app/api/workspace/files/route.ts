@@ -1,6 +1,6 @@
-import { proxy } from '@/lib/mastra-proxy';
+import { forward } from '@/lib/mastra-proxy';
 
 // GET /api/workspace/files → the controller agent's workspace file tree.
-export async function GET() {
-  return proxy('/workspace/files');
+export async function GET(req: Request) {
+  return forward(req, '/workspace/files');
 }

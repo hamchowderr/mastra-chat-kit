@@ -54,8 +54,12 @@ export type SearchHit = {
 };
 
 export type ChatServerDeps = {
-  /** The live AgentController Session every route drives. */
-  getSession: () => Promise<Session>;
+  /**
+   * The live AgentController Session a route drives. `resourceId` is the signed-in user
+   * when the server runs with auth (routes/resource.ts); undefined means the one shared
+   * user, which is the default.
+   */
+  getSession: (resourceId?: string) => Promise<Session>;
   /** The controller behind that session — goals and observational memory. */
   getAgentController: () => Promise<AgentController>;
 
@@ -83,8 +87,8 @@ export type ChatServerDeps = {
   search?: {
     /** Embed the query. Local (fastembed) here; a consumer may use anything. */
     embed: (query: string) => Promise<number[]>;
-    /** Query the message vector index, already scoped to the right resource. */
-    query: (embedding: number[], topK: number) => Promise<SearchHit[]>;
+    /** Query the message vector index for one resource (undefined = the shared user). */
+    query: (embedding: number[], topK: number, resourceId?: string) => Promise<SearchHit[]>;
   };
 
   /**

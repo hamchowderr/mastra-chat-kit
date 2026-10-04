@@ -4,11 +4,13 @@ import { TaskSignalProvider } from '@mastra/core/signals';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { env } from '../../lib/env';
+import { type ChatFeatures, features as defaultFeatures } from '../lib/features';
 import { putImage } from '../lib/image-store';
 import { liveScorers } from '../lib/live-scorers';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
-import { getChatWorkspace } from '../lib/workspace';
+import { getChatWorkspace, WORKSPACE_ROOT } from '../lib/workspace';
+import { createWritePlanTool } from '../tools/plan';
 import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
 /**
@@ -202,19 +204,65 @@ export const setGoal = createTool({
   },
 });
 
-const BASE_INSTRUCTIONS = `You are a helpful, concise assistant.
+const SUBAGENT_GUIDE: Record<keyof ChatFeatures['subagents'], string> = {
+  code: '"code" for building/editing/running code and tests in the sandbox',
+  research: `"research" for open-ended "find out / look up / compare / what's the latest" questions that need live web browsing + sources`,
+  writer: '"writer" for drafting long-form content (docs, summaries, posts, explanations)',
+  review:
+    '"review" to audit existing code or a draft and report findings — it is read-only, so send it work that already exists and act on its findings yourself',
+  data: '"data" for SQL against the versioned Dolt database (only offered when Dolt is configured)',
+};
 
-- When the user asks about weather, call getWeather.
-- When the user asks a factual or how-to question, call searchKnowledge and ground your answer in the results, citing the document titles.
-- When the user asks for an image, picture, drawing, or illustration, call generateImage with a vivid prompt.
-- For substantial, self-contained work, delegate to a specialist subagent via the subagent tool rather than doing it inline. Pick the agentType by the task: "code" for building/editing/running code and tests in the sandbox; "research" for open-ended "find out / look up / compare / what's the latest" questions that need live web browsing + sources; "writer" for drafting long-form content (docs, summaries, posts, explanations); "review" to audit existing code or a draft and report findings — it is read-only, so send it work that already exists and act on its findings yourself; "data" for SQL against the versioned Dolt database (only offered when Dolt is configured). A subagent can't see this conversation, so put ALL the context it needs in the task. Handle small, quick things yourself.
-- When the user gives you a STANDING objective to work toward over multiple turns — "keep going until…", "your goal is…", "don't stop until…", "iterate until it's good" — call setGoal with a crisp, verifiable restatement, then start working. A judge scores each turn and you keep iterating until it's met. Do NOT call setGoal for ordinary one-shot requests; just answer those.
-- For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, then call submit_plan with a short, ordered plan and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly.
-- When you need something from the user that you don't have and can't sensibly assume — a genuinely ambiguous request (which of several things they mean) OR a required detail that's missing (a name, value, or choice you can't default) — ALWAYS ask through the ask_user tool, NEVER in plain prose. (A plain-text question just stalls the turn; ask_user gives the user a real prompt that resumes the run with their answer.) Call ask_user with ONE clear, specific question, and pass \`options\` (2–4 concise labels) when the likely answers are known so the user can pick instead of typing. Ask once, then continue with the answer. Don't use it for things you can reasonably infer or default — for trivial gaps, act on a sensible assumption and say what you assumed.
-- For a task with several distinct steps, track it with the task tools: call task_write once to lay out the steps up front, then task_update / task_complete as you finish each one, so the user can watch progress. Skip this for single-step or trivial requests — don't narrate a one-liner as a task list.
-- When the user wants something to happen repeatedly on a timer — "every morning…", "remind me every hour…", "run X daily…" — call start_schedule with a cron expression and the prompt to run; it returns a schedule id and fires into this conversation. To stop or cancel one, call stop_schedule with its id (use list_schedules first if you don't have it). Use these only for genuinely recurring requests, not one-off "do this now" tasks.
-- Keep responses tight and skimmable. Use markdown (lists, code blocks) where it helps.
-- Never fabricate tool results; only state what the tools return.`;
+/**
+ * The chat agent's instructions for a set of features: a line per tool or specialist
+ * that is switched on, so the agent is never told about something it can't call.
+ */
+export function chatInstructions(f: ChatFeatures): string {
+  const enabled = (Object.keys(SUBAGENT_GUIDE) as (keyof ChatFeatures['subagents'])[]).filter(
+    (k) => f.subagents[k],
+  );
+  const lines = [
+    ...(f.demoTools
+      ? [
+          '- When the user asks about weather, call getWeather.',
+          '- When the user asks a factual or how-to question, call searchKnowledge and ground your answer in the results, citing the document titles.',
+        ]
+      : []),
+    ...(f.generateImage
+      ? [
+          '- When the user asks for an image, picture, drawing, or illustration, call generateImage with a vivid prompt.',
+        ]
+      : []),
+    ...(enabled.length
+      ? [
+          `- For substantial, self-contained work, delegate to a specialist subagent via the subagent tool rather than doing it inline. Pick the agentType by the task: ${enabled.map((k) => SUBAGENT_GUIDE[k]).join('; ')}. A subagent can't see this conversation, so put ALL the context it needs in the task. Handle small, quick things yourself.`,
+        ]
+      : []),
+    '- When the user gives you a STANDING objective to work toward over multiple turns — "keep going until…", "your goal is…", "don\'t stop until…", "iterate until it\'s good" — call setGoal with a crisp, verifiable restatement, then start working. A judge scores each turn and you keep iterating until it\'s met. Do NOT call setGoal for ordinary one-shot requests; just answer those.',
+    f.workspaceMode === 'plans'
+      ? "- For a task that is complex, multi-step, ambiguous, or risky (changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: write a short, ordered plan with write_plan, then call submit_plan with the path it returns and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly."
+      : "- For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, then call submit_plan with a short, ordered plan and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly.",
+    "- When you need something from the user that you don't have and can't sensibly assume — a genuinely ambiguous request (which of several things they mean) OR a required detail that's missing (a name, value, or choice you can't default) — ALWAYS ask through the ask_user tool, NEVER in plain prose. (A plain-text question just stalls the turn; ask_user gives the user a real prompt that resumes the run with their answer.) Call ask_user with ONE clear, specific question, and pass `options` (2–4 concise labels) when the likely answers are known so the user can pick instead of typing. Ask once, then continue with the answer. Don't use it for things you can reasonably infer or default — for trivial gaps, act on a sensible assumption and say what you assumed.",
+    "- For a task with several distinct steps, track it with the task tools: call task_write once to lay out the steps up front, then task_update / task_complete as you finish each one, so the user can watch progress. Skip this for single-step or trivial requests — don't narrate a one-liner as a task list.",
+    `- When the user wants something to happen repeatedly on a timer — "every morning…", "remind me every hour…", "run X daily…" — call start_schedule with a cron expression and the prompt to run; it returns a schedule id and fires into this conversation. To stop or cancel one, call stop_schedule with its id (use list_schedules first if you don't have it). Use these only for genuinely recurring requests, not one-off "do this now" tasks.`,
+    '- Keep responses tight and skimmable. Use markdown (lists, code blocks) where it helps.',
+    '- Never fabricate tool results; only state what the tools return.',
+  ];
+  return `You are a helpful, concise assistant.\n\n${lines.join('\n')}`;
+}
+
+/** The chat agent's own tools for a set of features (the workspace adds its own). */
+export function chatTools(f: ChatFeatures, root: string = WORKSPACE_ROOT) {
+  return {
+    ...(f.demoTools ? { getWeather, searchKnowledge } : {}),
+    ...(f.generateImage ? { generateImage } : {}),
+    setGoal,
+    startSchedule,
+    stopSchedule,
+    listSchedules,
+    ...(f.workspaceMode === 'plans' ? { write_plan: createWritePlanTool(root) } : {}),
+  };
+}
 
 // Appended when the composer's "Search" toggle is on. The controller passes
 // `webSearch: true` on the request context (see /agent-controller/stream), and the
@@ -229,66 +277,70 @@ The user has enabled web search for this turn. Use your browser tools to look th
 - Prefer real browsing over your training data, and cite the URLs you actually visited.
 - The user can watch you browse in the Browser panel, so keep your navigation purposeful.`;
 
-export const chatAgent = new Agent({
-  id: 'chat',
-  name: 'Chat Assistant',
-  description:
-    'General conversational assistant that exercises the full chat UI: streamed text, reasoning, tool input/output, sources, and images. The reference agent for mastra-chat-kit.',
-  // Dynamic so the AgentController "Search" toggle (request context `webSearch`) can switch
-  // the agent into browse-the-web mode. Static string otherwise.
-  instructions: ({ requestContext }) =>
-    requestContext.get('webSearch') === true
-      ? BASE_INSTRUCTIONS + WEB_SEARCH_INSTRUCTIONS
-      : BASE_INSTRUCTIONS,
-  model: env.CHAT_MODEL,
-  // Native goal mechanism (flagship controller demo). Configuring `goal` auto-registers
-  // the goal signal provider + the in-loop goal step: an objective set via
-  // `agent.setObjective({ threadId })` is judged after each turn by this judge model,
-  // and the agent keeps working until the judge passes it or the run budget (maxRuns)
-  // is hit — emitting `goal_evaluation` events the web folds into a goal card. Inert
-  // until an objective is set, so ordinary chats are unaffected. The judge defaults to
-  // the chat model; the /agent-controller/goal route overrides per-objective (judgeModelId /
-  // maxRuns). Requires memory (below) + a thread/resource, which the controller supplies.
-  goal: { judge: env.CHAT_MODEL },
-  // Native multi-step task tracking (controller parity). One registration bundles the
-  // four task tools (task_write/update/complete/check) AND the TaskStateProcessor that
-  // keeps the list alive across turns — emitting `task_updated` → the <Task> element.
-  // This gives the SINGLE-AGENT path task tracking too (the AgentController path also exposes
-  // task tools via the controller; the agent's provider is the canonical source and
-  // dedupes by tool id). Needs memory + a thread, which both paths supply.
-  signals: [new TaskSignalProvider()],
-  // The SHARED workspace (filesystem + sandbox + browser) so Mastra Studio surfaces it +
-  // its tools on this registered agent (698.31), matching the official template. Always on
-  // — it's core to the kit, not a user option. It's a DynamicArgument so the UNGATED
-  // Single-Agent /chat transport can opt OUT per request (it sets `noWorkspace` in the
-  // request context) — otherwise that simple path would expose fs/shell tools with NO
-  // approval — and so the AIMock suite (NODE_ENV=test) stays hermetic (the controller
-  // controller supplies its own workspace there). In AgentController mode the controller shares
-  // THIS same instance (getChatWorkspace), so it's not double-provisioned, and every tool
-  // is HITL-gated there.
-  workspace: ({ requestContext }) =>
-    env.NODE_ENV !== 'test' && requestContext?.get('noWorkspace') !== true
-      ? getChatWorkspace()
-      : undefined,
-  tools: {
-    getWeather,
-    searchKnowledge,
-    generateImage,
-    setGoal,
-    startSchedule,
-    stopSchedule,
-    listSchedules,
-  },
-  // Default execution options applied to EVERY run: enable
-  // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
-  // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic
-  // providers, so it's safe regardless of CHAT_MODEL.
-  defaultOptions: {
-    modelSettings: { temperature: 1 },
-    providerOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 } } },
-  },
-  memory: createDefaultMemory(),
-  scorers: liveScorers,
-  inputProcessors: defaultInputProcessors,
-  outputProcessors: defaultOutputProcessors,
-});
+/**
+ * Build the chat agent for a set of features. The server runs ONE (`chatAgent`, from
+ * the env switches); tests build others to exercise a given combination.
+ */
+export function createChatAgent(
+  f: ChatFeatures = defaultFeatures,
+  root: string = WORKSPACE_ROOT,
+): Agent {
+  const baseInstructions = chatInstructions(f);
+  return new Agent({
+    id: 'chat',
+    name: 'Chat Assistant',
+    description:
+      'General conversational assistant that exercises the full chat UI: streamed text, reasoning, tool input/output, sources, and images. The reference agent for mastra-chat-kit.',
+    // Dynamic so the AgentController "Search" toggle (request context `webSearch`) can switch
+    // the agent into browse-the-web mode. Static string otherwise.
+    instructions: ({ requestContext }) =>
+      requestContext.get('webSearch') === true && f.browser
+        ? baseInstructions + WEB_SEARCH_INSTRUCTIONS
+        : baseInstructions,
+    model: env.CHAT_MODEL,
+    // Native goal mechanism (flagship controller demo). Configuring `goal` auto-registers
+    // the goal signal provider + the in-loop goal step: an objective set via
+    // `agent.setObjective({ threadId })` is judged after each turn by this judge model,
+    // and the agent keeps working until the judge passes it or the run budget (maxRuns)
+    // is hit — emitting `goal_evaluation` events the web folds into a goal card. Inert
+    // until an objective is set, so ordinary chats are unaffected. The judge defaults to
+    // the chat model; the /agent-controller/goal route overrides per-objective (judgeModelId /
+    // maxRuns). Requires memory (below) + a thread/resource, which the controller supplies.
+    goal: { judge: env.CHAT_MODEL },
+    // Native multi-step task tracking (controller parity). One registration bundles the
+    // four task tools (task_write/update/complete/check) AND the TaskStateProcessor that
+    // keeps the list alive across turns — emitting `task_updated` → the <Task> element.
+    // This gives the SINGLE-AGENT path task tracking too (the AgentController path also exposes
+    // task tools via the controller; the agent's provider is the canonical source and
+    // dedupes by tool id). Needs memory + a thread, which both paths supply.
+    signals: [new TaskSignalProvider()],
+    // The SHARED workspace (filesystem + sandbox + browser) so Mastra Studio surfaces it +
+    // its tools on this registered agent (698.31), matching the official template. What it
+    // carries follows the feature switches (lib/features.ts). It's a DynamicArgument so the UNGATED
+    // Single-Agent /chat transport can opt OUT per request (it sets `noWorkspace` in the
+    // request context) — otherwise that simple path would expose fs/shell tools with NO
+    // approval — and so the AIMock suite (NODE_ENV=test) stays hermetic (the controller
+    // controller supplies its own workspace there). In AgentController mode the controller shares
+    // THIS same instance (getChatWorkspace), so it's not double-provisioned, and every tool
+    // is HITL-gated there.
+    workspace: ({ requestContext }) =>
+      env.NODE_ENV !== 'test' && requestContext?.get('noWorkspace') !== true
+        ? getChatWorkspace()
+        : undefined,
+    tools: chatTools(f, root),
+    // Default execution options applied to EVERY run: enable
+    // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
+    // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic
+    // providers, so it's safe regardless of CHAT_MODEL.
+    defaultOptions: {
+      modelSettings: { temperature: 1 },
+      providerOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 } } },
+    },
+    memory: createDefaultMemory(),
+    scorers: liveScorers,
+    inputProcessors: defaultInputProcessors,
+    outputProcessors: defaultOutputProcessors,
+  });
+}
+
+export const chatAgent = createChatAgent();
