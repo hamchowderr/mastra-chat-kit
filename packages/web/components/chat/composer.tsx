@@ -2,7 +2,7 @@
 
 import type { ChatStatus } from 'ai';
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   Attachment,
   AttachmentPreview,
@@ -35,6 +35,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input';
+import { SpeechInput } from '@/components/ai-elements/speech-input';
 
 /** A model-router provider id, e.g. `anthropic`, `openai` — also picks the logo. */
 type Provider = string;
@@ -53,6 +54,19 @@ export const MODELS: ModelOption[] = [
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o mini', provider: 'openai' },
   { id: 'openai/gpt-4.1-nano', name: 'GPT-4.1 nano', provider: 'openai' },
 ];
+
+// What the server's /agent-controller/stream accepts (server routes/stream-body.ts):
+// images, PDFs and plain text, at most 4 files of 5 MB each. Checked here too, so a file
+// the server would refuse is turned away when it is added, with a reason.
+const ATTACH_ACCEPT =
+  'image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/markdown,text/csv';
+const MAX_FILES = 4;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ATTACH_ERRORS = {
+  accept: 'Attach an image, a PDF or a text file.',
+  max_files: `Attach up to ${MAX_FILES} files.`,
+  max_file_size: 'Each file can be up to 5 MB.',
+} as const;
 
 const PROVIDER_HEADINGS: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI' };
 
@@ -90,6 +104,30 @@ function AttachmentsDisplay() {
 }
 
 /**
+ * The send button. It is enabled once there is text OR an attachment (an image alone is
+ * a message), and while a turn streams. Enter in the textarea checks this same button,
+ * so the keyboard follows the same rule.
+ */
+function SubmitButton({ hasText, status }: { hasText: boolean; status?: ChatStatus }) {
+  const attachments = usePromptInputAttachments();
+  const empty = !hasText && attachments.files.length === 0;
+  return <PromptInputSubmit disabled={empty && status !== 'streaming'} status={status} />;
+}
+
+/**
+ * Whether this browser can turn speech into text by itself (the Web Speech API:
+ * Chrome, Edge, Safari 14.5+ incl. iOS). Checked after mount, so the server render and
+ * the first client render agree; where it's missing the mic is simply not shown.
+ */
+function useSpeechRecognitionSupport(): boolean {
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  }, []);
+  return supported;
+}
+
+/**
  * The ONE chat composer — full PromptInput surface (attachments + drag-drop,
  * action menu, web-search toggle, model selector, submit). Kept separate from
  * the chat view so the input surface can be reused behind any transport —
@@ -103,6 +141,8 @@ export function Composer({
   toolsExtra,
   models = MODELS,
   webSearch: showWebSearch = true,
+  placeholder = 'Ask anything…',
+  speech = true,
 }: {
   onSend: (submit: ComposerSubmit) => void;
   status?: ChatStatus;
@@ -119,13 +159,23 @@ export function Composer({
   models?: ModelOption[] | false;
   /** Show the "Search the web" toggle. Hide it when the agent has no browser. */
   webSearch?: boolean;
+  /** The textarea's placeholder. */
+  placeholder?: string;
+  /**
+   * Show the microphone (AI Elements SpeechInput): dictation into the textarea. It only
+   * appears where the browser has speech recognition built in; elsewhere there is no
+   * button rather than a broken one.
+   */
+  speech?: boolean;
 }) {
+  const speechSupported = useSpeechRecognitionSupport();
   const modelList = models === false ? [] : models;
   const MODEL_GROUPS = providerGroups(modelList);
   const [text, setText] = useState('');
   const [model, setModel] = useState(modelList[0]?.id ?? '');
   const [modelOpen, setModelOpen] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const currentModel = modelList.find((m) => m.id === model) ?? modelList[0];
 
   // The model selector pages by provider: arrows switch provider, its models list
@@ -154,25 +204,40 @@ export function Composer({
       files: message.files,
     });
     setText('');
+    setAttachError(null);
   };
 
   return (
-    <PromptInput onSubmit={handleSubmit} className={className} globalDrop multiple>
+    <PromptInput
+      onSubmit={handleSubmit}
+      className={className}
+      globalDrop
+      multiple
+      accept={ATTACH_ACCEPT}
+      maxFiles={MAX_FILES}
+      maxFileSize={MAX_FILE_SIZE}
+      onError={(err) => setAttachError(ATTACH_ERRORS[err.code])}
+    >
       <PromptInputHeader>
         <AttachmentsDisplay />
+        {attachError && (
+          <p role="alert" className="w-full px-1 text-destructive text-xs">
+            {attachError}
+          </p>
+        )}
       </PromptInputHeader>
       <PromptInputBody>
         <PromptInputTextarea
           onChange={(e) => setText(e.target.value)}
           value={text}
-          placeholder="Ask anything…"
+          placeholder={placeholder}
         />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
           {toolsExtra}
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger />
+            <PromptInputActionMenuTrigger aria-label="Attach images or files" />
             <PromptInputActionMenuContent>
               <PromptInputActionAddAttachments />
               <PromptInputActionAddScreenshot />
@@ -263,7 +328,20 @@ export function Composer({
         </PromptInputTools>
         <div className="flex items-center gap-2">
           {footerExtra}
-          <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
+          {speech && speechSupported && (
+            <SpeechInput
+              // A plain button: inside PromptInput's form, a default (submit) button would
+              // send the half-typed message the moment the mic is tapped.
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Dictate"
+              onTranscriptionChange={(said) =>
+                setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${said}` : said))
+              }
+            />
+          )}
+          <SubmitButton hasText={Boolean(text.trim())} status={status} />
         </div>
       </PromptInputFooter>
     </PromptInput>

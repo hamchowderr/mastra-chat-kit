@@ -39,6 +39,7 @@
     "@mastra/memory": "^1.31.0",
     "@mastra/observability": "^1.18.0",
     "ai": "^7.0.37",
+    "hono": "^4.13.8",
     "mysql2": "^3.22.3",
     "zod": "^4.4.2"
   },

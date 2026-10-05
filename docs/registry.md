@@ -14,6 +14,8 @@ our own copies of only the few we had to patch.
 |---|---|---|
 | `chat` | block | **The full skin** — history sidebar │ conversation │ the 4-tab workbench (browser, files, memory, schedules). **Install this for the complete experience.** |
 | `chat-minimal` | block | **A second skin** — conversation + composer + approvals only, no sidebar or workbench. For embedding an agent in a corner of an existing app. |
+| `chat-composer` | component | The one composer `chat` and `chat-panel` use: attachments, dictation, optional model picker and web search. |
+| `chat-panel` | block | **A third skin** — a docked side panel: a header (title, conversation history, new chat, your own buttons), a greeting and suggestions when empty, and a rounded composer card. No model picker. |
 | `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
 | `chat-engine` | lib | The engine: Agent Controller SSE client, transcript reducer, and the data hooks that own every `/api/*` call. UI-free — imports only React. |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `agent-controller/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
@@ -36,12 +38,13 @@ losing the second:
 ```bash
 npx shadcn@latest add @mastra-chat-kit/chat           # full shell
 npx shadcn@latest add @mastra-chat-kit/chat-minimal   # embeddable
+npx shadcn@latest add @mastra-chat-kit/chat-panel     # docked side panel
 ```
 
-Both drive the **same** `AgentController` session — same threads, same tool
+All three drive the **same** `AgentController` session — same threads, same tool
 approvals, same subagents, same workspace. They differ only in layout.
 
-**To author a third skin:** render over `useAgentControllerChat()` from
+**To author another skin:** render over `useAgentControllerChat()` from
 `chat-engine`, reuse `chat-tool-views` for tool output, and add it to
 `gen-registry.mjs` with `registryDependencies: [chat-engine, chat-routes,
 chat-tool-views]`. Two rules the build enforces for you:
@@ -357,6 +360,43 @@ Then mount `<ChatSwitcher />` (the AgentController shell — sidebar │ chat �
 it is not a mode toggle — there is only one engine)
 from `@/components/chat`. The chat shell also calls `toast()` — mount shadcn's
 `<Toaster />` in your root layout if you want notifications.
+
+### The side panel
+
+`chat-panel` is a skin for docking the agent beside an app's own pages, the way a
+browser's assistant side panel sits beside a website. The host decides where it
+lives and how wide it is; the panel fills the box it is given.
+
+```tsx
+import { ChatPanel } from '@/components/chat-panel/chat-panel';
+
+<ChatPanel
+  title="Assistant"                                   // header title
+  greeting={{ title: 'Hi Simone', description: 'Ask about your work.' }}
+  suggestions={[{ label: 'Grants closing soon', prompt: 'Which grants close this month?' }]}
+  placeholder="How can I help you today?"             // the default
+  actions={<><FullScreenButton /><CloseButton /></>}   // your header buttons
+/>
+```
+
+The header's History menu lists the same conversations as the full shell's
+sidebar (`useThreads`), and New chat starts a fresh one. Tool approvals, `ask_user`
+questions and submitted plans render through `components/chat/transcript.tsx`
+(shipped in `chat-tool-views`), the same pieces `chat-minimal` uses, so the panel
+can always answer what the agent is waiting on. Keep it mounted in a layout that
+survives navigation and the conversation stays put across pages.
+
+The composer is the kit's shared one (`chat-composer`, also used by the full shell):
+attachments with previews, a microphone for dictation, and send. The mic uses the
+browser's own speech recognition (Chrome, Edge, Safari 14.5+ including iOS) and is
+simply not shown where that is missing. Attached images reach the model as image
+parts (`tests/integration/attachments.test.ts`), and an image can be sent with no
+text. The server accepts only inline `data:` URLs of images, PDFs and plain text, at
+most 4 files of 5 MB each, and caps the request body (`routes/stream-body.ts` in
+`chat-server`); the composer applies the same limits when a file is added and says
+why it refused one. It ships no colours of its own:
+`className` sets the root (for example `bg-sidebar` to match your sidebar), and
+`--chat-panel-header-height` lines its header up with yours.
 
 ### Fit it into your app
 

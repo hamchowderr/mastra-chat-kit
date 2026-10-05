@@ -904,6 +904,12 @@
     },
 
     {
+      "_comment": "An image attachment from the composer's attach button reaches the model (tests/integration/attachments.test.ts reads AIMock's journal to prove the image block was sent).",
+      "match": { "userMessage": "What is in this picture?" },
+      "response": { "content": "A small red square." }
+    },
+
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {
