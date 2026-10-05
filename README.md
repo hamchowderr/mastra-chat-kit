@@ -62,7 +62,7 @@ Nothing has executed yet. The controller run is parked server-side on an open SS
 
 The chat agent recognises the intent and hands off to the **code** subagent — a real specialist with its own instructions, model, and tools, including a shell it can actually run commands in. The subagent's file write lands in the shared workspace, so the workbench's **Files** tab reflects it live, and the **Terminal** tab shows the shell output the run produced.
 
-Same pattern for **research** (browse + search + cite), **writer** (long-form drafting), **review** (read-only audit), and **data** (versioned SQL).
+Same pattern for **research** (search the web + cite), **writer** (long-form drafting), **review** (read-only audit), and **data** (versioned SQL).
 
 </details>
 
@@ -102,7 +102,7 @@ Every capability is **agent-driven** — no manual buttons; the agent calls the 
 | **Tool approvals (HITL)** | Every side-effecting tool pauses for approve / decline before it runs. | *"What's the weather in Tokyo?"* |
 | **Modes** (Chat / Plan) | The agent proposes a plan, then switches to Chat to execute it on approval. | *"Propose a plan to add a dark-mode toggle, then wait for approval."* |
 | **Goals** | A standing objective the agent iterates toward; a judge scores each turn until it passes. | *"Keep refining a haiku about the ocean until it's excellent."* |
-| **Subagents** | Delegates to a specialist — **code** (build/run in the sandbox), **research** (browse + search + cite), **writer** (long-form), **review** (read-only audit), **data** (versioned SQL, when Dolt is on) — each with its own instructions, model, and tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
+| **Subagents** | Delegates to a specialist — **code** (build/run in the sandbox), **research** (search the web + cite), **writer** (long-form), **review** (read-only audit), **data** (versioned SQL, when Dolt is on) — each with its own instructions, model, and tools. | *"Use the code subagent to create hello.js that prints 1–10, then run it."* |
 | **ask_user** | On a genuinely ambiguous request the agent asks *you* a question and resumes with the answer. | *"Deploy my app."* |
 | **Task tracking** | Multi-step work rendered as a live checklist. | *"Plan and build a tiny counter in tracked steps."* |
 | **Observational memory** | A background Observer distills durable facts across chats (the Memory panel). | *have a short back-and-forth* |
@@ -252,11 +252,17 @@ them default to the full kit, so an existing server changes nothing.
 
 | Variable | Default | Off means |
 |---|---|---|
-| `WORKSPACE_SANDBOX` | `true` | No shell (`execute_command`). |
-| `WORKSPACE_BROWSER` | `true` | No headless browser, no Browser panel, no web search. |
-| `SUBAGENT_CODE` · `_RESEARCH` · `_WRITER` · `_REVIEW` · `_DATA` | `true` | That specialist is not offered. Each is also dropped when what it works with is missing: `code` needs the sandbox, `research` the browser, `data` Dolt. With none left there is no `subagent` tool. |
+| `WORKSPACE_SANDBOX` | `true` | No shell (`execute_command`), and so no browser either: the agent drives the browser with its CLI through the shell. |
+| `WORKSPACE_BROWSER` | `true` | No headless browser and no Browser panel. Without Firecrawl, no web search either. |
+| `SUBAGENT_CODE` · `_RESEARCH` · `_WRITER` · `_REVIEW` · `_DATA` | `true` | That specialist is not offered. Each is also dropped when what it works with is missing: `code` needs the sandbox, `research` Firecrawl or the browser, `data` Dolt. With none left there is no `subagent` tool. |
 | `TOOL_GENERATE_IMAGE` | `true` | No `generateImage`. |
 | `TOOL_DEMO` | `true` | No `getWeather` / `searchKnowledge` demo tools. |
+
+One capability is off until you set a key:
+
+| Variable | Default | Set means |
+|---|---|---|
+| `FIRECRAWL_API_KEY` | unset | Web search through [Firecrawl](https://www.firecrawl.dev): the chat agent and the research subagent get `firecrawl_search` and `firecrawl_scrape` from Firecrawl's hosted MCP server (`FIRECRAWL_MCP_URL`, default `https://mcp.firecrawl.dev/v2/mcp`). It needs no sandbox or browser, so it is the web search for a server with `WORKSPACE_SANDBOX=false`. The composer's Search toggle then points the agent at Firecrawl. Both tools run without an approval card and work in Plan mode. Each search or scrape spends Firecrawl credits. |
 
 The chat agent's instructions are built from the same switches, so it is never
 told about a tool or specialist it does not have. Pair them with the

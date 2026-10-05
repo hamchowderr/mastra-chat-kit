@@ -131,8 +131,9 @@ Mastra as the **Agent Harness** — same thing).
 
 - **`packages/server`** — Mastra + Hono on :4111. The AgentController and its
   Session, six agents (chat + code/research/writer/reviewer/data subagents), a
-  workspace sandbox (filesystem + shell + browser), and the 14-endpoint route
-  contract the web layer proxies to. Storage, threads, observability and vector
+  workspace sandbox (filesystem + shell + browser), optional Firecrawl web search
+  (search + scrape from Firecrawl's hosted MCP server, on when `FIRECRAWL_API_KEY`
+  is set), and the 14-endpoint route contract the web layer proxies to. Storage, threads, observability and vector
   recall all land in libSQL; embeddings run locally via fastembed.
 - **`packages/web`** — Next.js 16 App Router on :3000. Three skins (`chat`,
   `chat-minimal`, `chat-panel`) over one UI-free engine (`lib/agent-controller/`), rendering

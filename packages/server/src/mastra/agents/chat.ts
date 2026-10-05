@@ -205,7 +205,7 @@ export const setGoal = createTool({
 
 const SUBAGENT_GUIDE: Record<keyof ChatFeatures['subagents'], string> = {
   code: '"code" for building/editing/running code and tests in the sandbox',
-  research: `"research" for open-ended "find out / look up / compare / what's the latest" questions that need live web browsing + sources`,
+  research: `"research" for open-ended "find out / look up / compare / what's the latest" questions that need the live web + sources`,
   writer: '"writer" for drafting long-form content (docs, summaries, posts, explanations)',
   review:
     '"review" to audit existing code or a draft and report findings — it is read-only, so send it work that already exists and act on its findings yourself',
@@ -215,7 +215,7 @@ const SUBAGENT_GUIDE: Record<keyof ChatFeatures['subagents'], string> = {
 /**
  * The chat agent's instructions for a set of RESOLVED features: a line per tool, and
  * a guide entry per specialist actually offered (resolveFeatures already dropped code
- * without a sandbox, research without a browser, data without Dolt), so the agent is
+ * without a sandbox, research without Firecrawl or a browser, data without Dolt), so the agent is
  * never told about something it can't call.
  */
 export function chatInstructions(f: ChatFeatures): string {
@@ -265,17 +265,34 @@ export function chatTools(f: ChatFeatures) {
 }
 
 // Appended when the composer's "Search" toggle is on. The controller passes
-// `webSearch: true` on the request context (see /agent-controller/stream), and the
-// agent has real workspace browser tools — the SAME Chrome the Browser panel
-// screencasts — so web search is routed THROUGH the browser: it navigates the live
-// web and reads pages rather than answering from memory. No provider-executed
-// web_search tool is involved (@mastra/core's loop can't forward those results).
-const WEB_SEARCH_INSTRUCTIONS = `
+// `webSearch: true` on the request context (see /agent-controller/stream). No
+// provider-executed web_search tool is involved (@mastra/core's loop can't forward those
+// results); the agent searches with its own tools, so the text names the path it has:
+// - Firecrawl (FIRECRAWL_API_KEY): firecrawl_search + firecrawl_scrape, from the
+//   controller's tools (lib/firecrawl.ts). Needs no sandbox or browser.
+// - otherwise the workspace browser (the SAME Chrome the Browser panel screencasts),
+//   which it drives through the sandbox, so resolveFeatures only leaves it on with one.
+// With neither, the toggle adds nothing: the agent has no way to reach the web.
+const FIRECRAWL_SEARCH_INSTRUCTIONS = `
+
+The user has enabled web search for this turn. Look things up on the live web with your Firecrawl tools:
+- Call firecrawl_search to find current sources before answering anything time-sensitive, factual, or about current events.
+- When a result's excerpt is not enough, read that page with firecrawl_scrape.
+- Prefer what you found over your training data, and cite the URLs you actually used.`;
+
+const BROWSER_SEARCH_INSTRUCTIONS = `
 
 The user has enabled web search for this turn. Use your browser tools to look things up on the live web:
 - Navigate to relevant pages and read them before answering anything time-sensitive, factual, or about current events.
 - Prefer real browsing over your training data, and cite the URLs you actually visited.
 - The user can watch you browse in the Browser panel, so keep your navigation purposeful.`;
+
+/** What the "Search" toggle adds for a set of RESOLVED features, or '' when it can't search. */
+export function webSearchInstructions(f: ChatFeatures): string {
+  if (f.firecrawl) return FIRECRAWL_SEARCH_INSTRUCTIONS;
+  if (f.browser) return BROWSER_SEARCH_INSTRUCTIONS;
+  return '';
+}
 
 /**
  * Build the chat agent for a set of features. The server runs ONE (`chatAgent`, from
@@ -283,16 +300,17 @@ The user has enabled web search for this turn. Use your browser tools to look th
  */
 export function createChatAgent(f: ChatFeatures = defaultFeatures): Agent {
   const baseInstructions = chatInstructions(f);
+  const searchInstructions = webSearchInstructions(f);
   return new Agent({
     id: 'chat',
     name: 'Chat Assistant',
     description:
       'General conversational assistant that exercises the full chat UI: streamed text, reasoning, tool input/output, sources, and images. The reference agent for mastra-chat-kit.',
     // Dynamic so the AgentController "Search" toggle (request context `webSearch`) can switch
-    // the agent into browse-the-web mode. Static string otherwise.
+    // the agent into search-the-web mode. Static string otherwise.
     instructions: ({ requestContext }) =>
-      requestContext.get('webSearch') === true && f.browser
-        ? baseInstructions + WEB_SEARCH_INSTRUCTIONS
+      requestContext.get('webSearch') === true
+        ? baseInstructions + searchInstructions
         : baseInstructions,
     model: env.CHAT_MODEL,
     // Native goal mechanism (flagship controller demo). Configuring `goal` auto-registers

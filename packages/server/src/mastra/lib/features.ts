@@ -13,8 +13,10 @@ import { doltConfigured } from './dolt';
 export type ChatFeatures = {
   /** Shell sandbox (execute_command). */
   sandbox: boolean;
-  /** Headless browser + the Browser panel. */
+  /** Headless browser + the Browser panel. Also needs the sandbox. */
   browser: boolean;
+  /** Firecrawl search + scrape (lib/firecrawl.ts): on when FIRECRAWL_API_KEY is set. */
+  firecrawl: boolean;
   subagents: {
     code: boolean;
     research: boolean;
@@ -31,29 +33,35 @@ export type ChatFeatures = {
 export const FULL_FEATURES: ChatFeatures = {
   sandbox: true,
   browser: true,
+  firecrawl: true,
   subagents: { code: true, research: true, writer: true, review: true, data: true },
   generateImage: true,
   demoTools: true,
 };
 
 /**
- * Resolve the switches into what is actually available. A specialist is only offered
- * when what it works with is there, so the agent is never told about one that would
- * fail every call:
+ * Resolve the switches into what is actually available. A piece is only offered when
+ * what it works with is there, so the agent is never told about one that would fail
+ * every call:
+ * - the browser needs the sandbox: `@mastra/browser-viewer` gives the agent no browser
+ *   tools of its own, and the agent drives Chrome with the browser CLI through
+ *   execute_command;
  * - `code` needs the sandbox (it builds AND runs code);
- * - `research` needs the browser (it reads the live web);
+ * - `research` needs a way to read the live web: Firecrawl, or the browser;
  * - `data` needs Dolt.
  */
 export function resolveFeatures(
   input: ChatFeatures,
   { dolt = doltConfigured }: { dolt?: boolean } = {},
 ): ChatFeatures {
+  const browser = input.browser && input.sandbox;
   return {
     ...input,
+    browser,
     subagents: {
       ...input.subagents,
       code: input.subagents.code && input.sandbox,
-      research: input.subagents.research && input.browser,
+      research: input.subagents.research && (input.firecrawl || browser),
       data: input.subagents.data && dolt,
     },
   };
@@ -62,6 +70,7 @@ export function resolveFeatures(
 export const features: ChatFeatures = resolveFeatures({
   sandbox: env.WORKSPACE_SANDBOX,
   browser: env.WORKSPACE_BROWSER,
+  firecrawl: Boolean(env.FIRECRAWL_API_KEY),
   subagents: {
     code: env.SUBAGENT_CODE,
     research: env.SUBAGENT_RESEARCH,
