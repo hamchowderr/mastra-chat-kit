@@ -55,6 +55,9 @@ export function resolveToolCategory(toolName: string): ToolCategory | null {
   return CATEGORIES[toolName] ?? null;
 }
 
+/** Every tool name with a category (tests check each is a name the agent really sees). */
+export const CATEGORIZED_TOOLS: readonly string[] = Object.keys(CATEGORIES);
+
 /** Every tool in the `read` category: it looks things up and changes nothing. */
 export const READ_TOOLS: readonly string[] = Object.keys(CATEGORIES).filter(
   (name) => CATEGORIES[name] === 'read',

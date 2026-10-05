@@ -256,9 +256,11 @@ export function chatTools(f: ChatFeatures) {
     ...(f.demoTools ? { getWeather, searchKnowledge } : {}),
     ...(f.generateImage ? { generateImage } : {}),
     setGoal,
-    startSchedule,
-    stopSchedule,
-    listSchedules,
+    // Keyed by their ids: the key is the name the model is offered and that approvals,
+    // categories and the instructions use, so it must match `start_schedule` etc.
+    start_schedule: startSchedule,
+    stop_schedule: stopSchedule,
+    list_schedules: listSchedules,
   };
 }
 
