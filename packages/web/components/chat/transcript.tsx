@@ -91,7 +91,9 @@ export function SubmittedPlanCard({
   };
 
   return (
-    <Plan defaultOpen>
+    // `@container` (from Card) gives the card no width of its own inside the fit-width
+    // message bubble, so it would collapse to nothing; it sizes to its content instead.
+    <Plan defaultOpen className="w-full [container-type:normal]">
       <PlanHeader>
         <div>
           <PlanTitle>{heading}</PlanTitle>
