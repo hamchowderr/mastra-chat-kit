@@ -1,7 +1,6 @@
 'use client';
 
 import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { Agent, AgentContent, AgentHeader } from '@/components/ai-elements/agent';
 import {
   Confirmation,
@@ -52,7 +51,7 @@ import {
   ToolOutput,
 } from '@/components/ai-elements/tool';
 import { Composer, type ComposerSubmit, type ModelOption } from '@/components/chat/composer';
-import { PlanModeToggle } from '@/components/chat/plan-mode';
+import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
 import {
   AskUserPrompt,
   GeneratedImage,
@@ -166,10 +165,7 @@ export function AgentControllerChat({
   // composer's Plan toggle starts a turn in Plan mode to ask for one. Approving the plan
   // switches the session back to Chat — `mode_changed` — so the toggle follows it off.
   const { pendingPlan, activeMode, respondToPlan } = controller;
-  const [planMode, setPlanMode] = useState(false);
-  useEffect(() => {
-    if (activeMode === 'chat') setPlanMode(false);
-  }, [activeMode]);
+  const plan = usePlanMode(activeMode);
   const planView: PlanView = { pendingPlan, activeMode, respondToPlan };
   const {
     messages,
@@ -192,7 +188,7 @@ export function AgentControllerChat({
     sendMessage(text, {
       model,
       webSearch,
-      mode: planMode ? 'plan' : 'chat',
+      mode: plan.mode,
       files: files?.map((f) => ({ url: f.url, mediaType: f.mediaType, filename: f.filename })),
     });
 
@@ -228,7 +224,7 @@ export function AgentControllerChat({
   const composer = (
     <Composer
       onSend={handleSend}
-      toolsExtra={<PlanModeToggle on={planMode} onToggle={() => setPlanMode((v) => !v)} />}
+      toolsExtra={<PlanModeToggle on={plan.on} onToggle={plan.toggle} />}
       status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
       className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
       footerExtra={contextSlot}

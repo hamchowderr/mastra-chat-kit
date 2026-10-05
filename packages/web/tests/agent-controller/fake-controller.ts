@@ -16,12 +16,15 @@ const sse = (events: Event[]) =>
 
 export function fakeController({
   stream = [],
+  answer = [{ type: 'agent_end' }],
   threads = [],
   files = {},
   messages = {},
 }: {
   /** The events one /stream call plays back. */
   stream?: Event[];
+  /** The events one /answer call (a resumed run) plays back. */
+  answer?: Event[];
   threads?: Thread[];
   /** Workspace files by path (a submitted plan is read from one). */
   files?: Record<string, string>;
@@ -35,7 +38,7 @@ export function fakeController({
       const url = String(input);
       calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       if (url === '/api/agent-controller/stream') return sse(stream);
-      if (url === '/api/agent-controller/answer') return sse([{ type: 'agent_end' }]);
+      if (url === '/api/agent-controller/answer') return sse(answer);
       if (url === '/api/agent-controller/approve') return Response.json({ ok: true });
       if (url === '/api/agent-controller/threads') {
         return Response.json({
