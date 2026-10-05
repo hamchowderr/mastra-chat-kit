@@ -151,13 +151,30 @@ describe('Composer — attach and dictate', () => {
   });
 
   it('clears the text and the attachment once the message is sent', async () => {
+    const blobs = new Map<string, Blob>();
+    URL.createObjectURL = (blob: Blob) => {
+      const url = `blob:test/${blobs.size}`;
+      blobs.set(url, blob);
+      return url;
+    };
+    URL.revokeObjectURL = (url: string) => void blobs.delete(url);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => ({ ok: true, blob: async () => blobs.get(url) })),
+    );
     const onSend = vi.fn(async () => true);
     renderComposer(onSend);
     const box = screen.getByPlaceholderText('How can I help?') as HTMLTextAreaElement;
     fireEvent.change(box, { target: { value: 'Hello' } });
+    const file = new File(['png'], 'red.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Upload files'), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByAltText('red.png')).toBeInTheDocument());
+
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(onSend).toHaveBeenCalledWith(expect.objectContaining({ files: [expect.anything()] }));
     expect(box.value).toBe('');
+    await waitFor(() => expect(screen.queryByAltText('red.png')).not.toBeInTheDocument());
   });
 
   it('turns away a file the server would refuse, and says why', async () => {
