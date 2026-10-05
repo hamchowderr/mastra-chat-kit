@@ -403,6 +403,11 @@ its text and attachments and the server's reason is shown. It ships no colours o
 `className` sets the root (for example `bg-sidebar` to match your sidebar), and
 `--chat-panel-header-height` lines its header up with yours.
 
+`onToolEnd` (on `ChatPanel`, `ChatSwitcher`, or `useAgentControllerChat({ onToolEnd })`)
+is called each time the agent finishes a tool call, with the tool's name, its call id
+and whether it reported an error. A host uses it to refresh its own page after the agent
+changed something, e.g. `router.refresh()` once a write action ends.
+
 ### Fit it into your app
 
 `<ChatSwitcher />` takes options, so a host app changes what it needs without

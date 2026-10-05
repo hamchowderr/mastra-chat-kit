@@ -60,13 +60,33 @@ async function readEventStream(res: Response, onEvent: (event: ControllerEvent) 
   }
 }
 
+/** A tool call the agent finished: which tool, and whether it reported an error. */
+export type AgentControllerToolEnd = { toolName: string; toolCallId: string; isError: boolean };
+
+export type UseAgentControllerChatOptions = {
+  /** The stream route. Default `/api/agent-controller/stream`. */
+  endpoint?: string;
+  /**
+   * Called each time a tool call finishes, in a new turn or a resumed one. A host uses it
+   * to react to what the agent changed, e.g. refresh its own page after a write.
+   */
+  onToolEnd?: (tool: AgentControllerToolEnd) => void;
+};
+
 /**
  * The Agent Controller transport, mirroring `useChat`'s shape (`{ messages,
  * sendMessage, status }`) but speaking the AgentController SSE protocol instead of the
  * AI SDK UIMessage stream. POSTs `{ text, threadId }` to the proxy, parses the
  * `data:`-framed SSE, and folds each AgentControllerEvent into a transcript.
  */
-export function useAgentControllerChat(endpoint = '/api/agent-controller/stream') {
+export function useAgentControllerChat(options: string | UseAgentControllerChatOptions = {}) {
+  const { endpoint = '/api/agent-controller/stream', onToolEnd } =
+    typeof options === 'string' ? { endpoint: options } : options;
+  // The latest callback, so a host passing an inline function doesn't restart anything.
+  const onToolEndRef = useRef(onToolEnd);
+  onToolEndRef.current = onToolEnd;
+  // tool_end carries only the call id; tool_start names the tool.
+  const toolNames = useRef(new Map<string, string>());
   const [transcript, setTranscript] = useState<AgentControllerTranscript>(emptyTranscript);
   const [status, setStatus] = useState<AgentControllerStatus>('ready');
   // Recurring schedules the agent has set up (fetched, not folded from events —
@@ -158,6 +178,21 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
     refreshSchedules();
   }, []);
 
+  /** Fold one event into the transcript, and tell the host when a tool call finishes. */
+  const onEvent = useCallback((event: ControllerEvent) => {
+    const id = typeof event.toolCallId === 'string' ? event.toolCallId : '';
+    if (event.type === 'tool_start' && id && typeof event.toolName === 'string') {
+      toolNames.current.set(id, event.toolName);
+    }
+    if (event.type === 'tool_end' && id) {
+      const toolName =
+        (typeof event.toolName === 'string' && event.toolName) || toolNames.current.get(id) || '';
+      toolNames.current.delete(id);
+      onToolEndRef.current?.({ toolName, toolCallId: id, isError: event.isError === true });
+    }
+    setTranscript((s) => reduceAgentControllerEvent(s, event));
+  }, []);
+
   /**
    * Send a message. Resolves once the server has answered: `true` when it accepted the
    * turn (which then streams into the transcript on its own), `false` when it refused it
@@ -224,7 +259,7 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
         if (event.type === '__thread__' && typeof event.threadId === 'string') {
           threadRef.current = event.threadId;
         }
-        setTranscript((s) => reduceAgentControllerEvent(s, event));
+        onEvent(event);
       }).then(() => {
         setStatus('ready');
         // A completed turn may have created a new thread (or bumped an existing
@@ -235,7 +270,7 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
       }, fail);
       return true;
     },
-    [endpoint, refreshSchedules],
+    [endpoint, refreshSchedules, onEvent],
   );
 
   /**
@@ -272,9 +307,7 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
         });
-        await readEventStream(res, (event) =>
-          setTranscript((s) => reduceAgentControllerEvent(s, event)),
-        );
+        await readEventStream(res, onEvent);
         setStatus('ready');
         setRefreshSignal((n) => n + 1);
         refreshSchedules();
@@ -286,7 +319,7 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
         setStatus('error');
       }
     },
-    [refreshSchedules],
+    [refreshSchedules, onEvent],
   );
 
   /**
