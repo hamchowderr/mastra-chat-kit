@@ -157,6 +157,21 @@ describe('workspace routes read through deps, not the wiring', () => {
 });
 
 describe('controller routes validate input before touching the session', () => {
+  it('/agent-controller/stream rejects a message with no text and no files with 400', async () => {
+    const getSession = vi.fn(() => Promise.reject(new Error('must not be called')));
+    const route = find(
+      createControllerRoutes(deps({ getSession })),
+      '/agent-controller/stream',
+      'POST',
+    );
+    const { c, captured } = ctx({ body: { text: '  ', files: [] } });
+
+    await route.handler(c);
+
+    expect(captured.status).toBe(400);
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
   it('/agent-controller/approve rejects an unknown decision with 400', async () => {
     const getSession = vi.fn(() => Promise.reject(new Error('must not be called')));
     const route = find(
