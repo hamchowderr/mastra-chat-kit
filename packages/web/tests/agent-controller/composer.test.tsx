@@ -48,6 +48,7 @@ const renderComposer = (onSend = vi.fn()) =>
 describe('Composer — attach and dictate', () => {
   it('always offers attachments', () => {
     renderComposer();
+    expect(screen.getByLabelText('Attach images or files')).toBeInTheDocument();
     expect(screen.getByLabelText('Upload files')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('How can I help?')).toBeInTheDocument();
   });

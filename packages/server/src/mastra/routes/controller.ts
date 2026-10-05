@@ -36,8 +36,9 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         // client's submit-time blob→dataURL conversion, so it's safe to forward.
         files?: Array<{ url: string; mediaType: string; filename?: string }>;
       }>();
-      if (!text?.trim()) {
-        return c.json({ error: 'text is required' }, 400);
+      // An attachment alone is a message too (the composer sends an image with no text).
+      if (!text?.trim() && !files?.length) {
+        return c.json({ error: 'text or files is required' }, 400);
       }
       // Route the composer's "Search" toggle through the request context (not the
       // user message) so the agent's dynamic instructions flip into browse-the-web
@@ -101,7 +102,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
             await session.mode.switch({ modeId: mode });
           }
           await session.sendMessage({
-            content: text,
+            content: text ?? '',
             ...(messageFiles ? { files: messageFiles } : {}),
             ...(requestContext ? { requestContext } : {}),
           });
