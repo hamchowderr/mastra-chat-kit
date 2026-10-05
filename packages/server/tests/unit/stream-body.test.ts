@@ -52,6 +52,29 @@ describe('/agent-controller/stream body checks', () => {
     expect(res.getSession).not.toHaveBeenCalled();
   });
 
+  it('accepts the body the web hook sends for a new chat (threadId null)', async () => {
+    // use-agent-controller-chat sends its thread ref as it is: null until the server
+    // names a thread. Undefined fields drop out of the JSON.
+    const res = await post(
+      JSON.parse(JSON.stringify({ text: 'hi', threadId: null, model: undefined })),
+    );
+    expect(res.status).not.toBe(400);
+    expect(res.getSession).toHaveBeenCalled();
+  });
+
+  it('reads null optional fields as absent', async () => {
+    const res = await post({
+      text: 'hi',
+      threadId: null,
+      model: null,
+      mode: null,
+      webSearch: null,
+      files: [{ url: PNG, mediaType: 'image/png', filename: null }],
+    });
+    expect(res.status).not.toBe(400);
+    expect(res.getSession).toHaveBeenCalled();
+  });
+
   it.each([
     ['an http URL', 'http://169.254.169.254/latest/meta-data'],
     ['an https URL', 'https://example.com/cat.png'],
