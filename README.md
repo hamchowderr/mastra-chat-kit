@@ -461,6 +461,8 @@ Vercel · Netlify · Cloudflare, via Mastra's deployers (added as `deployer:` on
 **Mastra Cloud — managed.**
 `mastra auth`, then `mastra deploy --org <id> --project <name>` — gateway auto-seeded, managed libSQL provisioned. Deploy the Next.js web separately.
 
+**Cap request bodies at the reverse proxy.** On the internet, put a proxy that limits the request body size in front of both servers a message passes through: the Next.js web app (its `/api/agent-controller/stream` route reads the whole body before forwarding it) and the Mastra server. 28 MiB covers the largest message the chat accepts (4 attachments of 5 MB, base64-encoded: 29,010,604 bytes). The Mastra `/agent-controller/stream` route refuses a bigger body with a 413, but only after Mastra's own context middleware has read the whole body into memory, so that route check does not protect the process. Use nginx `client_max_body_size 28m;`, Caddy `request_body { max_size 28MiB }` (Caddy's `MB` is 1,000,000 bytes, too small), or the equivalent on your host.
+
 **Building the image yourself.** The build context is the **repo root**, not `packages/server` — the image installs from the workspace `pnpm-lock.yaml` so it can't drift onto versions dev and CI never used:
 
 ```bash
