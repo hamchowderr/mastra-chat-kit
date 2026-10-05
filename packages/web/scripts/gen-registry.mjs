@@ -343,8 +343,6 @@ const TOOL_VIEW_FILES = ['components/chat/tool-views.tsx', 'components/chat/tran
 const CHAT_FILES = [
   'components/chat/chat-switcher.tsx',
   'components/chat/agent-controller-chat.tsx',
-  // Plan mode UI (the composer's Plan toggle + the submit_plan card), imported by the chat.
-  'components/chat/plan-mode.tsx',
   // AgentController mode's own shell. chat-switcher.tsx imports agent-controller-sidebar and
   // workbench-panel directly, and workbench-panel pulls the four panels — so
   // omitting them shipped a chat-switcher that could not compile (bd b5y).
@@ -395,7 +393,8 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
 
 // 6b) chat-composer: the ONE composer (attachments, dictation, optional model picker
 // and web search), shared by the full shell and the side panel.
-const COMPOSER_FILES = ['components/chat/composer.tsx'];
+// plan-mode: the composer's Plan toggle and its state, used by the full shell and the panel.
+const COMPOSER_FILES = ['components/chat/composer.tsx', 'components/chat/plan-mode.tsx'];
 {
   const c = classify(COMPOSER_FILES);
   items.push({
@@ -403,7 +402,7 @@ const COMPOSER_FILES = ['components/chat/composer.tsx'];
     type: 'registry:component',
     title: 'Chat Composer',
     description:
-      'The shared chat composer: attachments with previews, dictation (where the browser supports speech recognition), and an optional model picker and web-search toggle.',
+      'The shared chat composer: attachments with previews, dictation (where the browser supports speech recognition), an optional model picker and web-search toggle, and the Plan toggle (plan-mode).',
     dependencies: c.npm,
     registryDependencies: regDeps(c, 'chat-composer'),
     files: COMPOSER_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),

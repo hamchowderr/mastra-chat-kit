@@ -14,8 +14,8 @@ our own copies of only the few we had to patch.
 |---|---|---|
 | `chat` | block | **The full skin** — history sidebar │ conversation │ the 4-tab workbench (browser, files, memory, schedules). **Install this for the complete experience.** |
 | `chat-minimal` | block | **A second skin** — conversation + composer + approvals only, no sidebar or workbench. For embedding an agent in a corner of an existing app. |
-| `chat-composer` | component | The one composer `chat` and `chat-panel` use: attachments, dictation, optional model picker and web search. |
-| `chat-panel` | block | **A third skin** — a docked side panel: a header (title, conversation history, new chat, your own buttons), a greeting and suggestions when empty, and a rounded composer card. No model picker. |
+| `chat-composer` | component | The one composer `chat` and `chat-panel` use: attachments, dictation, optional model picker and web search, and the Plan toggle (`plan-mode`). |
+| `chat-panel` | block | **A third skin** — a docked side panel: a header (title, conversation history, new chat, your own buttons), a greeting and suggestions when empty, and a rounded composer card with the Plan toggle (hide it with `plan={false}`). No model picker, no web search. |
 | `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
 | `chat-engine` | lib | The engine: Agent Controller SSE client, transcript reducer, and the data hooks that own every `/api/*` call. UI-free — imports only React. |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `agent-controller/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
