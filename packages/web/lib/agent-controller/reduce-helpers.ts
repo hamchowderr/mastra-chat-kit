@@ -192,6 +192,15 @@ export function upsertMessage(
     content: Array.isArray(msg.content) ? msg.content : normalizeContent(msg.content),
     ...(Array.isArray(raw) ? { parts: raw.slice() } : {}),
   };
+  // A resumed tool (submit_plan, ask_user) settles in a NEW message that repeats the call,
+  // with empty args, before its result. The call already shows in the message that made
+  // it, so the repeat is dropped and only its result is kept (paired back by id).
+  const earlierCalls = settledToolCallIds(messages.filter((x) => x.id !== m.id));
+  if (earlierCalls.size) {
+    m.content = m.content.filter(
+      (p) => p.type !== 'tool_call' || !earlierCalls.has((p as { id?: string }).id ?? ''),
+    );
+  }
   const idx = messages.findIndex((x) => x.id === m.id);
   if (idx === -1) {
     return [...messages, m];
