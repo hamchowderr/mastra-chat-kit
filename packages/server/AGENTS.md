@@ -56,6 +56,22 @@ const memory = await c.get('mastra').getAgent(deps.agentId).getMemory();
 
 ---
 
+## Tools and what can see them
+
+Every tool the agent can call needs a category in `lib/tool-categories.ts` (or a
+deliberate `null`), and `tests/unit/tool-categories.test.ts` checks each categorized
+name is one the agent is really offered. The name is the key the tool is registered
+under, not its `id`.
+
+Firecrawl (`lib/firecrawl.ts`) is the one set of tools from an outside MCP server.
+They are the AgentController's `tools` (resolved per run, so an outage costs one run
+its web search), the research subagent gets them through `allowedControllerTools`,
+and only `FIRECRAWL_TOOLS` (search, scrape) are offered out of the ~27 the server
+lists. Tests never call Firecrawl: `scripts/firecrawl-mock.ts` serves the real tool
+list from AIMock's MCP mock.
+
+---
+
 ## Boot Order (critical)
 
 `src/mastra/index.ts` must initialize in this exact order:

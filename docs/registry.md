@@ -432,7 +432,7 @@ the defaults are the kit's own demo setup.
 | `suggestions` | the demo prompts | The empty-state pills: `{ label, prompt }[]`. `[]` shows none. |
 | `greeting` | "What's on your mind today?" | The empty-state heading and the line under it. |
 | `models` | the kit's Anthropic + OpenAI list | The composer's model picker: a `{ id, name, provider }[]` list (first one selected), or `false` to hide it so every turn runs on the server's `CHAT_MODEL`. The server only honours ids on its model allowlist. |
-| `webSearch` | `true` | Show the composer's "Search the web" toggle. It drives the workspace browser, so hide it when the browser is off. |
+| `webSearch` | `true` | Show the composer's "Search the web" toggle. The server points the agent at Firecrawl when `FIRECRAWL_API_KEY` is set, otherwise at the workspace browser; hide the toggle when the server has neither. |
 
 `WorkbenchPanel` takes the same `tabs` list if you mount it yourself.
 

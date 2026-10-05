@@ -139,7 +139,7 @@ packages/server/
 │       ├── agents/
 │       │   ├── chat.ts             # The agent the controller drives (+ its inline tools)
 │       │   ├── code.ts             # Subagent: build/run in the sandbox
-│       │   ├── research.ts         # Subagent: browse + search + cite
+│       │   ├── research.ts         # Subagent: search the web + cite
 │       │   ├── writer.ts           # Subagent: long-form drafting
 │       │   ├── reviewer.ts         # Subagent: read-only audit
 │       │   └── data.ts             # Subagent: versioned SQL (only when Dolt is on)
@@ -148,6 +148,7 @@ packages/server/
 │       │   ├── workspace.ts        # Filesystem + shell sandbox + browser
 │       │   ├── memory.ts           # Shared Memory: LibSQLVector + fastembed recall
 │       │   ├── dolt.ts             # Optional versioned data, Git-style (mysql2)
+│       │   ├── firecrawl.ts        # Optional web search: Firecrawl's MCP server (search + scrape)
 │       │   ├── aimock.ts           # Routes LLM calls to AIMock when USE_AIMOCK=true
 │       │   └── …                   # image-store, processors, thread-utils, workspace-files
 │       └── tools/                  # Shared tools (dolt, schedule); inline tools live in agent files
@@ -157,6 +158,8 @@ packages/server/
 │   └── integration/                # Agent + controller flows through AIMock
 ├── fixtures/                       # AIMock fixtures (matched on turnIndex)
 ├── scripts/bake-studio.mjs         # Bakes Studio config for self-hosted serving
+├── scripts/firecrawl-mock.ts       # Firecrawl's MCP server, mocked (tests + local runs)
+├── scripts/capture-firecrawl-tools.ts # Refreshes fixtures/firecrawl-mcp-tools.json
 ├── prompts/                        # Parameterized prompts for AI coding agents
 ├── supabase/config.toml            # Only for the optional Postgres path — see docs/postgres.md
 ├── Dockerfile                      # Multi-stage; build context is the REPO ROOT
@@ -256,6 +259,36 @@ Optional switches turn parts of the agent off — `WORKSPACE_SANDBOX`, `WORKSPAC
 `_REVIEW` / `_DATA`, `TOOL_GENERATE_IMAGE`, `TOOL_DEMO`. All default to on; see the root
 README → *Switches, users and auth*. `MASTRA_JWT_SECRET` (shared with the web proxy) turns
 on auth and one Session per signed-in user.
+
+### Firecrawl web search
+
+`FIRECRAWL_API_KEY` turns on web search that needs no sandbox or browser
+(`src/mastra/lib/firecrawl.ts`):
+
+- **Where the tools come from.** Firecrawl's own MCP server, `firecrawl-mcp`
+  (`@mastra/firecrawl` is deprecated in its favour). Firecrawl hosts it at
+  `https://mcp.firecrawl.dev/v2/mcp` (Streamable HTTP), and `@mastra/mcp`'s `MCPClient`
+  connects to it with the key as an `Authorization: Bearer` header, so nothing is spawned
+  in the container. `FIRECRAWL_MCP_URL` points it at a self-hosted `firecrawl-mcp`
+  (`HTTP_STREAMABLE_SERVER=true`) instead.
+- **Which tools.** The server lists about 27; the kit offers two: `firecrawl_search` and
+  `firecrawl_scrape` (read one page). Crawl, map, agent, interact, monitors and the rest
+  spend many credits per call, run long jobs or act on pages.
+- **Who gets them.** They are the AgentController's `tools`, so the chat agent has them on
+  every run and the research subagent takes them through `allowedControllerTools`. The
+  research subagent is offered whenever Firecrawl is on, even with the sandbox and
+  browser off. The composer's Search toggle tells the agent to use them.
+- **Approvals.** Both are in the `read` category and auto-allowed, so they show no
+  approval card, and Plan mode can use them.
+- **Failures.** If the server can't be reached or rejects the key, that run has no
+  Firecrawl tools and carries on. A failed call (no credits left, a bad URL) comes back
+  to the agent as a tool error.
+
+Tests mock Firecrawl with AIMock's MCP mock (`scripts/firecrawl-mock.ts`), which lists
+the tools a real `firecrawl-mcp` lists (`fixtures/firecrawl-mcp-tools.json`, refreshed by
+`scripts/capture-firecrawl-tools.ts`). To run the server against it, start
+`pnpm exec tsx scripts/firecrawl-mock.ts 4021` and set
+`FIRECRAWL_MCP_URL=http://127.0.0.1:4021/mcp` with any `FIRECRAWL_API_KEY`.
 
 ---
 
