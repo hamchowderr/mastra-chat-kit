@@ -228,8 +228,8 @@ without losing the second:
 | `chat-tool-views` | Shared renderers turning real tool output into elements. Used by every skin. |
 | `chat` · `chat-minimal` · `chat-panel` | Just the looks. None depends on another. |
 
-Both skins drive the **same** `AgentController` session — same threads, same tool
-approvals, same subagents, same workspace. A third skin is one file rendering over
+All three skins drive the **same** `AgentController` session — same threads, same tool
+approvals, same subagents, same workspace. Another skin is one file rendering over
 `useAgentControllerChat()`; `docs/registry.md` covers how, and the build fails if a
 skin imports another skin or forgets a shared dependency.
 
@@ -501,7 +501,7 @@ Yes — that's the default posture for tests and it works for dev too. Every tes
 <details>
 <summary><b>Can I use a different chat UI?</b></summary>
 
-Yes. The engine (`chat-engine`) is UI-free — it owns the SSE transport, the transcript reducer, and every `/api/*` call, and imports nothing but React. A skin is rendering over one hook, so `chat` and `chat-minimal` both drive the same session and neither depends on the other. Colors and fonts need no work at all: the registry ships no `cssVars`, so any skin inherits your project's shadcn theme. See [`docs/registry.md`](docs/registry.md) for how to author one.
+Yes. The engine (`chat-engine`) is UI-free — it owns the SSE transport, the transcript reducer, and every `/api/*` call, and imports nothing but React. A skin is rendering over one hook, so `chat`, `chat-minimal` and `chat-panel` all drive the same session and none depends on another. Colors and fonts need no work at all: the registry ships no `cssVars`, so any skin inherits your project's shadcn theme. See [`docs/registry.md`](docs/registry.md) for how to author one.
 </details>
 
 <details>

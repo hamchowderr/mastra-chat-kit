@@ -129,6 +129,16 @@ describe('/agent-controller/stream', () => {
     expect(without.sendMessage.mock.calls[0]?.[0]?.files).toBeUndefined();
   });
 
+  it('sends whitespace-only text as no text when files are attached', async () => {
+    const session = fakeSession();
+    const url = 'data:image/png;base64,iVBORw0KGgo=';
+    await run(session, { text: '  \t ', files: [{ url, mediaType: 'image/png' }] });
+    expect(session.sendMessage.mock.calls[0]?.[0]?.content).toBe('');
+    expect(session.sendMessage.mock.calls[0]?.[0]?.files).toEqual([
+      { data: url, mediaType: 'image/png' },
+    ]);
+  });
+
   it('adds the tool category to tool_approval_required, null when uncategorized', async () => {
     const session = fakeSession(async () => {
       session.emit({

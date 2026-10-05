@@ -55,6 +55,19 @@ export const MODELS: ModelOption[] = [
   { id: 'openai/gpt-4.1-nano', name: 'GPT-4.1 nano', provider: 'openai' },
 ];
 
+// What the server's /agent-controller/stream accepts (server routes/stream-body.ts):
+// images, PDFs and plain text, at most 4 files of 5 MB each. Checked here too, so a file
+// the server would refuse is turned away when it is added, with a reason.
+const ATTACH_ACCEPT =
+  'image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/markdown,text/csv';
+const MAX_FILES = 4;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ATTACH_ERRORS = {
+  accept: 'Attach an image, a PDF or a text file.',
+  max_files: `Attach up to ${MAX_FILES} files.`,
+  max_file_size: 'Each file can be up to 5 MB.',
+} as const;
+
 const PROVIDER_HEADINGS: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI' };
 
 /** The picker's provider pages, in the order the models list them. */
@@ -88,6 +101,17 @@ function AttachmentsDisplay() {
       ))}
     </Attachments>
   );
+}
+
+/**
+ * The send button. It is enabled once there is text OR an attachment (an image alone is
+ * a message), and while a turn streams. Enter in the textarea checks this same button,
+ * so the keyboard follows the same rule.
+ */
+function SubmitButton({ hasText, status }: { hasText: boolean; status?: ChatStatus }) {
+  const attachments = usePromptInputAttachments();
+  const empty = !hasText && attachments.files.length === 0;
+  return <PromptInputSubmit disabled={empty && status !== 'streaming'} status={status} />;
 }
 
 /**
@@ -151,6 +175,7 @@ export function Composer({
   const [model, setModel] = useState(modelList[0]?.id ?? '');
   const [modelOpen, setModelOpen] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const currentModel = modelList.find((m) => m.id === model) ?? modelList[0];
 
   // The model selector pages by provider: arrows switch provider, its models list
@@ -179,12 +204,27 @@ export function Composer({
       files: message.files,
     });
     setText('');
+    setAttachError(null);
   };
 
   return (
-    <PromptInput onSubmit={handleSubmit} className={className} globalDrop multiple>
+    <PromptInput
+      onSubmit={handleSubmit}
+      className={className}
+      globalDrop
+      multiple
+      accept={ATTACH_ACCEPT}
+      maxFiles={MAX_FILES}
+      maxFileSize={MAX_FILE_SIZE}
+      onError={(err) => setAttachError(ATTACH_ERRORS[err.code])}
+    >
       <PromptInputHeader>
         <AttachmentsDisplay />
+        {attachError && (
+          <p role="alert" className="w-full px-1 text-destructive text-xs">
+            {attachError}
+          </p>
+        )}
       </PromptInputHeader>
       <PromptInputBody>
         <PromptInputTextarea
@@ -290,6 +330,9 @@ export function Composer({
           {footerExtra}
           {speech && speechSupported && (
             <SpeechInput
+              // A plain button: inside PromptInput's form, a default (submit) button would
+              // send the half-typed message the moment the mic is tapped.
+              type="button"
               size="icon-sm"
               variant="ghost"
               aria-label="Dictate"
@@ -298,7 +341,7 @@ export function Composer({
               }
             />
           )}
-          <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
+          <SubmitButton hasText={Boolean(text.trim())} status={status} />
         </div>
       </PromptInputFooter>
     </PromptInput>

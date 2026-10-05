@@ -295,6 +295,8 @@ const SERVER_FILES = [
   ['../server/src/mastra/routes/types.ts', 'src/mastra/routes/types.ts'],
   ['../server/src/mastra/routes/threads.ts', 'src/mastra/routes/threads.ts'],
   ['../server/src/mastra/routes/controller.ts', 'src/mastra/routes/controller.ts'],
+  // What /agent-controller/stream accepts: the body schema, attachment rules, body cap.
+  ['../server/src/mastra/routes/stream-body.ts', 'src/mastra/routes/stream-body.ts'],
   // The SSE forwarder /stream and /answer share. Imports only @mastra/core types.
   ['../server/src/mastra/routes/session-sse.ts', 'src/mastra/routes/session-sse.ts'],
   ['../server/src/mastra/routes/workspace.ts', 'src/mastra/routes/workspace.ts'],
@@ -309,8 +311,9 @@ items.push({
   title: 'Chat Server (AgentController route contract)',
   description:
     "The 16 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
-  // Every import in these files is @mastra/core/* or a sibling that ships here.
-  dependencies: ['@mastra/core'],
+  // Every import in these files is @mastra/core/*, hono (the route body cap), zod (the
+  // stream body's schema) or a sibling that ships here.
+  dependencies: ['@mastra/core', 'hono', 'zod'],
   registryDependencies: [],
   files: SERVER_FILES.map(([path, target]) => ({ path, type: 'registry:file', target })),
 });

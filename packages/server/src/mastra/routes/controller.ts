@@ -14,6 +14,7 @@ import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
 import { resourceIdOf } from './resource';
 import { sessionEventStream } from './session-sse';
+import { streamBodyLimit, streamBodySchema } from './stream-body';
 import type { ChatServerDeps } from './types';
 
 export const createControllerRoutes = (deps: ChatServerDeps) => [
@@ -24,22 +25,16 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
   // The web `agent-controller` transport maps these events onto the same elements.
   registerApiRoute('/agent-controller/stream', {
     method: 'POST',
+    // Cap the body before it is read: attachments are inline data URLs.
+    middleware: streamBodyLimit,
     handler: async (c) => {
-      const { text, threadId, model, mode, webSearch, files } = await c.req.json<{
-        text?: string;
-        threadId?: string;
-        model?: string;
-        // The composer's Plan toggle: 'plan' | 'chat'. Unknown ids are ignored.
-        mode?: string;
-        webSearch?: boolean;
-        // The composer's attachments (FileUIPart): `url` is a data URL after the
-        // client's submit-time blob→dataURL conversion, so it's safe to forward.
-        files?: Array<{ url: string; mediaType: string; filename?: string }>;
-      }>();
-      // An attachment alone is a message too (the composer sends an image with no text).
-      if (!text?.trim() && !files?.length) {
-        return c.json({ error: 'text or files is required' }, 400);
+      // Checked before the session is touched: shape, attachment schemes, media types
+      // and sizes (./stream-body.ts). A bad body is a 400, never a 500.
+      const parsed = streamBodySchema.safeParse(await c.req.json().catch(() => undefined));
+      if (!parsed.success) {
+        return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid body' }, 400);
       }
+      const { text, threadId, model, mode, webSearch, files } = parsed.data;
       // Route the composer's "Search" toggle through the request context (not the
       // user message) so the agent's dynamic instructions flip into browse-the-web
       // mode — driving the workspace browser the Browser panel screencasts.
@@ -102,7 +97,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
             await session.mode.switch({ modeId: mode });
           }
           await session.sendMessage({
-            content: text ?? '',
+            content: text,
             ...(messageFiles ? { files: messageFiles } : {}),
             ...(requestContext ? { requestContext } : {}),
           });
