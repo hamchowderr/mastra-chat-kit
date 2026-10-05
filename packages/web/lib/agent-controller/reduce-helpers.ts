@@ -23,6 +23,13 @@ import type {
 // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent is a wide discriminated union; we switch on .type
 export type AnyEvent = { type: string; [k: string]: any };
 
+/** A file the user attached, as a `file` part holding a data URL. */
+function userFile(data: string, mediaType?: string, filename?: string): AgentControllerContentPart {
+  const type = mediaType || 'application/octet-stream';
+  const url = data.startsWith('data:') ? data : `data:${type};base64,${data}`;
+  return { type: 'file', data: url, mediaType: type, ...(filename ? { filename } : {}) };
+}
+
 /**
  * Map one Mastra "format 2" UI part (core ≥1.52) to one or more transcript parts.
  * Assistant text arrives as `{type:'text',text}`; the user's own turn arrives as
@@ -46,6 +53,23 @@ function mapFormat2Part(p: any): AgentControllerContentPart | AgentControllerCon
   }
   if (t === 'data-user-message' && typeof p.data?.contents === 'string') {
     return { type: 'text', text: p.data.contents };
+  }
+  // With attachments the user's turn arrives as a list: its text, then each file
+  // (`data` is the data URL the composer sent).
+  if (t === 'data-user-message' && Array.isArray(p.data?.contents)) {
+    // biome-ignore lint/suspicious/noExplicitAny: user-message contents are loosely typed
+    return p.data.contents.flatMap((c: any): AgentControllerContentPart[] => {
+      if (c?.type === 'text' && typeof c.text === 'string' && c.text) {
+        return [{ type: 'text', text: c.text }];
+      }
+      if (c?.type === 'file' && typeof c.data === 'string') {
+        return [userFile(c.data, c.mediaType ?? c.mimeType, c.filename)];
+      }
+      if (c?.type === 'image' && typeof (c.data ?? c.image) === 'string') {
+        return [userFile(c.data ?? c.image, c.mimeType ?? c.mediaType ?? 'image/png')];
+      }
+      return [];
+    });
   }
   if (t === 'reasoning') {
     // Core ≥1.69 keeps the text on `reasoning` (and `details`); earlier cores on `text`.

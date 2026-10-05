@@ -279,16 +279,36 @@ export const emptyTranscript = (): AgentControllerTranscript => ({
  * stream when the conversation continues.
  */
 export function uiMessagesToAgentController(
-  messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }> }>,
+  messages: Array<{
+    id: string;
+    role: string;
+    parts?: Array<{
+      type: string;
+      text?: string;
+      url?: string;
+      mediaType?: string;
+      filename?: string;
+    }>;
+  }>,
 ): AgentControllerMessage[] {
   return messages.map((m) => ({
     id: m.id,
     role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
-    content: (m.parts ?? [])
-      .filter(
-        (p): p is { type: 'text'; text: string } => p.type === 'text' && typeof p.text === 'string',
-      )
-      .map((p) => ({ type: 'text', text: p.text })),
+    // Text, and the files a user attached (stored as file parts with a data URL).
+    content: (m.parts ?? []).flatMap((p): AgentControllerContentPart[] => {
+      if (p.type === 'text' && typeof p.text === 'string') return [{ type: 'text', text: p.text }];
+      if (p.type === 'file' && typeof p.url === 'string' && p.url.startsWith('data:')) {
+        return [
+          {
+            type: 'file',
+            data: p.url,
+            mediaType: p.mediaType ?? 'application/octet-stream',
+            ...(p.filename ? { filename: p.filename } : {}),
+          },
+        ];
+      }
+      return [];
+    }),
   }));
 }
 
