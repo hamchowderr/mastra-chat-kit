@@ -60,12 +60,6 @@ async function readEventStream(res: Response, onEvent: (event: ControllerEvent) 
   }
 }
 
-/**
- * The Agent Controller transport, mirroring `useChat`'s shape (`{ messages,
- * sendMessage, status }`) but speaking the AgentController SSE protocol instead of the
- * AI SDK UIMessage stream. POSTs `{ text, threadId }` to the proxy, parses the
- * `data:`-framed SSE, and folds each AgentControllerEvent into a transcript.
- */
 /** A tool call the agent finished: which tool, and whether it reported an error. */
 export type AgentControllerToolEnd = { toolName: string; toolCallId: string; isError: boolean };
 
@@ -79,6 +73,12 @@ export type UseAgentControllerChatOptions = {
   onToolEnd?: (tool: AgentControllerToolEnd) => void;
 };
 
+/**
+ * The Agent Controller transport, mirroring `useChat`'s shape (`{ messages,
+ * sendMessage, status }`) but speaking the AgentController SSE protocol instead of the
+ * AI SDK UIMessage stream. POSTs `{ text, threadId }` to the proxy, parses the
+ * `data:`-framed SSE, and folds each AgentControllerEvent into a transcript.
+ */
 export function useAgentControllerChat(options: string | UseAgentControllerChatOptions = {}) {
   const { endpoint = '/api/agent-controller/stream', onToolEnd } =
     typeof options === 'string' ? { endpoint: options } : options;
@@ -178,11 +178,6 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
     refreshSchedules();
   }, []);
 
-  /**
-   * Send a message. Resolves once the server has answered: `true` when it accepted the
-   * turn (which then streams into the transcript on its own), `false` when it refused it
-   * or could not be reached, with the reason in `transcript.error`.
-   */
   /** Fold one event into the transcript, and tell the host when a tool call finishes. */
   const onEvent = useCallback((event: ControllerEvent) => {
     const id = typeof event.toolCallId === 'string' ? event.toolCallId : '';
@@ -198,6 +193,11 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
     setTranscript((s) => reduceAgentControllerEvent(s, event));
   }, []);
 
+  /**
+   * Send a message. Resolves once the server has answered: `true` when it accepted the
+   * turn (which then streams into the transcript on its own), `false` when it refused it
+   * or could not be reached, with the reason in `transcript.error`.
+   */
   const sendMessage = useCallback(
     async (
       text: string,
