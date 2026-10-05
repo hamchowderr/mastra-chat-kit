@@ -87,10 +87,10 @@ describe('feature switches — a narrow assistant', () => {
 
 describe('plan mode', () => {
   // Mastra's submit_plan takes the PATH of a plan file the agent wrote, so both the chat
-  // instructions and Plan mode's own say to write it with the workspace write_file tool.
+  // instructions and Plan mode's own name the exact workspace tool to write it with.
   it('writes the plan with write_file and submits its path', () => {
     for (const text of [PLAN_MODE_INSTRUCTIONS, chatInstructions(FULL_FEATURES)]) {
-      expect(text).toContain('write_file');
+      expect(text).toContain('mastra_workspace_write_file');
       expect(text).toContain('submit_plan');
       expect(text).toContain('plans/');
     }
