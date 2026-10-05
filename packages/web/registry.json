@@ -348,7 +348,6 @@
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
-        "https://ai-sdk.dev/elements/api/registry/prompt-input.json",
         "https://ai-sdk.dev/elements/api/registry/queue.json",
         "https://ai-sdk.dev/elements/api/registry/reasoning.json",
         "https://ai-sdk.dev/elements/api/registry/shimmer.json",
@@ -368,11 +367,6 @@
           "path": "components/chat/agent-controller-chat.tsx",
           "type": "registry:component",
           "target": "components/chat/agent-controller-chat.tsx"
-        },
-        {
-          "path": "components/chat/plan-mode.tsx",
-          "type": "registry:component",
-          "target": "components/chat/plan-mode.tsx"
         },
         {
           "path": "components/chat/agent-controller-sidebar.tsx",
@@ -436,7 +430,7 @@
       "name": "chat-composer",
       "type": "registry:component",
       "title": "Chat Composer",
-      "description": "The shared chat composer: attachments with previews, dictation (where the browser supports speech recognition), and an optional model picker and web-search toggle.",
+      "description": "The shared chat composer: attachments with previews, dictation (where the browser supports speech recognition), an optional model picker and web-search toggle, and the Plan toggle (plan-mode).",
       "dependencies": [
         "ai",
         "lucide-react"
@@ -452,6 +446,11 @@
           "path": "components/chat/composer.tsx",
           "type": "registry:component",
           "target": "components/chat/composer.tsx"
+        },
+        {
+          "path": "components/chat/plan-mode.tsx",
+          "type": "registry:component",
+          "target": "components/chat/plan-mode.tsx"
         }
       ]
     },

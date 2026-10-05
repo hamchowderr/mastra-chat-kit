@@ -7,6 +7,7 @@ import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion } from '@/components/ai-elements/suggestion';
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
+import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
 import { AskUserPrompt } from '@/components/chat/tool-views';
 import { ApprovalCard, partKey, TranscriptPart } from '@/components/chat/transcript';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,12 @@ export type ChatPanelProps = {
   className?: string;
   /** Called when the agent finishes a tool call (e.g. refresh the host page after a write). */
   onToolEnd?: (tool: AgentControllerToolEnd) => void;
+  /**
+   * Show the composer's Plan toggle (default true): the next turn runs in Plan mode, the
+   * agent submits a plan, and approving it switches back to Chat. Hide it for an agent
+   * without a Plan mode.
+   */
+  plan?: boolean;
 };
 
 /**
@@ -69,6 +76,7 @@ export function ChatPanel({
   actions,
   className,
   onToolEnd,
+  plan = true,
 }: ChatPanelProps) {
   const controller = useAgentControllerChat({ onToolEnd });
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
@@ -86,12 +94,16 @@ export function ChatPanel({
     !transcript.pendingPlan;
 
   // The shared composer hands over the text and any attached files (images, PDFs …).
+  // The Plan toggle: a turn names its mode only while the toggle is shown.
+  const planMode = usePlanMode(controller.activeMode);
+  const mode = plan ? planMode.mode : undefined;
   const handleSend = ({ text, files }: ComposerSubmit) =>
     sendMessage(text, {
+      mode,
       files: files?.map((f) => ({ url: f.url, mediaType: f.mediaType, filename: f.filename })),
     });
   const send = (text: string) => {
-    if (text.trim() && !busy) void sendMessage(text.trim());
+    if (text.trim() && !busy) void sendMessage(text.trim(), { mode });
   };
 
   return (
@@ -207,8 +219,8 @@ export function ChatPanel({
         </p>
       )}
 
-      {/* The kit's shared composer: attach and dictate on the left of the send button,
-          one rounded card. No model picker and no web search in a side panel. */}
+      {/* The kit's shared composer: Plan and attach on the left, dictate beside the send
+          button, one rounded card. No model picker and no web search in a side panel. */}
       <div className="shrink-0 p-3 pt-1">
         <Composer
           onSend={handleSend}
@@ -216,6 +228,9 @@ export function ChatPanel({
           models={false}
           webSearch={false}
           placeholder={placeholder}
+          toolsExtra={
+            plan ? <PlanModeToggle on={planMode.on} onToggle={planMode.toggle} /> : undefined
+          }
           className="m-0"
         />
       </div>
