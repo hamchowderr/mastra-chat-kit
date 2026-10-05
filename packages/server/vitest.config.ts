@@ -34,7 +34,10 @@ export default defineConfig({
       // NODE_ENV=test gates OM + the agent workspace OFF (see lib/memory.ts + agents/chat.ts)
       // so AIMock runs stay hermetic — the controller still supplies its own workspace.
       NODE_ENV: 'test',
+      // Set here, not inherited: a shell that exports a real CHAT_MODEL or USE_AIMOCK=false
+      // (a developer's own agent settings) must never send a test run to a real model.
       USE_AIMOCK: 'true',
+      CHAT_MODEL: 'anthropic/claude-sonnet-4-6',
       AIMOCK_URL: 'http://127.0.0.1:4010',
       // Route provider SDKs at AIMock (anthropic appends /messages to this base).
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:4010/v1',

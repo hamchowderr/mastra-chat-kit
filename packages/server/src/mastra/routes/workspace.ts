@@ -55,7 +55,7 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
       try {
         browser = await deps.getBrowser();
       } catch {
-        // The browser is switched off (WORKSPACE_BROWSER / WORKSPACE_MODE=plans).
+        // The browser is switched off (WORKSPACE_BROWSER).
         return c.json({ error: 'browser not available' }, 404);
       }
       try {

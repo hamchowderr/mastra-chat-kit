@@ -65,10 +65,9 @@ export function getChatBrowserInstance(): BrowserViewer {
  * policy. The ONE place that policy lives, so tests that pass a temp `root`
  * exercise the same rules the live app runs with.
  *
- * `features` (lib/features.ts) decides what it carries. `plans` mode keeps only the
- * filesystem — the folder `write_plan` writes to and the Plan card reads from — and
- * hides every workspace tool from the agent. In `full` mode the sandbox and browser
- * each have their own switch.
+ * `features` (lib/features.ts) decides what it carries: the filesystem always, and the
+ * sandbox and browser each behind their own switch. Plan mode writes its plan file here
+ * with the write_file tool (Mastra's submit_plan takes that file's path).
  */
 export function createChatWorkspace({
   root = WORKSPACE_ROOT,
@@ -79,13 +78,6 @@ export function createChatWorkspace({
   browser?: MastraBrowser;
   features?: ChatFeatures;
 } = {}): Workspace {
-  if (features.workspaceMode === 'plans') {
-    return new Workspace({
-      id: 'chat-workspace',
-      filesystem: new LocalFilesystem({ basePath: root }),
-      tools: { enabled: false },
-    });
-  }
   return new Workspace({
     id: 'chat-workspace',
     filesystem: new LocalFilesystem({ basePath: root }),

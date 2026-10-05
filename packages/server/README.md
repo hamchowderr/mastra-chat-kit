@@ -252,8 +252,7 @@ See `.env.example` for the full list with comments. Minimum required:
 - `TURSO_DATABASE_URL` — storage; defaults to `file:./mastra.db` for local dev (set a `libsql://` URL + `TURSO_AUTH_TOKEN` for Turso in prod)
 - At least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`
 
-Optional switches turn parts of the agent off — `WORKSPACE_MODE` (`full` | `plans`),
-`WORKSPACE_SANDBOX`, `WORKSPACE_BROWSER`, `SUBAGENT_CODE` / `_RESEARCH` / `_WRITER` /
+Optional switches turn parts of the agent off — `WORKSPACE_SANDBOX`, `WORKSPACE_BROWSER`, `SUBAGENT_CODE` / `_RESEARCH` / `_WRITER` /
 `_REVIEW` / `_DATA`, `TOOL_GENERATE_IMAGE`, `TOOL_DEMO`. All default to on; see the root
 README → *Switches, users and auth*. `MASTRA_JWT_SECRET` (shared with the web proxy) turns
 on auth and one Session per signed-in user.

@@ -37,7 +37,6 @@ const CATEGORIES: Record<string, ToolCategory> = {
 
   // Edit: changes files or data, but runs nothing.
   doltWrite: 'edit',
-  write_plan: 'edit',
   [FILESYSTEM.WRITE_FILE]: 'edit',
   [FILESYSTEM.EDIT_FILE]: 'edit',
   [FILESYSTEM.AST_EDIT]: 'edit',
@@ -55,3 +54,20 @@ const CATEGORIES: Record<string, ToolCategory> = {
 export function resolveToolCategory(toolName: string): ToolCategory | null {
   return CATEGORIES[toolName] ?? null;
 }
+
+/** Every tool in the `read` category: it looks things up and changes nothing. */
+export const READ_TOOLS: readonly string[] = Object.keys(CATEGORIES).filter(
+  (name) => CATEGORIES[name] === 'read',
+);
+
+/**
+ * What the agent may use in Plan mode (the mode's `availableTools`, Mastra's per-mode
+ * allowlist): the read tools to investigate, the workspace write_file tool for the plan
+ * file, and submit_plan. Nothing else is visible or runnable in that mode, so an
+ * "Always allow" on edits can't let a Plan turn change anything but its plan file.
+ */
+export const PLAN_MODE_TOOLS: readonly string[] = [
+  ...READ_TOOLS,
+  FILESYSTEM.WRITE_FILE,
+  'submit_plan',
+];
