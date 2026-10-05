@@ -2,6 +2,7 @@
 
 import { CheckIcon, XIcon } from 'lucide-react';
 import { useState } from 'react';
+import { Attachment, AttachmentPreview, Attachments } from '@/components/ai-elements/attachments';
 import {
   Confirmation,
   ConfirmationAction,
@@ -188,6 +189,25 @@ export function TranscriptPart({
         <ReasoningTrigger />
         <ReasoningContent>{(part as { thinking: string }).thinking}</ReasoningContent>
       </Reasoning>
+    );
+  }
+  if (part.type === 'file') {
+    // A file the user attached: a thumbnail for an image, a labelled chip otherwise.
+    const file = part as { data: string; mediaType: string; filename?: string };
+    return (
+      <Attachments variant="grid">
+        <Attachment
+          data={{
+            id: file.data.slice(-24),
+            type: 'file',
+            url: file.data,
+            mediaType: file.mediaType,
+            filename: file.filename,
+          }}
+        >
+          <AttachmentPreview />
+        </Attachment>
+      </Attachments>
     );
   }
   if (part.type === 'image') {
