@@ -36,6 +36,11 @@ class FakeRecognition {
 afterEach(() => {
   // biome-ignore lint/suspicious/noExplicitAny: test-only global
   delete (window as any).webkitSpeechRecognition;
+  // biome-ignore lint/suspicious/noExplicitAny: test-only global
+  delete (URL as any).createObjectURL;
+  // biome-ignore lint/suspicious/noExplicitAny: test-only global
+  delete (URL as any).revokeObjectURL;
+  vi.unstubAllGlobals();
 });
 
 const renderComposer = (onSend = vi.fn()) =>
@@ -78,20 +83,23 @@ describe('Composer — attach and dictate', () => {
     expect(box.value).toBe('Find grants for packaging');
   });
 
-  it('sends an image with an empty message box', async () => {
-    const PNG = 'data:image/png;base64,iVBORw0KGgo=';
-    vi.stubGlobal(
-      'URL',
-      Object.assign(URL, { createObjectURL: () => 'blob:red', revokeObjectURL() {} }),
-    );
+  it('sends an image with an empty message box, as a data URL', async () => {
+    // jsdom has no blob: URLs, so stand in for the browser's: createObjectURL hands out
+    // a URL for the File, and fetching that URL returns the File. The conversion to a
+    // data URL is PromptInput's own, and FileReader is jsdom's real one, so the URL sent
+    // is built from the file's actual bytes. (A Response wrapping a jsdom Blob is not a
+    // stand-in: Node 22's fetch throws on it, and Node 24 reads it as "[object Blob]".)
+    const blobs = new Map<string, Blob>();
+    URL.createObjectURL = (blob: Blob) => {
+      const url = `blob:test/${blobs.size}`;
+      blobs.set(url, blob);
+      return url;
+    };
+    URL.revokeObjectURL = (url: string) => void blobs.delete(url);
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(new Blob(['png'], { type: 'image/png' }))),
+      vi.fn(async (url: string) => ({ ok: true, blob: async () => blobs.get(url) })),
     );
-    vi.spyOn(FileReader.prototype, 'readAsDataURL').mockImplementation(function (this: FileReader) {
-      Object.defineProperty(this, 'result', { value: PNG });
-      this.onloadend?.({} as ProgressEvent<FileReader>);
-    });
     const onSend = vi.fn();
     renderComposer(onSend);
     const submit = screen.getByRole('button', { name: 'Submit' });
@@ -105,11 +113,51 @@ describe('Composer — attach and dictate', () => {
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     const sent = onSend.mock.calls[0][0];
     expect(sent.text).toBe('');
+    // "png" in base64. Never a blob: URL — the server refuses those.
     expect(sent.files).toEqual([
-      expect.objectContaining({ mediaType: 'image/png', filename: 'red.png', url: PNG }),
+      expect.objectContaining({
+        mediaType: 'image/png',
+        filename: 'red.png',
+        url: 'data:image/png;base64,cG5n',
+      }),
     ]);
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+  });
+
+  it('keeps the text and the attachment when the message is not sent', async () => {
+    const blobs = new Map<string, Blob>();
+    URL.createObjectURL = (blob: Blob) => {
+      const url = `blob:test/${blobs.size}`;
+      blobs.set(url, blob);
+      return url;
+    };
+    URL.revokeObjectURL = (url: string) => void blobs.delete(url);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => ({ ok: true, blob: async () => blobs.get(url) })),
+    );
+    // The skin reports the server refused the turn.
+    const onSend = vi.fn(async () => false);
+    renderComposer(onSend);
+    const box = screen.getByPlaceholderText('How can I help?') as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'What is this?' } });
+    const file = new File(['png'], 'red.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Upload files'), { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByAltText('red.png')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(box.value).toBe('What is this?'));
+    expect(screen.getByAltText('red.png')).toBeInTheDocument();
+  });
+
+  it('clears the text and the attachment once the message is sent', async () => {
+    const onSend = vi.fn(async () => true);
+    renderComposer(onSend);
+    const box = screen.getByPlaceholderText('How can I help?') as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'Hello' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(box.value).toBe('');
   });
 
   it('turns away a file the server would refuse, and says why', async () => {

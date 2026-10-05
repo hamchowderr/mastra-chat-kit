@@ -15,13 +15,24 @@ export type AgentControllerStatus = 'ready' | 'streaming' | 'error';
 type ControllerEvent = { type: string; [k: string]: unknown };
 
 /**
+ * Why the server refused a request: its own `{ error }` message when it sent one (a 400
+ * says what was wrong with the message, a 413 that it was too large), otherwise the
+ * status. A proxy's HTML error page is not shown.
+ */
+async function refusalReason(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+  if (typeof body?.error === 'string' && body.error) return body.error;
+  return `controller stream failed: ${res.status}`;
+}
+
+/**
  * Read a `data:`-framed SSE response of AgentControllerEvents to the end, handing
  * each parsed event to `onEvent`. Shared by a new message (/stream) and an ask_user
  * answer (/answer), which both stream a run back the same way.
  */
 async function readEventStream(res: Response, onEvent: (event: ControllerEvent) => void) {
   if (!res.ok || !res.body) {
-    throw new Error(`controller stream failed: ${res.status}`);
+    throw new Error(await refusalReason(res));
   }
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -147,6 +158,11 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
     refreshSchedules();
   }, []);
 
+  /**
+   * Send a message. Resolves once the server has answered: `true` when it accepted the
+   * turn (which then streams into the transcript on its own), `false` when it refused it
+   * or could not be reached, with the reason in `transcript.error`.
+   */
   const sendMessage = useCallback(
     async (
       text: string,
@@ -157,9 +173,9 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
         mode?: string;
         files?: Array<{ url: string; mediaType: string; filename?: string }>;
       },
-    ) => {
+    ): Promise<boolean> => {
       if (!text.trim() && !opts?.files?.length) {
-        return;
+        return false;
       }
       // NOTE: no optimistic user message — the AgentController echoes the user turn as its
       // own `message_start`/`message_end` (role=user) at the start of the run. Adding
@@ -167,8 +183,17 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
       setTranscript((s) => ({ ...s, error: null, done: false }));
       setStatus('streaming');
 
+      const fail = (err: unknown) => {
+        setTranscript((s) => ({
+          ...s,
+          error: err instanceof Error ? err.message : String(err),
+        }));
+        setStatus('error');
+      };
+
+      let res: Response;
       try {
-        const res = await fetch(endpoint, {
+        res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           // The composer's model / web-search / attachment selections ride along so
@@ -183,25 +208,32 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
             files: opts?.files,
           }),
         });
-        await readEventStream(res, (event) => {
-          if (event.type === '__thread__' && typeof event.threadId === 'string') {
-            threadRef.current = event.threadId;
-          }
-          setTranscript((s) => reduceAgentControllerEvent(s, event));
-        });
+      } catch (err) {
+        fail(err);
+        return false;
+      }
+      // Refused (a bad message, too large, signed out …): say why, and tell the caller,
+      // so the composer can keep what was typed and attached.
+      if (!res.ok) {
+        fail(new Error(await refusalReason(res)));
+        return false;
+      }
+
+      // Accepted. The turn streams on; the caller does not wait for it to finish.
+      void readEventStream(res, (event) => {
+        if (event.type === '__thread__' && typeof event.threadId === 'string') {
+          threadRef.current = event.threadId;
+        }
+        setTranscript((s) => reduceAgentControllerEvent(s, event));
+      }).then(() => {
         setStatus('ready');
         // A completed turn may have created a new thread (or bumped an existing
         // one) — nudge the sidebar to refetch.
         setRefreshSignal((n) => n + 1);
         // The turn may also have created or paused a schedule — refresh the panel.
         refreshSchedules();
-      } catch (err) {
-        setTranscript((s) => ({
-          ...s,
-          error: err instanceof Error ? err.message : String(err),
-        }));
-        setStatus('error');
-      }
+      }, fail);
+      return true;
     },
     [endpoint, refreshSchedules],
   );

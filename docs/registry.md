@@ -392,9 +392,12 @@ browser's own speech recognition (Chrome, Edge, Safari 14.5+ including iOS) and 
 simply not shown where that is missing. Attached images reach the model as image
 parts (`tests/integration/attachments.test.ts`), and an image can be sent with no
 text. The server accepts only inline `data:` URLs of images, PDFs and plain text, at
-most 4 files of 5 MB each, and caps the request body (`routes/stream-body.ts` in
-`chat-server`); the composer applies the same limits when a file is added and says
-why it refused one. It ships no colours of its own:
+most 4 files of 5 MB each, and refuses an oversized body with a 413
+(`routes/stream-body.ts` in `chat-server`). That route check runs after Mastra has
+read the body, so a server on the internet also needs a body-size cap at its reverse
+proxy (README, Deployment). The composer applies the same limits when a file is added
+and says why it refused one, and when the server refuses a message the composer keeps
+its text and attachments and the server's reason is shown. It ships no colours of its own:
 `className` sets the root (for example `bg-sidebar` to match your sidebar), and
 `--chat-panel-header-height` lines its header up with yours.
 

@@ -144,7 +144,11 @@ export function Composer({
   placeholder = 'Ask anything…',
   speech = true,
 }: {
-  onSend: (submit: ComposerSubmit) => void;
+  /**
+   * Send the message. Return (or resolve to) `false` when it was not sent: the composer
+   * then keeps the text and the attachments so nothing has to be redone.
+   */
+  onSend: (submit: ComposerSubmit) => unknown;
   status?: ChatStatus;
   className?: string;
   /** Rendered in the footer, right of the tools (e.g. the live token-usage Context). */
@@ -191,20 +195,28 @@ export function Composer({
       MODEL_GROUPS[(providerIdx + dir + MODEL_GROUPS.length) % MODEL_GROUPS.length].provider,
     );
 
-  const handleSubmit = (message: PromptInputMessage) => {
+  const handleSubmit = async (message: PromptInputMessage) => {
     const hasText = Boolean(message.text?.trim());
     const hasAttachments = Boolean(message.files?.length);
     if (!hasText && !hasAttachments) {
       return;
     }
-    onSend({
-      text: message.text ?? '',
+    const typed = message.text ?? '';
+    // PromptInput has already emptied the box (it resets the form on submit).
+    setText('');
+    setAttachError(null);
+    const sent = await onSend({
+      text: typed,
       model,
       webSearch: showWebSearch && webSearch,
       files: message.files,
     });
-    setText('');
-    setAttachError(null);
+    if (sent === false) {
+      // Refused: put the text back (unless something new was typed meanwhile), and
+      // throw so PromptInput keeps the attachments instead of clearing them.
+      setText((now) => now || typed);
+      throw new Error('message not sent');
+    }
   };
 
   return (
