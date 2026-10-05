@@ -299,6 +299,7 @@
         "@mastra-chat-kit/image",
         "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/attachments.json",
         "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
         "https://ai-sdk.dev/elements/api/registry/confirmation.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
