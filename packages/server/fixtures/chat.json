@@ -858,7 +858,7 @@
     },
 
     {
-      "_comment": "FIRECRAWL (lib/firecrawl.ts) — tests/integration/firecrawl.test.ts and the dev:mock run, with Firecrawl's MCP server mocked by AIMock (aimock.json `mcp`, or tests/helpers/firecrawl-mock.ts). Hop 1 searches; hop 2 matches only when the tool result carries the mocked page's URL, so the answer is grounded in what Firecrawl returned.",
+      "_comment": "FIRECRAWL (lib/firecrawl.ts) — tests/integration/firecrawl.test.ts and a local run, with Firecrawl's MCP server mocked by AIMock's MCPMock (scripts/firecrawl-mock.ts). Hop 1 searches; hop 2 matches only when the tool result carries the mocked page's URL, so the answer is grounded in what Firecrawl returned.",
       "match": {
         "userMessage": "Search the web for the latest Mastra release.",
         "hasToolResult": false

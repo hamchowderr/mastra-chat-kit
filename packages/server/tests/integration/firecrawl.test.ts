@@ -25,6 +25,7 @@ let root: string;
 let controller: AgentController;
 let AUTO_ALLOWED_TOOLS: readonly string[] = [];
 let disconnectFirecrawl: () => Promise<void>;
+let getFirecrawlTools: () => Promise<Record<string, unknown>>;
 
 beforeAll(async () => {
   fc = await startFirecrawlMock();
@@ -35,7 +36,7 @@ beforeAll(async () => {
   vi.stubEnv('WORKSPACE_ROOT', root);
   // Dynamic imports: env.ts reads process.env once, when it first loads.
   const ac = await import('../../src/mastra/lib/agent-controller');
-  ({ disconnectFirecrawl } = await import('../../src/mastra/lib/firecrawl'));
+  ({ disconnectFirecrawl, getFirecrawlTools } = await import('../../src/mastra/lib/firecrawl'));
   AUTO_ALLOWED_TOOLS = ac.AUTO_ALLOWED_TOOLS;
   controller = ac.createChatAgentController({
     storage: new InMemoryStore(),
@@ -150,5 +151,21 @@ describe('Firecrawl web search (AIMock + mocked Firecrawl MCP, sandbox off)', ()
     // The specialist's own request offered Firecrawl (through allowedControllerTools).
     const specialist = offered.find((names) => !names.includes('subagent'));
     expect(specialist).toEqual(expect.arrayContaining(['firecrawl_search', 'firecrawl_scrape']));
+  });
+
+  // Mastra's shutdown() (the server runs it on SIGINT/SIGTERM) destroys every registered
+  // controller; destroying ours must close the Firecrawl connection.
+  it('destroying the controller disconnects Firecrawl', async () => {
+    expect(Object.keys(await getFirecrawlTools())).toHaveLength(2);
+    const requests = fc.authorizations().length;
+    // Connected and cached: asking again sends nothing.
+    await getFirecrawlTools();
+    expect(fc.authorizations().length).toBe(requests);
+
+    await controller.destroy();
+    // The cache and connection are gone, so the next ask connects and lists again.
+    const afterDestroy = fc.authorizations().length;
+    expect(Object.keys(await getFirecrawlTools())).toHaveLength(2);
+    expect(fc.authorizations().length).toBeGreaterThan(afterDestroy);
   });
 });

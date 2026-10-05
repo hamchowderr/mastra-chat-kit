@@ -33,7 +33,12 @@ import { researchSubagentFor } from '../agents/research';
 import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
 import { type ChatFeatures, features as defaultFeatures } from './features';
-import { FIRECRAWL_TOOLS, getFirecrawlTools } from './firecrawl';
+import {
+  DISCOVERY_BACKOFF_MS,
+  disconnectFirecrawl,
+  FIRECRAWL_TOOLS,
+  getFirecrawlTools,
+} from './firecrawl';
 import { createDefaultMemory, getSharedStore } from './memory';
 import { PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
 import {
@@ -182,7 +187,26 @@ export function createChatAgentController(opts?: {
     // on the controller reach the chat agent on every run, and the research subagent
     // through its `allowedControllerTools`. Resolved per run, so a Firecrawl outage only
     // costs that run its web search.
-    ...(f.firecrawl ? { tools: () => getFirecrawlTools() } : {}),
+    //
+    // The interval handler is how the Firecrawl connection gets closed: Mastra's
+    // shutdown() (run by the server on SIGINT/SIGTERM) destroys every registered
+    // controller, and destroy() calls each handler's `shutdown`. Its tick discovers the
+    // tools at init and retries after a failure, so the first message rarely waits.
+    ...(f.firecrawl
+      ? {
+          tools: () => getFirecrawlTools(),
+          intervalHandlers: [
+            {
+              id: 'firecrawl',
+              intervalMs: DISCOVERY_BACKOFF_MS,
+              handler: async () => {
+                await getFirecrawlTools();
+              },
+              shutdown: () => disconnectFirecrawl(),
+            },
+          ],
+        }
+      : {}),
     // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.

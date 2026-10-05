@@ -75,6 +75,8 @@ export type FirecrawlMock = {
   url: string;
   /** The Authorization header of every request the mock received. */
   authorizations(): string[];
+  /** Every tool call that reached the mock, in order. */
+  calls: { name: string; args: unknown }[];
   stop(): Promise<void>;
 };
 
@@ -86,11 +88,20 @@ export type FirecrawlMock = {
  */
 export async function startFirecrawlMock(port = 0): Promise<FirecrawlMock> {
   const mock = new MCPMock({ serverInfo: { name: 'firecrawl-fastmcp', version: '3.27.3' } });
-  for (const def of firecrawlToolList()) mock.addTool(def);
-  mock.onToolCall('firecrawl_search', () => JSON.stringify(searchResponse()));
-  mock.onToolCall('firecrawl_scrape', (args) =>
-    JSON.stringify(scrapeResponse(String((args as { url?: string })?.url ?? MOCK_RESULT.url))),
-  );
+  const calls: { name: string; args: unknown }[] = [];
+  for (const def of firecrawlToolList()) {
+    mock.addTool(def);
+    mock.onToolCall(def.name, (args) => {
+      calls.push({ name: def.name, args });
+      if (def.name === 'firecrawl_search') return JSON.stringify(searchResponse());
+      if (def.name === 'firecrawl_scrape') {
+        return JSON.stringify(
+          scrapeResponse(String((args as { url?: string })?.url ?? MOCK_RESULT.url)),
+        );
+      }
+      return '{}';
+    });
+  }
   const seen: string[] = [];
   const server = createServer((req, res) => {
     seen.push(req.headers.authorization ?? '');
@@ -113,6 +124,7 @@ export async function startFirecrawlMock(port = 0): Promise<FirecrawlMock> {
     mock,
     url: `http://127.0.0.1:${bound}/mcp`,
     authorizations: () => [...seen],
+    calls,
     stop: () =>
       new Promise<void>((resolve) => {
         server.close(() => resolve());

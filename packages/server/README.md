@@ -274,15 +274,26 @@ on auth and one Session per signed-in user.
 - **Which tools.** The server lists about 27; the kit offers two: `firecrawl_search` and
   `firecrawl_scrape` (read one page). Crawl, map, agent, interact, monitors and the rest
   spend many credits per call, run long jobs or act on pages.
+- **Narrowed inputs.** Their schemas are cut down before the agent sees them, and tools
+  are rebuilt from the narrowed definitions (`listToolDefinitionsWithErrors` →
+  `toolFromDefinition`). Removed: `alexandria` (paid data providers), `actions` (click,
+  type, run JavaScript), `profile`, `proxy`, `jsonOptions`, `domainTools`, `toolDetail`,
+  from scrape and from search's `scrapeOptions`. Search's `sources` is required and
+  limited to `web` / `news` / `images`, because with an API key Firecrawl searches
+  `web` + `alexandria` when it is omitted. The schemas forbid extra properties, so a call
+  that sends a removed input fails validation and never reaches Firecrawl.
 - **Who gets them.** They are the AgentController's `tools`, so the chat agent has them on
   every run and the research subagent takes them through `allowedControllerTools`. The
   research subagent is offered whenever Firecrawl is on, even with the sandbox and
   browser off. The composer's Search toggle tells the agent to use them.
 - **Approvals.** Both are in the `read` category and auto-allowed, so they show no
   approval card, and Plan mode can use them.
-- **Failures.** If the server can't be reached or rejects the key, that run has no
-  Firecrawl tools and carries on. A failed call (no credits left, a bad URL) comes back
-  to the agent as a tool error.
+- **Failures.** If the server can't be reached or rejects the key, runs have no
+  Firecrawl tools for the next 60s and carry on, without waiting on the server again. A
+  failed call (no credits left, a bad URL) comes back to the agent as a tool error.
+- **Connection.** The key is only sent to the configured host (`allowedHosts`). The
+  controller's `firecrawl` interval handler discovers the tools at start-up and closes
+  the connection when Mastra shuts down (SIGINT/SIGTERM destroy the controller).
 
 Tests mock Firecrawl with AIMock's MCP mock (`scripts/firecrawl-mock.ts`), which lists
 the tools a real `firecrawl-mcp` lists (`fixtures/firecrawl-mcp-tools.json`, refreshed by

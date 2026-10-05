@@ -67,7 +67,8 @@ Firecrawl (`lib/firecrawl.ts`) is the one set of tools from an outside MCP serve
 They are the AgentController's `tools` (resolved per run, so an outage costs one run
 its web search), the research subagent gets them through `allowedControllerTools`,
 and only `FIRECRAWL_TOOLS` (search, scrape) are offered out of the ~27 the server
-lists. Tests never call Firecrawl: `scripts/firecrawl-mock.ts` serves the real tool
+lists, with inputs that pay or act on pages removed (`restrictDefinition`). They run
+with no approval card, so never widen those schemas. Tests never call Firecrawl: `scripts/firecrawl-mock.ts` serves the real tool
 list from AIMock's MCP mock.
 
 ---

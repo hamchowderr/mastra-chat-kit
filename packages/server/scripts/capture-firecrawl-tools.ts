@@ -9,8 +9,8 @@
  * no request can reach Firecrawl or spend credits.
  *
  * The kit offers only lib/firecrawl.ts's FIRECRAWL_TOOLS, so those keep their full
- * definitions; every other tool keeps what an MCP tools/list entry must have (name,
- * description, inputSchema), which is enough to prove the kit filters them out.
+ * definitions. Every other tool is cut to its name and an empty object schema (the
+ * least a tools/list entry must have), which is enough to prove the kit filters them out.
  */
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -57,7 +57,7 @@ const tools = Object.values(definitions.firecrawl ?? {}).map((def) =>
         outputSchema: def.outputSchema,
         annotations: def.annotations,
       }
-    : { name: def.name, description: def.description, inputSchema: def.inputSchema },
+    : { name: def.name, inputSchema: { type: 'object' } },
 );
 
 writeFileSync(
