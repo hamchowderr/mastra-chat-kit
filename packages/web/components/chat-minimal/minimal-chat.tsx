@@ -2,26 +2,11 @@
 
 import { SendIcon, SquareIcon } from 'lucide-react';
 import { type FormEvent, useState } from 'react';
-import {
-  Confirmation,
-  ConfirmationAction,
-  ConfirmationActions,
-  ConfirmationRequest,
-  ConfirmationTitle,
-} from '@/components/ai-elements/confirmation';
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
-import { Message, MessageContent, MessageResponse } from '@/components/ai-elements/message';
-import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
+import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolInput,
-  ToolOutput,
-} from '@/components/ai-elements/tool';
-import { AskUserPrompt, GeneratedImage } from '@/components/chat/tool-views';
-import type { AgentControllerContentPart } from '@/lib/agent-controller/events';
+import { AskUserPrompt } from '@/components/chat/tool-views';
+import { ApprovalCard, partKey, TranscriptPart } from '@/components/chat/transcript';
 import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 import { cn } from '@/lib/utils';
 
@@ -43,12 +28,11 @@ import { cn } from '@/lib/utils';
  *   <MinimalChat />
  */
 export function MinimalChat({ className }: { className?: string }) {
-  const { transcript, status, sendMessage, approve, answerQuestion, pendingSuspension } =
-    useAgentControllerChat();
+  const controller = useAgentControllerChat();
+  const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
   const [input, setInput] = useState('');
 
   const busy = status === 'streaming';
-  const { pendingApproval } = transcript;
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -83,8 +67,12 @@ export function MinimalChat({ className }: { className?: string }) {
               <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
                 <MessageContent>
                   {m.content.map((part, i) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: content is append-only; text/thinking parts carry no id
-                    <Part key={`${m.id}-${i}`} part={part} resultsById={resultsById} />
+                    <TranscriptPart
+                      key={partKey(m.id, i)}
+                      part={part}
+                      resultsById={resultsById}
+                      controller={controller}
+                    />
                   ))}
                 </MessageContent>
               </Message>
@@ -101,32 +89,7 @@ export function MinimalChat({ className }: { className?: string }) {
           )}
 
           {/* Every tool is gated — without this the run parks forever. */}
-          {pendingApproval && (
-            <Confirmation state="approval-requested" approval={{ id: pendingApproval.toolCallId }}>
-              <ConfirmationTitle>Run {pendingApproval.toolName}?</ConfirmationTitle>
-              <ConfirmationRequest>
-                <pre className="overflow-x-auto text-xs">
-                  {JSON.stringify(pendingApproval.args, null, 2)}
-                </pre>
-                <ConfirmationActions>
-                  <ConfirmationAction onClick={() => approve('approve')}>
-                    Approve
-                  </ConfirmationAction>
-                  {pendingApproval.category && (
-                    <ConfirmationAction
-                      variant="outline"
-                      onClick={() => approve('always_allow_category')}
-                    >
-                      Always allow {pendingApproval.category} tools
-                    </ConfirmationAction>
-                  )}
-                  <ConfirmationAction variant="outline" onClick={() => approve('decline')}>
-                    Reject
-                  </ConfirmationAction>
-                </ConfirmationActions>
-              </ConfirmationRequest>
-            </Confirmation>
-          )}
+          <ApprovalCard controller={controller} />
         </ConversationContent>
       </Conversation>
 
@@ -149,73 +112,4 @@ export function MinimalChat({ className }: { className?: string }) {
       </form>
     </div>
   );
-}
-
-/** One transcript content part → its element. Deliberately fewer cases than the full shell. */
-function Part({
-  part,
-  resultsById,
-}: {
-  part: AgentControllerContentPart;
-  resultsById: Map<string, { result?: unknown; isError?: boolean }>;
-}) {
-  if (part.type === 'text') {
-    return <MessageResponse>{(part as { text: string }).text}</MessageResponse>;
-  }
-  if (part.type === 'thinking') {
-    return (
-      <Reasoning isStreaming={false}>
-        <ReasoningTrigger />
-        <ReasoningContent>{(part as { thinking: string }).thinking}</ReasoningContent>
-      </Reasoning>
-    );
-  }
-  if (part.type === 'image') {
-    const img = part as { data: string; mimeType: string };
-    return <GeneratedImage base64={img.data} mediaType={img.mimeType} />;
-  }
-  if (part.type === 'tool_call') {
-    const call = part as { id: string; name: string; args: unknown };
-    // These three own dedicated surfaces elsewhere (the goal card, the live
-    // AskUserPrompt above, the subagent card) — rendering the raw call would double up.
-    if (call.name === 'setGoal' || call.name === 'ask_user') return null;
-    const result = resultsById.get(call.id);
-    const hasOutput = result !== undefined;
-    // generateImage returns only an id; GeneratedImage fetches the bytes.
-    const img = result?.result as
-      | { imageId?: string; mediaType?: string; prompt?: string }
-      | undefined;
-    if (call.name === 'generateImage' && img?.imageId) {
-      return (
-        <GeneratedImage
-          imageId={img.imageId}
-          mediaType={img.mediaType ?? 'image/webp'}
-          prompt={img.prompt}
-        />
-      );
-    }
-    return (
-      <Tool>
-        <ToolHeader
-          type={`tool-${call.name}`}
-          state={hasOutput ? 'output-available' : 'input-available'}
-        />
-        <ToolContent>
-          <ToolInput input={call.args} />
-          {hasOutput && (
-            <ToolOutput
-              output={
-                <pre className="overflow-x-auto text-xs">
-                  {JSON.stringify(result?.result, null, 2)}
-                </pre>
-              }
-              errorText={result?.isError ? 'Tool reported an error' : undefined}
-            />
-          )}
-        </ToolContent>
-      </Tool>
-    );
-  }
-  // tool_result renders alongside its tool_call above; skip standalone.
-  return null;
 }

@@ -57,6 +57,7 @@ const elPath = (n) => `components/ai-elements/${n}.tsx`;
 // sibling in the same block — see validate() check (4) and bd 23d.
 const SHARED_ITEM_OF = {
   'components/chat/tool-views': 'chat-tool-views',
+  'components/chat/transcript': 'chat-tool-views',
 };
 
 /** Absolute path -> "components/ai-elements/x" style key (no extension). */
@@ -317,7 +318,9 @@ items.push({
 // (sources, generated images, plan, goal card, ask_user prompt, workspace views).
 // Promoted out of the `chat` block so a second skin depends on THIS rather than on
 // the other skin — skins must never import each other (bd 23d).
-const TOOL_VIEW_FILES = ['components/chat/tool-views.tsx'];
+// transcript.tsx: the per-part renderer, the approval card and the plan card, which
+// every skin needs (approvals and plans park the run until answered).
+const TOOL_VIEW_FILES = ['components/chat/tool-views.tsx', 'components/chat/transcript.tsx'];
 {
   const c = classify(TOOL_VIEW_FILES);
   items.push({
@@ -383,6 +386,25 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
     dependencies: c.npm,
     registryDependencies: [...regDeps(c, 'chat-minimal'), NS('chat-routes')],
     files: MINIMAL_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
+    docs: RADIX_NOTICE,
+  });
+}
+
+// 7) chat-panel: a THIRD skin — a docked side panel (header with history + new chat,
+// greeting and suggestions when empty, a rounded composer card). Same engine, same
+// session and threads; no model picker.
+const PANEL_FILES = ['components/chat-panel/chat-panel.tsx'];
+{
+  const c = classify(PANEL_FILES);
+  items.push({
+    name: 'chat-panel',
+    type: 'registry:block',
+    title: 'Mastra Chat (side panel)',
+    description:
+      'A docked side-panel Agent Controller chat — history, new chat, suggestions, a rounded composer, tool approvals, ask_user and plans. Same session and threads as the full shell.',
+    dependencies: c.npm,
+    registryDependencies: [...regDeps(c, 'chat-panel'), NS('chat-routes')],
+    files: PANEL_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
     docs: RADIX_NOTICE,
   });
 }

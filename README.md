@@ -192,6 +192,7 @@ Add the namespace to `components.json`, then install:
 ```bash
 npx shadcn@latest add @mastra-chat-kit/chat           # the full shell
 npx shadcn@latest add @mastra-chat-kit/chat-minimal   # or the embeddable one
+npx shadcn@latest add @mastra-chat-kit/chat-panel     # or a docked side panel
 ```
 
 `chat` lands **34 files from this registry** — 9 shell components, the shared tool
@@ -205,6 +206,8 @@ Then mount a shell and point it at a server:
 import { ChatSwitcher } from '@/components/chat/chat-switcher';    // sidebar │ chat │ workbench
 // or
 import { MinimalChat } from '@/components/chat-minimal/minimal-chat'; // just the conversation
+// or
+import { ChatPanel } from '@/components/chat-panel/chat-panel';       // a docked side panel
 ```
 
 ```bash
@@ -223,7 +226,7 @@ without losing the second:
 |---|---|
 | `chat-engine` | The brains — SSE client, transcript reducer, and the hooks that own every `/api/*` call. **UI-free: imports only React.** |
 | `chat-tool-views` | Shared renderers turning real tool output into elements. Used by every skin. |
-| `chat` · `chat-minimal` | Just the looks. Neither depends on the other. |
+| `chat` · `chat-minimal` · `chat-panel` | Just the looks. None depends on another. |
 
 Both skins drive the **same** `AgentController` session — same threads, same tool
 approvals, same subagents, same workspace. A third skin is one file rendering over
@@ -367,6 +370,7 @@ packages/
    ├─ app/                     chat (/) + /events — the controller-event → element map
    ├─ components/chat/         full skin: sidebar · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
    ├─ components/chat-minimal/ second skin: conversation + composer only
+   ├─ components/chat-panel/   third skin: a docked side panel (history, new chat, composer card)
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
    ├─ lib/agent-controller/             the engine — SSE client, reducer, data hooks (UI-free)
    ├─ lib/agent-controller-event-map.ts the 50 events → elements + prompts (drives /events)

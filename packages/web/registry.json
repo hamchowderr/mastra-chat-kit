@@ -287,12 +287,18 @@
         "lucide-react"
       ],
       "registryDependencies": [
+        "button",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/image",
+        "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
         "https://ai-sdk.dev/elements/api/registry/chain-of-thought.json",
+        "https://ai-sdk.dev/elements/api/registry/confirmation.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/inline-citation.json",
+        "https://ai-sdk.dev/elements/api/registry/message.json",
+        "https://ai-sdk.dev/elements/api/registry/plan.json",
+        "https://ai-sdk.dev/elements/api/registry/reasoning.json",
         "https://ai-sdk.dev/elements/api/registry/sources.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json"
       ],
@@ -301,6 +307,11 @@
           "path": "components/chat/tool-views.tsx",
           "type": "registry:component",
           "target": "components/chat/tool-views.tsx"
+        },
+        {
+          "path": "components/chat/transcript.tsx",
+          "type": "registry:component",
+          "target": "components/chat/transcript.tsx"
         }
       ]
     },
@@ -316,7 +327,6 @@
         "sonner"
       ],
       "registryDependencies": [
-        "button",
         "dialog",
         "dropdown-menu",
         "tabs",
@@ -332,7 +342,6 @@
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
         "https://ai-sdk.dev/elements/api/registry/model-selector.json",
-        "https://ai-sdk.dev/elements/api/registry/plan.json",
         "https://ai-sdk.dev/elements/api/registry/prompt-input.json",
         "https://ai-sdk.dev/elements/api/registry/queue.json",
         "https://ai-sdk.dev/elements/api/registry/reasoning.json",
@@ -406,13 +415,10 @@
         "lucide-react"
       ],
       "registryDependencies": [
-        "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-tool-views",
         "@mastra-chat-kit/chat-engine",
-        "https://ai-sdk.dev/elements/api/registry/confirmation.json",
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
-        "https://ai-sdk.dev/elements/api/registry/reasoning.json",
         "https://ai-sdk.dev/elements/api/registry/shimmer.json",
         "@mastra-chat-kit/chat-routes"
       ],
@@ -421,6 +427,34 @@
           "path": "components/chat-minimal/minimal-chat.tsx",
           "type": "registry:component",
           "target": "components/chat-minimal/minimal-chat.tsx"
+        }
+      ],
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit-registry.vercel.app for the full endpoint contract."
+    },
+    {
+      "name": "chat-panel",
+      "type": "registry:block",
+      "title": "Mastra Chat (side panel)",
+      "description": "A docked side-panel Agent Controller chat — history, new chat, suggestions, a rounded composer, tool approvals, ask_user and plans. Same session and threads as the full shell.",
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button",
+        "dropdown-menu",
+        "@mastra-chat-kit/chat-tool-views",
+        "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/conversation.json",
+        "https://ai-sdk.dev/elements/api/registry/message.json",
+        "https://ai-sdk.dev/elements/api/registry/shimmer.json",
+        "https://ai-sdk.dev/elements/api/registry/suggestion.json",
+        "@mastra-chat-kit/chat-routes"
+      ],
+      "files": [
+        {
+          "path": "components/chat-panel/chat-panel.tsx",
+          "type": "registry:component",
+          "target": "components/chat-panel/chat-panel.tsx"
         }
       ],
       "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit-registry.vercel.app for the full endpoint contract."
