@@ -43,8 +43,16 @@ type RouteMiddleware = Exclude<
 >;
 
 /**
- * Hono middleware for the route: a bigger body gets a 413 before it is parsed. (Custom
- * API routes don't get Mastra's own `server.bodySizeLimit`, so the route sets its own.)
+ * Hono middleware for the route: a bigger body gets a 413 instead of reaching the
+ * handler. (Custom API routes don't get Mastra's own `server.bodySizeLimit`, so the
+ * route sets its own.)
+ *
+ * It does NOT bound memory. Mastra's server-wide context middleware runs before any
+ * route middleware and reads every JSON POST body in full (it looks for a
+ * `requestContext` field), so an oversized body is already in memory when this runs.
+ * A server on the internet needs a body-size cap in front of it, at the reverse proxy
+ * (README, Deployment).
+ *
  * Typed as Mastra's middleware because a project's `hono` can be a different 4.x copy
  * from the one @mastra/core resolves, and the two copies' types never match each other.
  * At runtime it is the same Hono middleware.

@@ -184,6 +184,22 @@ describe('ChatPanel — the parts that keep a run moving', () => {
     });
   });
 
+  it("shows the server's reason when it refuses a message", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url === '/api/agent-controller/stream'
+          ? Response.json({ error: 'url must be a base64 data: URL' }, { status: 400 })
+          : Response.json({ threads: [] }),
+      ),
+    );
+    renderPanel();
+    fireEvent.click(screen.getByText('Weather'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'AgentController error: url must be a base64 data: URL',
+    );
+  });
+
   it('shows a failed turn as an error', async () => {
     vi.stubGlobal(
       'fetch',
