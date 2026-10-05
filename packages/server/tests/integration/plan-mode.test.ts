@@ -104,7 +104,7 @@ describe('plan mode in the full workspace (AIMock)', () => {
       'mastra_workspace_delete',
       'mastra_workspace_execute_command',
       'setGoal',
-      'startSchedule',
+      'start_schedule',
       'generateImage',
       'subagent',
     ]) {
