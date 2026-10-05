@@ -134,8 +134,8 @@ Mastra as the **Agent Harness** — same thing).
   workspace sandbox (filesystem + shell + browser), and the 14-endpoint route
   contract the web layer proxies to. Storage, threads, observability and vector
   recall all land in libSQL; embeddings run locally via fastembed.
-- **`packages/web`** — Next.js 16 App Router on :3000. Two skins (`chat`,
-  `chat-minimal`) over one UI-free engine (`lib/agent-controller/`), rendering
+- **`packages/web`** — Next.js 16 App Router on :3000. Three skins (`chat`,
+  `chat-minimal`, `chat-panel`) over one UI-free engine (`lib/agent-controller/`), rendering
   ~50 controller events onto AI Elements.
 
 The chat layer is also published as a shadcn registry — see `docs/registry.md`.

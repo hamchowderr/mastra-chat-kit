@@ -67,8 +67,17 @@ export function ChatPanel({
   const controller = useAgentControllerChat();
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
   const { threads } = useThreads({ refreshSignal: controller.refreshSignal });
+  // Archived chats stay out of the menu, as they do in the full shell's sidebar.
+  const recent = threads.filter((t) => !t.archived);
   const busy = status === 'streaming';
-  const empty = transcript.messages.length === 0 && !busy;
+  // Nothing to show yet. A parked approval or question is something to show, even with
+  // no messages, so it is never hidden behind the greeting.
+  const empty =
+    transcript.messages.length === 0 &&
+    !busy &&
+    !transcript.pendingApproval &&
+    !pendingSuspension &&
+    !transcript.pendingPlan;
 
   // The shared composer hands over the text and any attached files (images, PDFs …).
   const handleSend = ({ text, files }: ComposerSubmit) =>
@@ -93,20 +102,18 @@ export function ChatPanel({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-80 w-72 overflow-y-auto">
             <DropdownMenuLabel>Recent chats</DropdownMenuLabel>
-            {threads.length === 0 ? (
+            {recent.length === 0 ? (
               <p className="px-2 py-1.5 text-muted-foreground text-sm">No chats yet.</p>
             ) : (
-              threads
-                .filter((t) => !t.archived)
-                .map((t) => (
-                  <DropdownMenuItem
-                    key={t.id}
-                    onSelect={() => void controller.openThread(t.id)}
-                    className={cn(t.id === controller.activeThreadId && 'bg-accent')}
-                  >
-                    <span className="truncate">{t.title}</span>
-                  </DropdownMenuItem>
-                ))
+              recent.map((t) => (
+                <DropdownMenuItem
+                  key={t.id}
+                  onSelect={() => void controller.openThread(t.id)}
+                  className={cn(t.id === controller.activeThreadId && 'bg-accent')}
+                >
+                  <span className="truncate">{t.title}</span>
+                </DropdownMenuItem>
+              ))
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -184,6 +191,14 @@ export function ChatPanel({
             <ApprovalCard controller={controller} />
           </ConversationContent>
         </Conversation>
+      )}
+
+      {/* A failed turn says so, as the full shell does. Above the composer, so it shows on
+          the empty state too (a first message can fail before any transcript exists). */}
+      {transcript.error && (
+        <p role="alert" className="shrink-0 px-4 pt-2 text-destructive text-sm">
+          AgentController error: {transcript.error}
+        </p>
       )}
 
       {/* The kit's shared composer: attach and dictate on the left of the send button,
