@@ -52,7 +52,7 @@ import {
   ToolOutput,
 } from '@/components/ai-elements/tool';
 import { Composer, type ComposerSubmit, type ModelOption } from '@/components/chat/composer';
-import { PlanModeToggle, SubmittedPlanCard } from '@/components/chat/plan-mode';
+import { PlanModeToggle } from '@/components/chat/plan-mode';
 import {
   AskUserPrompt,
   GeneratedImage,
@@ -61,6 +61,7 @@ import {
   KnowledgeSources,
   StepTrace,
 } from '@/components/chat/tool-views';
+import { SubmittedPlanCard } from '@/components/chat/transcript';
 import {
   type ActiveTool,
   type AgentControllerContentPart,

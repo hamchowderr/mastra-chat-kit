@@ -12,6 +12,7 @@
  *   4. `shadcn add @mastra-chat-kit/chat`
  *   5. assert the expected files landed
  *   6. `tsc --noEmit` -> 0 errors, then `next build` -> exit 0
+ *   7. a SECOND clean project with only `chat-panel` installed: same checks
  *
  * Why it serves LOCALLY rather than hitting the hosted registry: this has to
  * catch a broken manifest before it is deployed, and public/r is gitignored so
@@ -75,7 +76,7 @@ const INIT_BASE_ARGS =
 // What a correct install must produce. These counts are the contract; if the
 // registry legitimately grows, update them here in the same commit.
 const EXPECT = {
-  'components/chat': 11,
+  'components/chat': 12,
   'components/ai-elements': 5, // OUR vendored ones; upstream adds more on top
   'app/api': 14, // route.ts files
 };
@@ -184,8 +185,11 @@ if (HOSTED) {
 // ── 3. Scaffold a consumer at the SUPPORTED base ─────────────────────────────
 rmSync(WORK, { recursive: true, force: true });
 mkdirSync(WORK, { recursive: true });
-log(`scaffolding a consumer project (shadcn init ${INIT_BASE_ARGS.join(' ')})`);
-{
+
+/** A fresh shadcn Next project at WORK/<name>, pointed at the local registry. */
+async function scaffold(name) {
+  const dir = join(WORK, name);
+  log(`scaffolding ${name} (shadcn init ${INIT_BASE_ARGS.join(' ')})`);
   const { code, out } = await run(
     'npx',
     [
@@ -196,7 +200,7 @@ log(`scaffolding a consumer project (shadcn init ${INIT_BASE_ARGS.join(' ')})`);
       'next',
       ...INIT_BASE_ARGS,
       '--name',
-      'consumer',
+      name,
       '--yes',
       '--no-monorepo',
       '--cwd',
@@ -204,30 +208,35 @@ log(`scaffolding a consumer project (shadcn init ${INIT_BASE_ARGS.join(' ')})`);
     ],
     { cwd: WORK },
   );
-  if (code !== 0) await die('shadcn init failed', out);
-}
-if (!existsSync(join(PROJECT, 'components.json'))) await die('init produced no components.json');
+  if (code !== 0) await die(`shadcn init failed (${name})`, out);
+  if (!existsSync(join(dir, 'components.json')))
+    await die(`init produced no components.json (${name})`);
 
-// Pin the icon library BEFORE installing. On hugeicons, shadcn's own
-// ui/spinner.tsx does not typecheck (reproduced in a bare shadcn project), and
-// every component here imports lucide-react anyway.
-{
-  const f = join(PROJECT, 'components.json');
+  // Pin the icon library BEFORE installing. On hugeicons, shadcn's own
+  // ui/spinner.tsx does not typecheck (reproduced in a bare shadcn project), and
+  // every component here imports lucide-react anyway.
+  const f = join(dir, 'components.json');
   const j = JSON.parse(readFileSync(f, 'utf8'));
   j.iconLibrary = 'lucide';
   j.registries = { '@mastra-chat-kit': `http://127.0.0.1:${PORT}/r/{name}.json` };
   writeFileSync(f, JSON.stringify(j, null, 2));
-  log(`consumer ready — style=${j.style}, iconLibrary=${j.iconLibrary}`);
+  log(`${name} ready — style=${j.style}, iconLibrary=${j.iconLibrary}`);
+  return dir;
 }
+
+/** `shadcn add` one item into a project. */
+async function add(dir, item) {
+  return run('npx', ['--yes', 'shadcn@latest', 'add', `@mastra-chat-kit/${item}`, '--yes'], {
+    cwd: dir,
+  });
+}
+
+await scaffold('consumer');
 
 // ── 4. Install ───────────────────────────────────────────────────────────────
 log('installing @mastra-chat-kit/chat');
 {
-  const { code, out } = await run(
-    'npx',
-    ['--yes', 'shadcn@latest', 'add', '@mastra-chat-kit/chat', '--yes'],
-    { cwd: PROJECT },
-  );
+  const { code, out } = await add(PROJECT, 'chat');
   if (code !== 0) {
     const broken = await diagnoseUpstream();
     await die(
@@ -245,12 +254,14 @@ log('installing @mastra-chat-kit/chat');
 // compile together (the tsc + next build below cover both). See bd 23d.
 log('installing @mastra-chat-kit/chat-minimal (second skin, same project)');
 {
-  const { code, out } = await run(
-    'npx',
-    ['--yes', 'shadcn@latest', 'add', '@mastra-chat-kit/chat-minimal', '--yes'],
-    { cwd: PROJECT },
-  );
+  const { code, out } = await add(PROJECT, 'chat-minimal');
   if (code !== 0) await die('chat-minimal install failed', out);
+}
+// And the THIRD skin, the side panel, into the same project.
+log('installing @mastra-chat-kit/chat-panel (third skin, same project)');
+{
+  const { code, out } = await add(PROJECT, 'chat-panel');
+  if (code !== 0) await die('chat-panel install failed', out);
 }
 
 // ── 5. Assert the files landed ───────────────────────────────────────────────
@@ -293,6 +304,10 @@ if (!existsSync(join(PROJECT, 'lib/mastra-proxy.ts'))) problems.push('lib/mastra
 // fails to compile, so assert the file rather than just the skin.
 if (!existsSync(join(PROJECT, 'components/chat-minimal/minimal-chat.tsx')))
   problems.push('components/chat-minimal/minimal-chat.tsx missing (second skin)');
+if (!existsSync(join(PROJECT, 'components/chat-panel/chat-panel.tsx')))
+  problems.push('components/chat-panel/chat-panel.tsx missing (third skin)');
+if (!existsSync(join(PROJECT, 'components/chat/transcript.tsx')))
+  problems.push('components/chat/transcript.tsx missing (shared by every skin)');
 if (!existsSync(join(PROJECT, 'components/chat/tool-views.tsx')))
   problems.push('components/chat/tool-views.tsx missing (shared by both skins)');
 if (problems.length) await die(`installed tree is wrong:\n  ${problems.join('\n  ')}`);
@@ -301,9 +316,10 @@ log(
 );
 
 // ── 6. It has to actually compile ────────────────────────────────────────────
-log('typechecking the consumer');
-{
-  const { code, out } = await run('npx', ['--yes', 'tsc', '--noEmit'], { cwd: PROJECT });
+/** `tsc --noEmit`, then `next build`, in one consumer project. */
+async function compile(dir, name) {
+  log(`typechecking ${name}`);
+  const { code, out } = await run('npx', ['--yes', 'tsc', '--noEmit'], { cwd: dir });
   if (code !== 0) {
     const errs = out.split('\n').filter((l) => l.includes('error TS'));
     // "Ours" includes the five AI Elements we VENDOR — they are files this kit
@@ -338,17 +354,58 @@ log('typechecking the consumer');
       process.exit(0);
     }
     await die(
-      `consumer does not typecheck — ${errs.length} error(s), ${ours.length} in files this kit ships`,
+      `${name} does not typecheck — ${errs.length} error(s), ${ours.length} in files this kit ships`,
       errs.join('\n'),
     );
   }
+  log(`building ${name}`);
+  const build = await run('npx', ['--yes', 'next', 'build'], { cwd: dir });
+  if (build.code !== 0) await die(`${name}: next build failed`, build.out);
 }
-log('building the consumer');
+
+await compile(PROJECT, 'the consumer');
+
+// ── 7. The side panel ON ITS OWN, in a second clean project ──────────────────
+// A host that wants only the docked panel installs only chat-panel. Above, the panel
+// lands in a project that already has `chat` and `chat-minimal`, so a dependency it
+// forgot to declare would be covered by theirs. Here nothing else is installed: the
+// panel's own registryDependencies must bring the engine, the routes, the shared
+// transcript and the composer, and the result must compile by itself.
+const PANEL = await scaffold('panel-only');
+log('installing @mastra-chat-kit/chat-panel alone');
 {
-  const { code, out } = await run('npx', ['--yes', 'next', 'build'], { cwd: PROJECT });
-  if (code !== 0) await die('consumer `next build` failed', out);
+  const { code, out } = await add(PANEL, 'chat-panel');
+  if (code !== 0) await die('chat-panel install failed (standalone)', out);
 }
+{
+  const need = [
+    'components/chat-panel/chat-panel.tsx',
+    'components/chat/composer.tsx',
+    'components/chat/transcript.tsx',
+    'components/chat/tool-views.tsx',
+    'lib/agent-controller/use-agent-controller-chat.ts',
+    'lib/mastra-proxy.ts',
+    'app/api/agent-controller/stream/route.ts',
+  ].filter((f) => !existsSync(join(PANEL, f)));
+  // And it must not drag in the other skins.
+  const extra = [
+    'components/chat/agent-controller-chat.tsx',
+    'components/chat-minimal/minimal-chat.tsx',
+  ].filter((f) => existsSync(join(PANEL, f)));
+  if (need.length || extra.length) {
+    await die(
+      `standalone chat-panel tree is wrong:\n  ${[
+        ...need.map((f) => `missing ${f}`),
+        ...extra.map((f) => `unexpected ${f} (another skin)`),
+      ].join('\n  ')}`,
+    );
+  }
+  log('standalone files OK — the panel brought its engine, routes and shared pieces');
+}
+await compile(PANEL, 'the panel-only project');
 
 server.close();
 rmSync(WORK, { recursive: true, force: true });
-console.log('\n✓ registry smoke test passed — a clean install typechecks and builds');
+console.log(
+  '\n✓ registry smoke test passed — a clean install typechecks and builds, and so does chat-panel alone',
+);
