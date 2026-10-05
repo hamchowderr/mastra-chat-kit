@@ -19,6 +19,9 @@ const boolish = z
   .union([z.literal('true'), z.literal('false'), z.literal('1'), z.literal('0')])
   .transform((v) => v === 'true' || v === '1');
 
+/** `*_API_KEY` vars that unlock a tool, not a model, so they don't satisfy the model-key check. */
+const NON_MODEL_KEYS = new Set(['FIRECRAWL_API_KEY']);
+
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -55,7 +58,8 @@ const envSchema = z
     // an assistant that should not have them (lib/features.ts reads these).
     //
     // The workspace always has its filesystem and file tools; the shell sandbox and the
-    // browser each have a switch.
+    // browser each have a switch. The browser also needs the sandbox: the agent drives it
+    // with the browser CLI through execute_command.
     WORKSPACE_SANDBOX: boolish.default(true),
     WORKSPACE_BROWSER: boolish.default(true),
     // The specialist subagents the chat agent may delegate to. `data` also needs Dolt.
@@ -67,6 +71,17 @@ const envSchema = z
     // generateImage (needs OPENAI_API_KEY), and the demo tools getWeather + searchKnowledge.
     TOOL_GENERATE_IMAGE: boolish.default(true),
     TOOL_DEMO: boolish.default(true),
+
+    // Firecrawl web search (lib/firecrawl.ts). Setting the key turns it on: the agent
+    // and the research subagent get Firecrawl's search and scrape tools from Firecrawl's
+    // hosted MCP server, with no sandbox or browser needed. Blank = off.
+    FIRECRAWL_API_KEY: z
+      .string()
+      .optional()
+      .transform((v) => v?.trim() || undefined),
+    // The MCP endpoint those tools come from. The default is Firecrawl's hosted server;
+    // override it for a self-hosted `firecrawl-mcp` (HTTP_STREAMABLE_SERVER=true) or a mock.
+    FIRECRAWL_MCP_URL: z.string().url().default('https://mcp.firecrawl.dev/v2/mcp'),
 
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.
@@ -113,9 +128,13 @@ const envSchema = z
     // clearly if it's missing (https://mastra.ai/models/environment-variables). So we only
     // fail fast when NO provider key at all is set — any `<PROVIDER>_API_KEY` (or a gateway
     // token) is accepted: openai, anthropic, google, groq, xai, deepseek, mistral, …
+    // Keys for tools rather than models (FIRECRAWL_API_KEY) do not count.
     () =>
       Object.entries(process.env).some(
-        ([k, v]) => Boolean(v) && (k.endsWith('_API_KEY') || k === 'MASTRA_CLOUD_ACCESS_TOKEN'),
+        ([k, v]) =>
+          Boolean(v) &&
+          !NON_MODEL_KEYS.has(k) &&
+          (k.endsWith('_API_KEY') || k === 'MASTRA_CLOUD_ACCESS_TOKEN'),
       ),
     {
       message:

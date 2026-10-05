@@ -1,8 +1,10 @@
 import { WORKSPACE_TOOLS } from '@mastra/core/workspace';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { type FirecrawlMock, startFirecrawlMock } from '../../scripts/firecrawl-mock';
 import { chatTools } from '../../src/mastra/agents/chat';
 import { AUTO_ALLOWED_TOOLS, chatSubagents } from '../../src/mastra/lib/agent-controller';
 import { FULL_FEATURES, resolveFeatures } from '../../src/mastra/lib/features';
+import { createFirecrawlClient, loadFirecrawlTools } from '../../src/mastra/lib/firecrawl';
 import {
   CATEGORIZED_TOOLS,
   PLAN_MODE_TOOLS,
@@ -42,10 +44,24 @@ describe('resolveToolCategory — what "Always allow" grants', () => {
  * else said `list_schedules`). This pins every name to a real one.
  */
 
-/** Every tool name the agent, a specialist, or the workspace can expose. */
+// The controller's Firecrawl tools, as listed by a mocked Firecrawl MCP server that
+// advertises the real firecrawl-mcp tool list (scripts/firecrawl-mock.ts).
+let fc: FirecrawlMock;
+let firecrawlNames: string[] = [];
+beforeAll(async () => {
+  fc = await startFirecrawlMock();
+  const client = createFirecrawlClient({ apiKey: 'fc-test-key', url: fc.url, id: 'categories' });
+  firecrawlNames = Object.keys(await loadFirecrawlTools(client));
+  await client.disconnect();
+});
+afterAll(async () => {
+  await fc.stop();
+});
+
+/** Every tool name the agent, a specialist, the controller or the workspace can expose. */
 function exposedToolNames(): Set<string> {
   const full = resolveFeatures(FULL_FEATURES, { dolt: true });
-  const names = new Set<string>(Object.keys(chatTools(full)));
+  const names = new Set<string>([...Object.keys(chatTools(full)), ...firecrawlNames]);
   for (const sub of chatSubagents(full)) {
     for (const name of Object.keys(sub.tools ?? {})) names.add(name);
   }
@@ -88,5 +104,16 @@ describe('tool names match what the agent is offered', () => {
     expect(resolveToolCategory('list_schedules')).toBe('read');
     expect(READ_TOOLS).toContain('list_schedules');
     expect(PLAN_MODE_TOOLS).toContain('list_schedules');
+  });
+});
+
+describe('Firecrawl tools skip the approval card and work in Plan mode', () => {
+  it('search and scrape are read tools, auto-allowed, and in the Plan allowlist', () => {
+    expect([...firecrawlNames].sort()).toEqual(['firecrawl_scrape', 'firecrawl_search']);
+    for (const name of firecrawlNames) {
+      expect(resolveToolCategory(name)).toBe('read');
+      expect(AUTO_ALLOWED_TOOLS).toContain(name);
+      expect(PLAN_MODE_TOOLS).toContain(name);
+    }
   });
 });

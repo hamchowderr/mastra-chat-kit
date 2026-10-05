@@ -29,10 +29,11 @@ import { env } from '../../lib/env';
 import { chatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
 import { dataSubagent } from '../agents/data';
-import { researchSubagent } from '../agents/research';
+import { researchSubagentFor } from '../agents/research';
 import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
 import { type ChatFeatures, features as defaultFeatures } from './features';
+import { FIRECRAWL_TOOLS, getFirecrawlTools } from './firecrawl';
 import { createDefaultMemory, getSharedStore } from './memory';
 import { PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
 import {
@@ -60,15 +61,14 @@ export const CHAT_RESOURCE_ID = 'chat-kit-user';
 
 /**
  * The specialist roster for a set of RESOLVED features (lib/features.ts — `data` is
- * already off without Dolt, `code` without a sandbox, `research` without a browser).
- * Research keeps `searchKnowledge` only while the demo tools are on.
+ * already off without Dolt, `code` without a sandbox, `research` without Firecrawl or
+ * a browser). Research reads the web through whichever of those is on, and keeps
+ * `searchKnowledge` only while the demo tools are on.
  */
 export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
   return [
     ...(f.subagents.code ? [codeSubagent] : []),
-    ...(f.subagents.research
-      ? [f.demoTools ? researchSubagent : { ...researchSubagent, tools: {} }]
-      : []),
+    ...(f.subagents.research ? [researchSubagentFor(f)] : []),
     ...(f.subagents.writer ? [writerSubagent] : []),
     ...(f.subagents.review ? [reviewerSubagent] : []),
     ...(f.subagents.data ? [dataSubagent] : []),
@@ -178,6 +178,11 @@ export function createChatAgentController(opts?: {
     // Each specialist has its own switch (SUBAGENT_* — lib/features.ts); with none on,
     // the controller offers no `subagent` tool at all.
     ...(chatSubagents(f).length ? { subagents: chatSubagents(f) } : {}),
+    // Firecrawl search + scrape (lib/firecrawl.ts), when FIRECRAWL_API_KEY is set. Tools
+    // on the controller reach the chat agent on every run, and the research subagent
+    // through its `allowedControllerTools`. Resolved per run, so a Firecrawl outage only
+    // costs that run its web search.
+    ...(f.firecrawl ? { tools: () => getFirecrawlTools() } : {}),
     // A real workspace: filesystem + shell sandbox (both rooted at WORKSPACE_ROOT)
     // + a browser. This gives the agent the full derived tool set — read/write/
     // edit/list/delete/search files, executeCommand (shell), AND browser tools.
@@ -238,7 +243,9 @@ export function getChatAgentController(): Promise<AgentController> {
  */
 export async function getChatBrowser(): Promise<BrowserViewer> {
   if (!defaultFeatures.browser) {
-    throw new Error('the browser is switched off (WORKSPACE_BROWSER)');
+    throw new Error(
+      'the browser is off (WORKSPACE_BROWSER, or WORKSPACE_SANDBOX: it needs the sandbox)',
+    );
   }
   await getChatAgentController();
   if (!singletonBrowser) {
@@ -260,6 +267,9 @@ export async function getChatBrowser(): Promise<BrowserViewer> {
  *    agent answering "what's scheduled?"). Its mutating siblings start_schedule /
  *    stop_schedule stay GATED: creating a recurring background run is a real side effect,
  *    so it flows through the approval gate (an intentional HITL demo).
+ *  - firecrawl_search / firecrawl_scrape — web lookups that change nothing. They spend
+ *    Firecrawl credits, but the key's owner turned them on by setting the key, and a
+ *    card before every search would make web search unusable.
  * Everything with a real side effect (fs writes, shell, browser, subagents, start/stop
  * schedule) stays gated. Exported so tests drive a session with the same grants.
  */
@@ -271,6 +281,7 @@ export const AUTO_ALLOWED_TOOLS = [
   'task_complete',
   'task_check',
   'list_schedules',
+  ...FIRECRAWL_TOOLS,
 ] as const;
 
 /**

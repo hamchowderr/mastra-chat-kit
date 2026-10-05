@@ -27,6 +27,10 @@ const CATEGORIES: Record<string, ToolCategory> = {
   list_schedules: 'read',
   doltQuery: 'read',
   doltHistory: 'read',
+  // Firecrawl (lib/firecrawl.ts): searches the web and reads pages, changes nothing.
+  // Also auto-allowed (AUTO_ALLOWED_TOOLS), so they never show an approval card.
+  firecrawl_search: 'read',
+  firecrawl_scrape: 'read',
   [FILESYSTEM.READ_FILE]: 'read',
   [FILESYSTEM.LIST_FILES]: 'read',
   [FILESYSTEM.FILE_STAT]: 'read',

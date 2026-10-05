@@ -858,6 +858,104 @@
     },
 
     {
+      "_comment": "FIRECRAWL (lib/firecrawl.ts) — tests/integration/firecrawl.test.ts and the dev:mock run, with Firecrawl's MCP server mocked by AIMock (aimock.json `mcp`, or tests/helpers/firecrawl-mock.ts). Hop 1 searches; hop 2 matches only when the tool result carries the mocked page's URL, so the answer is grounded in what Firecrawl returned.",
+      "match": {
+        "userMessage": "Search the web for the latest Mastra release.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_fc_search",
+            "name": "firecrawl_search",
+            "arguments": { "query": "latest Mastra release", "limit": 3, "sources": ["web"] }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_fc_search",
+        "toolResultContains": "mastra.ai/blog/mastra-1-70"
+      },
+      "response": {
+        "content": "The latest Mastra release is **1.70**, which adds durable subagent runs (source: https://mastra.ai/blog/mastra-1-70)."
+      }
+    },
+    {
+      "_comment": "Firecrawl failing a call (out of credits). The MCP client turns Firecrawl's error result into a tool error, and the model reads it as the tool result.",
+      "match": {
+        "userMessage": "Search the web for Firecrawl's pricing page.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_fc_error",
+            "name": "firecrawl_search",
+            "arguments": { "query": "Firecrawl pricing", "limit": 3, "sources": ["web"] }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_fc_error", "toolResultContains": "Insufficient credits" },
+      "response": {
+        "content": "I couldn't search the web: Firecrawl reports the account is out of credits."
+      }
+    },
+    {
+      "_comment": "The research subagent on Firecrawl (no sandbox, no browser): the parent delegates, the specialist searches with firecrawl_search from the controller's tools (allowedControllerTools), and the parent relays its cited answer.",
+      "match": {
+        "userMessage": "Have the research subagent find the latest Mastra release.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_fc_research_delegate",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "research",
+              "task": "Find the latest Mastra release and cite the source."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "research specialist",
+        "userMessage": "Find the latest Mastra release and cite the source.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_fc_research_search",
+            "name": "firecrawl_search",
+            "arguments": { "query": "latest Mastra release", "limit": 3, "sources": ["web"] }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_fc_research_search",
+        "toolResultContains": "mastra.ai/blog/mastra-1-70"
+      },
+      "response": {
+        "content": "Mastra 1.70 is the latest release (https://mastra.ai/blog/mastra-1-70)."
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_fc_research_delegate" },
+      "response": {
+        "content": "The research subagent found that Mastra 1.70 is the latest release (https://mastra.ai/blog/mastra-1-70)."
+      }
+    },
+
+    {
       "_comment": "Image generation (generateImage posts to OPENAI_BASE_URL/images/generations, which AIMock serves). endpoint:image keeps it from matching chat requests. The bytes are a real 256x256 PNG (a sunset over mountains) so the demo renders an actual image; generateImage sniffs the format from the bytes. tests/unit/generate-image.test.ts.",
       "match": { "endpoint": "image" },
       "response": {
