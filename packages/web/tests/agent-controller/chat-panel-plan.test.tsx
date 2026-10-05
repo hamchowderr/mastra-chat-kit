@@ -91,4 +91,52 @@ describe('ChatPanel — Plan', () => {
     expect(await screen.findByText(/switched to Chat mode/)).toBeInTheDocument();
     await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'false'));
   });
+
+  it('shows one plan card after Approve: the resumed call adds no second card', async () => {
+    const resumed = {
+      type: 'message_start',
+      message: {
+        id: 'm-resumed',
+        role: 'assistant',
+        content: {
+          format: 2,
+          parts: [
+            {
+              type: 'tool-invocation',
+              toolInvocation: {
+                state: 'result',
+                toolCallId: 'p1',
+                toolName: 'submit_plan',
+                args: {},
+                result: { content: 'Plan approved.' },
+              },
+            },
+            { type: 'text', text: 'On it.' },
+          ],
+        },
+      },
+    };
+    fakeController({
+      stream: [
+        { type: 'mode_changed', modeId: 'plan' },
+        userTurn,
+        toolCallMessage('p1', 'submit_plan', { path: 'plans/launch.md' }),
+        {
+          type: 'tool_suspended',
+          toolCallId: 'p1',
+          toolName: 'submit_plan',
+          suspendPayload: { path: 'plans/launch.md' },
+        },
+      ],
+      answer: [{ type: 'mode_changed', modeId: 'chat' }, resumed, { type: 'agent_end' }],
+      files: { 'plans/launch.md': '# Launch plan\n\n1. Draft\n2. Ship' },
+    });
+    renderPanel();
+    fireEvent.click(screen.getByRole('button', { name: /Plan/ }));
+    fireEvent.click(screen.getByText('Go'));
+    fireEvent.click(await screen.findByRole('button', { name: /Approve plan/ }));
+    expect(await screen.findByText('On it.')).toBeInTheDocument();
+    expect(screen.getAllByText(/Proposed by the agent/)).toHaveLength(1);
+    expect(screen.queryByText('Loading the plan…')).not.toBeInTheDocument();
+  });
 });
