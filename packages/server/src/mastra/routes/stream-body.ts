@@ -68,6 +68,10 @@ function base64Bytes(payload: string): number {
   return Math.floor((payload.length * 3) / 4) - padding;
 }
 
+/** An optional field: a missing value and an explicit `null` both read as absent. */
+const absent = <T extends z.ZodType>(schema: T) =>
+  schema.nullish().transform((v) => v ?? undefined);
+
 const attachment = z
   .object({
     // Only `data:<type>;base64,<payload>`. No http(s), blob:, file: or any other scheme.
@@ -75,7 +79,7 @@ const attachment = z
       message: 'url must be a base64 data: URL',
     }),
     mediaType: z.enum(ATTACHMENT_MEDIA_TYPES),
-    filename: z.string().max(255).optional(),
+    filename: absent(z.string().max(255)),
   })
   .superRefine((file, ctx) => {
     const comma = file.url.indexOf(',');
@@ -93,15 +97,17 @@ const attachment = z
 
 export const streamBodySchema = z
   .object({
-    text: z.string().optional(),
-    threadId: z.string().optional(),
-    model: z.string().optional(),
+    text: absent(z.string()),
+    // null on a new chat: the web hook sends its thread ref as it is, and a new
+    // conversation has none yet.
+    threadId: absent(z.string()),
+    model: absent(z.string()),
     // The composer's Plan toggle: 'plan' | 'chat'. Unknown ids are ignored later.
-    mode: z.string().optional(),
-    webSearch: z.boolean().optional(),
+    mode: absent(z.string()),
+    webSearch: absent(z.boolean()),
     // The composer's attachments (FileUIPart), `url` already converted to a data URL
     // by the client at submit time.
-    files: z.array(attachment).max(MAX_ATTACHMENTS).optional(),
+    files: absent(z.array(attachment).max(MAX_ATTACHMENTS)),
   })
   // Whitespace-only text is no text; real text is passed on as typed.
   .transform((body) => ({ ...body, text: body.text?.trim() ? body.text : '' }))
