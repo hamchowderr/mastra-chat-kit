@@ -265,6 +265,47 @@ describe('controller reducer', () => {
     expect(collectToolResults(s.messages).get('call_K7')).toMatchObject({ type: 'tool_result' });
   });
 
+  it('keeps a resumed tool to one call: the repeat in the resumed message is dropped', () => {
+    // Captured from the real stream: approving a plan resumes submit_plan in a NEW
+    // message that repeats the call with empty args, then carries its result.
+    const invocation = (state: 'call' | 'result', extra: object) => ({
+      type: 'tool-invocation',
+      toolInvocation: { state, toolCallId: 'p1', toolName: 'submit_plan', ...extra },
+    });
+    const s = reduceAgentControllerEvents(emptyTranscript(), [
+      {
+        type: 'message_start',
+        message: {
+          id: 'm1',
+          role: 'assistant',
+          content: { format: 2, parts: [invocation('call', { args: { path: 'plans/a.md' } })] },
+        },
+      },
+      {
+        type: 'message_start',
+        message: {
+          id: 'm2',
+          role: 'assistant',
+          content: {
+            format: 2,
+            parts: [
+              invocation('result', { args: {}, result: { content: 'Plan approved.' } }),
+              { type: 'text', text: 'Starting now.' },
+            ],
+          },
+        },
+      },
+    ]);
+    const calls = s.messages.flatMap((m) => m.content.filter((p) => p.type === 'tool_call'));
+    expect(calls).toEqual([
+      { type: 'tool_call', id: 'p1', name: 'submit_plan', args: { path: 'plans/a.md' } },
+    ]);
+    expect(s.messages[1].content.map((p) => p.type)).toEqual(['tool_result', 'text']);
+    expect(collectToolResults(s.messages).get('p1')).toMatchObject({
+      result: { content: 'Plan approved.' },
+    });
+  });
+
   it('maps a still-running tool-invocation (no result yet) to a bare tool_call', () => {
     const s = reduceAgentControllerEvent(emptyTranscript(), {
       type: 'message_update',

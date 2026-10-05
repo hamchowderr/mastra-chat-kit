@@ -18,6 +18,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { collectToolResults } from '@/lib/agent-controller/events';
 import {
   type AgentControllerToolEnd,
   useAgentControllerChat,
@@ -92,6 +93,12 @@ export function ChatPanel({
     !transcript.pendingApproval &&
     !pendingSuspension &&
     !transcript.pendingPlan;
+  // A tool's result can land in a later message than its call (a resumed submit_plan or
+  // ask_user), so results are paired with calls across the whole transcript.
+  const resultsById = collectToolResults(transcript.messages) as Map<
+    string,
+    { result?: unknown; isError?: boolean }
+  >;
 
   // The shared composer hands over the text and any attached files (images, PDFs …).
   // The Plan toggle: a turn names its mode only while the toggle is shown.
@@ -170,31 +177,20 @@ export function ChatPanel({
           <ConversationContent className="px-4">
             {transcript.messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
-              .map((m) => {
-                // tool_result parts arrive separately from their tool_call; pair them by id.
-                const resultsById = new Map(
-                  m.content
-                    .filter((p) => p.type === 'tool_result')
-                    .map((p) => [
-                      (p as { id: string }).id,
-                      p as { result?: unknown; isError?: boolean },
-                    ]),
-                );
-                return (
-                  <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
-                    <MessageContent>
-                      {m.content.map((part, i) => (
-                        <TranscriptPart
-                          key={partKey(m.id, i)}
-                          part={part}
-                          resultsById={resultsById}
-                          controller={controller}
-                        />
-                      ))}
-                    </MessageContent>
-                  </Message>
-                );
-              })}
+              .map((m) => (
+                <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
+                  <MessageContent>
+                    {m.content.map((part, i) => (
+                      <TranscriptPart
+                        key={partKey(m.id, i)}
+                        part={part}
+                        resultsById={resultsById}
+                        controller={controller}
+                      />
+                    ))}
+                  </MessageContent>
+                </Message>
+              ))}
 
             {busy && transcript.messages.at(-1)?.role === 'user' && (
               <Shimmer className="text-muted-foreground text-sm">Thinking…</Shimmer>
