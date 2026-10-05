@@ -1,18 +1,9 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { chatInstructions, chatTools } from '../../src/mastra/agents/chat';
-import {
-  AUTO_ALLOWED_TOOLS,
-  chatSubagents,
-  planModeInstructions,
-} from '../../src/mastra/lib/agent-controller';
+import { chatSubagents, PLAN_MODE_INSTRUCTIONS } from '../../src/mastra/lib/agent-controller';
 import { type ChatFeatures, FULL_FEATURES, resolveFeatures } from '../../src/mastra/lib/features';
-import { resolveToolCategory } from '../../src/mastra/lib/tool-categories';
 import { createChatWorkspace } from '../../src/mastra/lib/workspace';
-import { createWritePlanTool, planFileName } from '../../src/mastra/tools/plan';
-import { callTool } from '../helpers/call-tool';
 
 /**
  * The feature switches (lib/features.ts). Defaults are the full kit, so these pin both
@@ -34,7 +25,6 @@ describe('feature switches — defaults', () => {
     expect(Object.keys(chatTools(f))).toEqual(
       expect.arrayContaining(['getWeather', 'searchKnowledge', 'generateImage', 'setGoal']),
     );
-    expect(Object.keys(chatTools(f))).not.toContain('write_plan');
     expect(ids(f)).toEqual(['code', 'research', 'writer', 'review', 'data']);
   });
 
@@ -52,45 +42,11 @@ describe('feature switches — defaults', () => {
   });
 });
 
-describe('feature switches — plans mode on the defaults', () => {
-  // Only WORKSPACE_MODE changed: every other switch is still at its default.
-  const plans = resolveFeatures({ ...FULL_FEATURES, workspaceMode: 'plans' }, { dolt: false });
-
-  it('turns the sandbox, browser and file tools off, and with them code, research, review', () => {
-    expect(plans.sandbox).toBe(false);
-    expect(plans.browser).toBe(false);
-    expect(ids(plans)).toEqual(['writer']);
-  });
-
-  it('tells the agent only about what it has', () => {
-    const text = chatInstructions(plans);
-    expect(text).not.toContain('"code"');
-    expect(text).not.toContain('"research"');
-    expect(text).not.toContain('"data"');
-    expect(text).not.toContain('"review"');
-    expect(text).toContain('"writer"');
-    expect(text).toContain('write_plan');
-    expect(planModeInstructions(plans)).toContain('write_plan');
-  });
-
-  it('adds write_plan to the tools', () => {
-    expect(Object.keys(chatTools(plans))).toContain('write_plan');
-  });
-
-  it('the workspace has a filesystem only', () => {
-    const ws = createChatWorkspace({ root: tmpdir(), features: plans });
-    expect(ws.filesystem).toBeDefined();
-    expect(ws.sandbox).toBeUndefined();
-    expect(ws.browser).toBeUndefined();
-  });
-});
-
 describe('feature switches — a narrow assistant', () => {
   const narrow = resolveFeatures(
     {
-      workspaceMode: 'plans',
-      sandbox: true,
-      browser: true,
+      sandbox: false,
+      browser: false,
       subagents: { code: true, research: true, writer: true, review: false, data: true },
       generateImage: false,
       demoTools: false,
@@ -98,7 +54,7 @@ describe('feature switches — a narrow assistant', () => {
     { dolt: false },
   );
 
-  it('keeps only what can work without a sandbox, browser, file tools or Dolt: the writer', () => {
+  it('keeps only what can work without a sandbox, browser or Dolt (review switched off): the writer', () => {
     expect(ids(narrow)).toEqual(['writer']);
   });
 
@@ -129,30 +85,27 @@ describe('feature switches — a narrow assistant', () => {
   });
 });
 
-describe('write_plan', () => {
-  it('writes a Markdown plan under plans/ and returns its path', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'plans-'));
-    try {
-      const out = await callTool<{ path: string }>(createWritePlanTool(root), {
-        title: 'Grant application',
-        plan: '1. Read the call\n2. Draft the budget',
-      });
-      expect(out.path).toBe('plans/grant-application.md');
-      const text = await readFile(path.join(root, out.path), 'utf8');
-      expect(text).toContain('# Grant application');
-      expect(text).toContain('2. Draft the budget');
-    } finally {
-      await rm(root, { recursive: true, force: true });
+describe('plan mode', () => {
+  // Mastra's submit_plan takes the PATH of a plan file the agent wrote, so both the chat
+  // instructions and Plan mode's own say to write it with the workspace write_file tool.
+  it('writes the plan with write_file and submits its path', () => {
+    for (const text of [PLAN_MODE_INSTRUCTIONS, chatInstructions(FULL_FEATURES)]) {
+      expect(text).toContain('write_file');
+      expect(text).toContain('submit_plan');
+      expect(text).toContain('plans/');
     }
   });
 
-  it('cannot write outside plans/, whatever the title', () => {
-    expect(planFileName('../../etc/passwd')).toBe('etc-passwd.md');
-    expect(planFileName('!!!')).toBe('plan.md');
-  });
-
-  it('runs without an approval card and sits in the edit category', () => {
-    expect(AUTO_ALLOWED_TOOLS).toContain('write_plan');
-    expect(resolveToolCategory('write_plan')).toBe('edit');
+  it('the workspace keeps its file tools with the sandbox and browser off', () => {
+    const ws = createChatWorkspace({
+      root: tmpdir(),
+      features: resolveFeatures(
+        { ...FULL_FEATURES, sandbox: false, browser: false },
+        { dolt: false },
+      ),
+    });
+    expect(ws.filesystem).toBeDefined();
+    expect(ws.sandbox).toBeUndefined();
+    expect(ws.browser).toBeUndefined();
   });
 });

@@ -9,8 +9,7 @@ import { putImage } from '../lib/image-store';
 import { liveScorers } from '../lib/live-scorers';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
-import { getChatWorkspace, WORKSPACE_ROOT } from '../lib/workspace';
-import { createWritePlanTool } from '../tools/plan';
+import { getChatWorkspace } from '../lib/workspace';
 import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
 /**
@@ -241,9 +240,7 @@ export function chatInstructions(f: ChatFeatures): string {
         ]
       : []),
     '- When the user gives you a STANDING objective to work toward over multiple turns — "keep going until…", "your goal is…", "don\'t stop until…", "iterate until it\'s good" — call setGoal with a crisp, verifiable restatement, then start working. A judge scores each turn and you keep iterating until it\'s met. Do NOT call setGoal for ordinary one-shot requests; just answer those.',
-    f.workspaceMode === 'plans'
-      ? "- For a task that is complex, multi-step, ambiguous, or risky (changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: write a short, ordered plan with write_plan, then call submit_plan with the path it returns and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly."
-      : "- For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, then call submit_plan with a short, ordered plan and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly.",
+    "- For a task that is complex, multi-step, ambiguous, or risky (touches many files, changes or deletes things, or where getting the approach wrong is costly), PLAN FIRST: briefly research if needed, write a short, ordered plan to a Markdown file under plans/ with the workspace write_file tool, then call submit_plan with that file's path and wait for approval before doing the work. Don't plan for simple, one-shot, or read-only requests — just do those directly.",
     "- When you need something from the user that you don't have and can't sensibly assume — a genuinely ambiguous request (which of several things they mean) OR a required detail that's missing (a name, value, or choice you can't default) — ALWAYS ask through the ask_user tool, NEVER in plain prose. (A plain-text question just stalls the turn; ask_user gives the user a real prompt that resumes the run with their answer.) Call ask_user with ONE clear, specific question, and pass `options` (2–4 concise labels) when the likely answers are known so the user can pick instead of typing. Ask once, then continue with the answer. Don't use it for things you can reasonably infer or default — for trivial gaps, act on a sensible assumption and say what you assumed.",
     "- For a task with several distinct steps, track it with the task tools: call task_write once to lay out the steps up front, then task_update / task_complete as you finish each one, so the user can watch progress. Skip this for single-step or trivial requests — don't narrate a one-liner as a task list.",
     `- When the user wants something to happen repeatedly on a timer — "every morning…", "remind me every hour…", "run X daily…" — call start_schedule with a cron expression and the prompt to run; it returns a schedule id and fires into this conversation. To stop or cancel one, call stop_schedule with its id (use list_schedules first if you don't have it). Use these only for genuinely recurring requests, not one-off "do this now" tasks.`,
@@ -254,7 +251,7 @@ export function chatInstructions(f: ChatFeatures): string {
 }
 
 /** The chat agent's own tools for a set of features (the workspace adds its own). */
-export function chatTools(f: ChatFeatures, root: string = WORKSPACE_ROOT) {
+export function chatTools(f: ChatFeatures) {
   return {
     ...(f.demoTools ? { getWeather, searchKnowledge } : {}),
     ...(f.generateImage ? { generateImage } : {}),
@@ -262,7 +259,6 @@ export function chatTools(f: ChatFeatures, root: string = WORKSPACE_ROOT) {
     startSchedule,
     stopSchedule,
     listSchedules,
-    ...(f.workspaceMode === 'plans' ? { write_plan: createWritePlanTool(root) } : {}),
   };
 }
 
@@ -283,10 +279,7 @@ The user has enabled web search for this turn. Use your browser tools to look th
  * Build the chat agent for a set of features. The server runs ONE (`chatAgent`, from
  * the env switches); tests build others to exercise a given combination.
  */
-export function createChatAgent(
-  f: ChatFeatures = defaultFeatures,
-  root: string = WORKSPACE_ROOT,
-): Agent {
+export function createChatAgent(f: ChatFeatures = defaultFeatures): Agent {
   const baseInstructions = chatInstructions(f);
   return new Agent({
     id: 'chat',
@@ -329,7 +322,7 @@ export function createChatAgent(
       env.NODE_ENV !== 'test' && requestContext?.get('noWorkspace') !== true
         ? getChatWorkspace()
         : undefined,
-    tools: chatTools(f, root),
+    tools: chatTools(f),
     // Default execution options applied to EVERY run: enable
     // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
     // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic

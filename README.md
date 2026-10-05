@@ -252,10 +252,9 @@ them default to the full kit, so an existing server changes nothing.
 
 | Variable | Default | Off means |
 |---|---|---|
-| `WORKSPACE_MODE` | `full` | `plans`: a filesystem for plan files only — no sandbox, no browser, every workspace tool hidden from the agent, and a `write_plan` tool so Plan mode still works (the plan is written to `plans/*.md`, `submit_plan` takes its path, and the Plan card reads it). |
 | `WORKSPACE_SANDBOX` | `true` | No shell (`execute_command`). |
 | `WORKSPACE_BROWSER` | `true` | No headless browser, no Browser panel, no web search. |
-| `SUBAGENT_CODE` · `_RESEARCH` · `_WRITER` · `_REVIEW` · `_DATA` | `true` | That specialist is not offered. Each is also dropped when what it works with is missing: `code` needs the sandbox, `research` the browser, `review` the file tools (hidden in `plans` mode), `data` Dolt. With none left there is no `subagent` tool. |
+| `SUBAGENT_CODE` · `_RESEARCH` · `_WRITER` · `_REVIEW` · `_DATA` | `true` | That specialist is not offered. Each is also dropped when what it works with is missing: `code` needs the sandbox, `research` the browser, `data` Dolt. With none left there is no `subagent` tool. |
 | `TOOL_GENERATE_IMAGE` | `true` | No `generateImage`. |
 | `TOOL_DEMO` | `true` | No `getWeather` / `searchKnowledge` demo tools. |
 

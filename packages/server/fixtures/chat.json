@@ -868,7 +868,7 @@
     },
 
     {
-      "_comment": "PLANS workspace mode (WORKSPACE_MODE=plans): every file tool is hidden, so the agent writes its plan with write_plan, then submits the path it returns. Approving resumes submit_plan with 'Plan approved…'. Exercised by tests/integration/plans-mode.test.ts.",
+      "_comment": "PLAN MODE in the full workspace, the way Mastra's submit_plan works: the agent writes the plan to a Markdown file with the workspace write_file tool (an edit, so it asks for approval), then submits that path. Approving the plan resumes submit_plan with 'Plan approved…' and the controller switches back to Chat. Exercised by tests/integration/plan-mode.test.ts.",
       "match": {
         "userMessage": "Plan a grant application, then wait for my approval.",
         "hasToolResult": false
@@ -876,22 +876,23 @@
       "response": {
         "toolCalls": [
           {
-            "id": "toolu_plans_write",
-            "name": "write_plan",
+            "id": "toolu_plan_write",
+            "name": "mastra_workspace_write_file",
             "arguments": {
-              "title": "Grant application",
-              "plan": "1. Read the call for proposals\n2. Draft the budget\n3. Write the summary"
+              "path": "plans/grant-application.md",
+              "content": "# Grant application\n\n1. Read the call for proposals\n2. Draft the budget\n3. Write the summary\n",
+              "overwrite": false
             }
           }
         ]
       }
     },
     {
-      "match": { "toolCallId": "toolu_plans_write" },
+      "match": { "toolCallId": "toolu_plan_write" },
       "response": {
         "toolCalls": [
           {
-            "id": "toolu_plans_submit",
+            "id": "toolu_plan_submit",
             "name": "submit_plan",
             "arguments": { "path": "plans/grant-application.md" }
           }
@@ -899,7 +900,7 @@
       }
     },
     {
-      "match": { "toolCallId": "toolu_plans_submit", "toolResultContains": "Plan approved" },
+      "match": { "toolCallId": "toolu_plan_submit", "toolResultContains": "Plan approved" },
       "response": { "content": "The plan is approved. I'll start with the call for proposals." }
     },
 

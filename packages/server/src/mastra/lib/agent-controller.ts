@@ -75,12 +75,13 @@ export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
   ];
 }
 
-/** Plan mode's extra instructions; in `plans` mode the plan goes through write_plan. */
-export function planModeInstructions(f: ChatFeatures): string {
-  return f.workspaceMode === 'plans'
-    ? 'You are in PLAN mode. Investigate the request and produce a concise, ordered plan. Write it with write_plan, then call submit_plan with the path write_plan returns. Do NOT change anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.'
-    : 'You are in PLAN mode. Investigate the request and produce a concise, ordered plan, then call submit_plan with it. Do NOT create, edit, or run anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.';
-}
+/**
+ * Plan mode's extra instructions. Mastra's submit_plan takes the PATH of a plan file the
+ * agent wrote (never the plan text), so the agent writes it with the workspace's own
+ * write_file tool first.
+ */
+export const PLAN_MODE_INSTRUCTIONS =
+  'You are in PLAN mode. Investigate the request and produce a concise, ordered plan. Write it to a Markdown file under plans/ (e.g. plans/<short-name>.md) with the workspace write_file tool, then call submit_plan with that path. Write nothing else and run nothing in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.';
 
 /**
  * The live singleton's persistent thread/message store. It MUST be the very same
@@ -118,11 +119,11 @@ export function createChatAgentController(opts?: {
    * exactly that combination.
    */
   features?: ChatFeatures;
-  /** With `features`: the workspace root for the agent's own tools (write_plan). */
+  /** The workspace root (tests pass a temp folder). */
   root?: string;
 }): AgentController {
   const f = opts?.features ?? defaultFeatures;
-  const agent = opts?.features ? createChatAgent(opts.features, opts.root) : chatAgent;
+  const agent = opts?.features ? createChatAgent(opts.features) : chatAgent;
   const browser =
     opts?.browser === null || !f.browser ? undefined : (opts?.browser ?? createBrowser());
   const workspace =
@@ -154,7 +155,7 @@ export function createChatAgentController(opts?: {
         description: 'Research and propose a plan; approving it switches to Chat to execute.',
         defaultModelId: CHAT_MODEL_ID,
         // Layered ABOVE the backing agent's own instructions for this mode only.
-        instructions: planModeInstructions(f),
+        instructions: PLAN_MODE_INSTRUCTIONS,
         // submit_plan approval in this mode flips the session to `chat` (plan→build).
         transitionsTo: 'chat',
       },
@@ -247,7 +248,7 @@ export function getChatAgentController(): Promise<AgentController> {
  */
 export async function getChatBrowser(): Promise<BrowserViewer> {
   if (!defaultFeatures.browser) {
-    throw new Error('the browser is switched off (WORKSPACE_BROWSER / WORKSPACE_MODE)');
+    throw new Error('the browser is switched off (WORKSPACE_BROWSER)');
   }
   await getChatAgentController();
   if (!singletonBrowser) {
@@ -280,8 +281,6 @@ export const AUTO_ALLOWED_TOOLS = [
   'task_complete',
   'task_check',
   'list_schedules',
-  // Writes a draft plan file in `plans` workspace mode; approving the plan is the decision.
-  'write_plan',
 ] as const;
 
 /**

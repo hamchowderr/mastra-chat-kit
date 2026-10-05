@@ -37,7 +37,6 @@ const CATEGORIES: Record<string, ToolCategory> = {
 
   // Edit: changes files or data, but runs nothing.
   doltWrite: 'edit',
-  write_plan: 'edit',
   [FILESYSTEM.WRITE_FILE]: 'edit',
   [FILESYSTEM.EDIT_FILE]: 'edit',
   [FILESYSTEM.AST_EDIT]: 'edit',

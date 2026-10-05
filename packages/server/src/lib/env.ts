@@ -54,10 +54,8 @@ const envSchema = z
     // What the agent can do. Every switch defaults to the full kit; turn pieces off for
     // an assistant that should not have them (lib/features.ts reads these).
     //
-    // WORKSPACE_MODE: `full` = filesystem + shell sandbox + browser, every file tool on.
-    // `plans` = a filesystem for plan files only: no sandbox, no browser, every workspace
-    // tool hidden from the agent, and a `write_plan` tool so Plan mode still works.
-    WORKSPACE_MODE: z.enum(['full', 'plans']).default('full'),
+    // The workspace always has its filesystem and file tools; the shell sandbox and the
+    // browser each have a switch.
     WORKSPACE_SANDBOX: boolish.default(true),
     WORKSPACE_BROWSER: boolish.default(true),
     // The specialist subagents the chat agent may delegate to. `data` also needs Dolt.
