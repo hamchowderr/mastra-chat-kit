@@ -17,7 +17,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
+import {
+  type AgentControllerToolEnd,
+  useAgentControllerChat,
+} from '@/lib/agent-controller/use-agent-controller-chat';
 import { useThreads } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +43,8 @@ export type ChatPanelProps = {
    * the `--chat-panel-header-height` CSS variable.
    */
   className?: string;
+  /** Called when the agent finishes a tool call (e.g. refresh the host page after a write). */
+  onToolEnd?: (tool: AgentControllerToolEnd) => void;
 };
 
 /**
@@ -63,8 +68,9 @@ export function ChatPanel({
   placeholder = 'How can I help you today?',
   actions,
   className,
+  onToolEnd,
 }: ChatPanelProps) {
-  const controller = useAgentControllerChat();
+  const controller = useAgentControllerChat({ onToolEnd });
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
   const { threads } = useThreads({ refreshSignal: controller.refreshSignal });
   // Archived chats stay out of the menu, as they do in the full shell's sidebar.
