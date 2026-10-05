@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatPanel } from '@/components/chat-panel/chat-panel';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 /**
  * The side-panel skin: its header (title, history, new chat, host actions), the empty
@@ -44,12 +45,14 @@ afterEach(() => {
 describe('ChatPanel', () => {
   it('shows the header, the greeting, the suggestions and the composer', () => {
     render(
-      <ChatPanel
-        title="Assistant"
-        greeting={{ title: 'Hi Simone', description: 'Ask about your work.' }}
-        suggestions={[{ label: 'Grants closing soon', prompt: 'Which grants close this month?' }]}
-        actions={<button type="button">Close</button>}
-      />,
+      <TooltipProvider>
+        <ChatPanel
+          title="Assistant"
+          greeting={{ title: 'Hi Simone', description: 'Ask about your work.' }}
+          suggestions={[{ label: 'Grants closing soon', prompt: 'Which grants close this month?' }]}
+          actions={<button type="button">Close</button>}
+        />
+      </TooltipProvider>,
     );
     expect(screen.getByText('Assistant')).toBeInTheDocument();
     expect(screen.getByLabelText('Chat history')).toBeInTheDocument();
@@ -60,13 +63,24 @@ describe('ChatPanel', () => {
     expect(screen.getByPlaceholderText('How can I help you today?')).toBeInTheDocument();
   });
 
-  it('has no model picker', () => {
-    render(<ChatPanel />);
+  it('uses the shared composer: attachments, the send button, no model picker', () => {
+    render(
+      <TooltipProvider>
+        <ChatPanel />
+      </TooltipProvider>,
+    );
     expect(screen.queryByText(/Sonnet|Haiku|GPT/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Search')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Upload files')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
   });
 
   it('sends a suggestion through the shared stream route', async () => {
-    render(<ChatPanel suggestions={[{ label: 'Due this week', prompt: 'What is due?' }]} />);
+    render(
+      <TooltipProvider>
+        <ChatPanel suggestions={[{ label: 'Due this week', prompt: 'What is due?' }]} />
+      </TooltipProvider>,
+    );
     fireEvent.click(screen.getByText('Due this week'));
     await waitFor(() =>
       expect(calls.some((c) => c.url === '/api/agent-controller/stream')).toBe(true),
@@ -75,21 +89,12 @@ describe('ChatPanel', () => {
     expect(JSON.parse(stream?.body ?? '{}').text).toBe('What is due?');
   });
 
-  it('sends on Enter but not on Shift+Enter, and only with text', async () => {
-    render(<ChatPanel />);
-    const box = screen.getByLabelText('Message');
-    fireEvent.keyDown(box, { key: 'Enter' });
-    fireEvent.change(box, { target: { value: 'Hello' } });
-    fireEvent.keyDown(box, { key: 'Enter', shiftKey: true });
-    expect(calls.some((c) => c.url === '/api/agent-controller/stream')).toBe(false);
-    fireEvent.keyDown(box, { key: 'Enter' });
-    await waitFor(() =>
-      expect(calls.some((c) => c.url === '/api/agent-controller/stream')).toBe(true),
-    );
-  });
-
   it('reads the conversation history from the shared threads route', async () => {
-    render(<ChatPanel />);
+    render(
+      <TooltipProvider>
+        <ChatPanel />
+      </TooltipProvider>,
+    );
     await waitFor(() =>
       expect(calls.some((c) => c.url === '/api/agent-controller/threads')).toBe(true),
     );

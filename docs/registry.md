@@ -14,6 +14,7 @@ our own copies of only the few we had to patch.
 |---|---|---|
 | `chat` | block | **The full skin** — history sidebar │ conversation │ the 4-tab workbench (browser, files, memory, schedules). **Install this for the complete experience.** |
 | `chat-minimal` | block | **A second skin** — conversation + composer + approvals only, no sidebar or workbench. For embedding an agent in a corner of an existing app. |
+| `chat-composer` | component | The one composer both full skins use: attachments, dictation, optional model picker and web search. |
 | `chat-panel` | block | **A third skin** — a docked side panel: a header (title, conversation history, new chat, your own buttons), a greeting and suggestions when empty, and a rounded composer card. No model picker. |
 | `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
 | `chat-engine` | lib | The engine: Agent Controller SSE client, transcript reducer, and the data hooks that own every `/api/*` call. UI-free — imports only React. |
@@ -384,6 +385,14 @@ questions and submitted plans render through `components/chat/transcript.tsx`
 (shipped in `chat-tool-views`), the same pieces `chat-minimal` uses, so the panel
 can always answer what the agent is waiting on. Keep it mounted in a layout that
 survives navigation and the conversation stays put across pages.
+
+The composer is the kit's shared one (`chat-composer`, also used by the full shell):
+attachments with previews, a microphone for dictation, and send. The mic uses the
+browser's own speech recognition (Chrome, Edge, Safari 14.5+ including iOS) and is
+simply not shown where that is missing. Attached images reach the model as image
+parts (`tests/integration/attachments.test.ts`). It ships no colours of its own:
+`className` sets the root (for example `bg-sidebar` to match your sidebar), and
+`--chat-panel-header-height` lines its header up with yours.
 
 ### Fit it into your app
 

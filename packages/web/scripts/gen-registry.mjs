@@ -58,6 +58,7 @@ const elPath = (n) => `components/ai-elements/${n}.tsx`;
 const SHARED_ITEM_OF = {
   'components/chat/tool-views': 'chat-tool-views',
   'components/chat/transcript': 'chat-tool-views',
+  'components/chat/composer': 'chat-composer',
 };
 
 /** Absolute path -> "components/ai-elements/x" style key (no extension). */
@@ -338,7 +339,6 @@ const TOOL_VIEW_FILES = ['components/chat/tool-views.tsx', 'components/chat/tran
 // 5) chat: the headline block — the canonical full shell (sidebar │ chat │ workbench).
 const CHAT_FILES = [
   'components/chat/chat-switcher.tsx',
-  'components/chat/composer.tsx',
   'components/chat/agent-controller-chat.tsx',
   // Plan mode UI (the composer's Plan toggle + the submit_plan card), imported by the chat.
   'components/chat/plan-mode.tsx',
@@ -387,6 +387,23 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
     registryDependencies: [...regDeps(c, 'chat-minimal'), NS('chat-routes')],
     files: MINIMAL_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
     docs: RADIX_NOTICE,
+  });
+}
+
+// 6b) chat-composer: the ONE composer (attachments, dictation, optional model picker
+// and web search), shared by the full shell and the side panel.
+const COMPOSER_FILES = ['components/chat/composer.tsx'];
+{
+  const c = classify(COMPOSER_FILES);
+  items.push({
+    name: 'chat-composer',
+    type: 'registry:component',
+    title: 'Chat Composer',
+    description:
+      'The shared chat composer: attachments with previews, dictation (where the browser supports speech recognition), and an optional model picker and web-search toggle.',
+    dependencies: c.npm,
+    registryDependencies: regDeps(c, 'chat-composer'),
+    files: COMPOSER_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
   });
 }
 

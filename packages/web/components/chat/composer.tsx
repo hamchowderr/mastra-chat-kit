@@ -2,7 +2,7 @@
 
 import type { ChatStatus } from 'ai';
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import {
   Attachment,
   AttachmentPreview,
@@ -35,6 +35,7 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input';
+import { SpeechInput } from '@/components/ai-elements/speech-input';
 
 /** A model-router provider id, e.g. `anthropic`, `openai` — also picks the logo. */
 type Provider = string;
@@ -90,6 +91,19 @@ function AttachmentsDisplay() {
 }
 
 /**
+ * Whether this browser can turn speech into text by itself (the Web Speech API:
+ * Chrome, Edge, Safari 14.5+ incl. iOS). Checked after mount, so the server render and
+ * the first client render agree; where it's missing the mic is simply not shown.
+ */
+function useSpeechRecognitionSupport(): boolean {
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+  }, []);
+  return supported;
+}
+
+/**
  * The ONE chat composer — full PromptInput surface (attachments + drag-drop,
  * action menu, web-search toggle, model selector, submit). Kept separate from
  * the chat view so the input surface can be reused behind any transport —
@@ -103,6 +117,8 @@ export function Composer({
   toolsExtra,
   models = MODELS,
   webSearch: showWebSearch = true,
+  placeholder = 'Ask anything…',
+  speech = true,
 }: {
   onSend: (submit: ComposerSubmit) => void;
   status?: ChatStatus;
@@ -119,7 +135,16 @@ export function Composer({
   models?: ModelOption[] | false;
   /** Show the "Search the web" toggle. Hide it when the agent has no browser. */
   webSearch?: boolean;
+  /** The textarea's placeholder. */
+  placeholder?: string;
+  /**
+   * Show the microphone (AI Elements SpeechInput): dictation into the textarea. It only
+   * appears where the browser has speech recognition built in; elsewhere there is no
+   * button rather than a broken one.
+   */
+  speech?: boolean;
 }) {
+  const speechSupported = useSpeechRecognitionSupport();
   const modelList = models === false ? [] : models;
   const MODEL_GROUPS = providerGroups(modelList);
   const [text, setText] = useState('');
@@ -165,7 +190,7 @@ export function Composer({
         <PromptInputTextarea
           onChange={(e) => setText(e.target.value)}
           value={text}
-          placeholder="Ask anything…"
+          placeholder={placeholder}
         />
       </PromptInputBody>
       <PromptInputFooter>
@@ -263,6 +288,16 @@ export function Composer({
         </PromptInputTools>
         <div className="flex items-center gap-2">
           {footerExtra}
+          {speech && speechSupported && (
+            <SpeechInput
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Dictate"
+              onTranscriptionChange={(said) =>
+                setText((prev) => (prev.trim() ? `${prev.trimEnd()} ${said}` : said))
+              }
+            />
+          )}
           <PromptInputSubmit disabled={!text.trim() && status !== 'streaming'} status={status} />
         </div>
       </PromptInputFooter>
