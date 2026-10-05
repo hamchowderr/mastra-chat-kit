@@ -9,7 +9,10 @@ import {
   WorkbenchPanel,
   type WorkbenchTab,
 } from '@/components/chat/workbench-panel';
-import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
+import {
+  type AgentControllerToolEnd,
+  useAgentControllerChat,
+} from '@/lib/agent-controller/use-agent-controller-chat';
 import { cn } from '@/lib/utils';
 
 export type ChatSwitcherProps = ChatOptions & {
@@ -20,6 +23,8 @@ export type ChatSwitcherProps = ChatOptions & {
   className?: string;
   /** Which workbench tabs to show. `[]` removes the workbench and its toggle. */
   workbenchTabs?: readonly WorkbenchTab[];
+  /** Called when the agent finishes a tool call (e.g. refresh the host page after a write). */
+  onToolEnd?: (tool: AgentControllerToolEnd) => void;
 };
 
 /**
@@ -35,12 +40,13 @@ export type ChatSwitcherProps = ChatOptions & {
 export function ChatSwitcher({
   className,
   workbenchTabs = WORKBENCH_TABS,
+  onToolEnd,
   ...options
 }: ChatSwitcherProps = {}) {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   // Workbench starts CLOSED so the default view is a clean chat, not an IDE.
   const [rightCollapsed, setRightCollapsed] = useState(true);
-  const controller = useAgentControllerChat();
+  const controller = useAgentControllerChat({ onToolEnd });
 
   // New chat: clear the transcript, then focus the composer so it's obviously
   // responsive — from an already-empty chat there'd otherwise be no visible change.
