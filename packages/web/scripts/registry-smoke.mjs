@@ -75,7 +75,7 @@ const INIT_BASE_ARGS =
 // What a correct install must produce. These counts are the contract; if the
 // registry legitimately grows, update them here in the same commit.
 const EXPECT = {
-  'components/chat': 11,
+  'components/chat': 12,
   'components/ai-elements': 5, // OUR vendored ones; upstream adds more on top
   'app/api': 14, // route.ts files
 };
@@ -252,6 +252,16 @@ log('installing @mastra-chat-kit/chat-minimal (second skin, same project)');
   );
   if (code !== 0) await die('chat-minimal install failed', out);
 }
+// And the THIRD skin, the side panel, into the same project.
+log('installing @mastra-chat-kit/chat-panel (third skin, same project)');
+{
+  const { code, out } = await run(
+    'npx',
+    ['--yes', 'shadcn@latest', 'add', '@mastra-chat-kit/chat-panel', '--yes'],
+    { cwd: PROJECT },
+  );
+  if (code !== 0) await die('chat-panel install failed', out);
+}
 
 // ── 5. Assert the files landed ───────────────────────────────────────────────
 // A plain walk rather than fs.globSync — that is still experimental on Node 22,
@@ -293,6 +303,10 @@ if (!existsSync(join(PROJECT, 'lib/mastra-proxy.ts'))) problems.push('lib/mastra
 // fails to compile, so assert the file rather than just the skin.
 if (!existsSync(join(PROJECT, 'components/chat-minimal/minimal-chat.tsx')))
   problems.push('components/chat-minimal/minimal-chat.tsx missing (second skin)');
+if (!existsSync(join(PROJECT, 'components/chat-panel/chat-panel.tsx')))
+  problems.push('components/chat-panel/chat-panel.tsx missing (third skin)');
+if (!existsSync(join(PROJECT, 'components/chat/transcript.tsx')))
+  problems.push('components/chat/transcript.tsx missing (shared by every skin)');
 if (!existsSync(join(PROJECT, 'components/chat/tool-views.tsx')))
   problems.push('components/chat/tool-views.tsx missing (shared by both skins)');
 if (problems.length) await die(`installed tree is wrong:\n  ${problems.join('\n  ')}`);
