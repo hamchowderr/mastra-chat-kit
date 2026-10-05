@@ -1,11 +1,12 @@
 'use client';
 
-import { ArrowUpIcon, HistoryIcon, LoaderIcon, SquarePenIcon } from 'lucide-react';
-import { type FormEvent, type KeyboardEvent, type ReactNode, useState } from 'react';
+import { HistoryIcon, SquarePenIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion } from '@/components/ai-elements/suggestion';
+import { Composer, type ComposerSubmit } from '@/components/chat/composer';
 import { AskUserPrompt } from '@/components/chat/tool-views';
 import { ApprovalCard, partKey, TranscriptPart } from '@/components/chat/transcript';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,11 @@ export type ChatPanelProps = {
   placeholder?: string;
   /** Host buttons at the right of the header (full screen, close, …). */
   actions?: ReactNode;
+  /**
+   * Classes for the panel's root, e.g. its background. The panel inherits the host's
+   * theme tokens (`bg-background`, `border`, fonts, radius); the header's height follows
+   * the `--chat-panel-header-height` CSS variable.
+   */
   className?: string;
 };
 
@@ -61,32 +67,23 @@ export function ChatPanel({
   const controller = useAgentControllerChat();
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
   const { threads } = useThreads({ refreshSignal: controller.refreshSignal });
-  const [input, setInput] = useState('');
-
   const busy = status === 'streaming';
   const empty = transcript.messages.length === 0 && !busy;
 
+  // The shared composer hands over the text and any attached files (images, PDFs …).
+  const handleSend = ({ text, files }: ComposerSubmit) =>
+    sendMessage(text, {
+      files: files?.map((f) => ({ url: f.url, mediaType: f.mediaType, filename: f.filename })),
+    });
   const send = (text: string) => {
-    const t = text.trim();
-    if (!t || busy) return;
-    setInput('');
-    void sendMessage(t);
-  };
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    send(input);
-  };
-  // Enter sends; Shift+Enter (or composing an IME character) adds a line.
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      send(input);
-    }
+    if (text.trim() && !busy) void sendMessage(text.trim());
   };
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col bg-background', className)}>
-      <header className="flex h-12 shrink-0 items-center gap-1 px-3">
+      {/* Height from --chat-panel-header-height (default 3rem): a host sets it to its own
+          header height so the two headers' bottom borders run on one line. */}
+      <header className="flex h-[var(--chat-panel-header-height,3rem)] shrink-0 items-center gap-1 border-b px-3">
         <div className="min-w-0 flex-1 truncate font-medium text-sm">{title}</div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -189,35 +186,18 @@ export function ChatPanel({
         </Conversation>
       )}
 
-      <form onSubmit={onSubmit} className="shrink-0 p-3 pt-1">
-        <div className="flex flex-col gap-2 rounded-2xl border bg-card p-3 shadow-xs transition-colors focus-within:border-ring">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-            aria-label="Message"
-            rows={1}
-            // 16px on phones so iOS doesn't zoom into the field; grows with the text.
-            className="field-sizing-content max-h-48 min-h-6 w-full resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
-          />
-          <div className="flex items-center justify-end">
-            <Button
-              type="submit"
-              size="icon"
-              className="size-8 rounded-full"
-              disabled={busy || !input.trim()}
-              aria-label={busy ? 'Working' : 'Send'}
-            >
-              {busy ? (
-                <LoaderIcon className="size-4 animate-spin" />
-              ) : (
-                <ArrowUpIcon className="size-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </form>
+      {/* The kit's shared composer: attach and dictate on the left of the send button,
+          one rounded card. No model picker and no web search in a side panel. */}
+      <div className="shrink-0 p-3 pt-1">
+        <Composer
+          onSend={handleSend}
+          status={busy ? 'streaming' : status === 'error' ? 'error' : 'ready'}
+          models={false}
+          webSearch={false}
+          placeholder={placeholder}
+          className="m-0"
+        />
+      </div>
     </div>
   );
 }
