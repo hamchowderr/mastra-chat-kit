@@ -26,7 +26,7 @@ import type { MastraBrowser } from '@mastra/core/browser';
 import { InMemoryStore, type MastraStorage } from '@mastra/core/storage';
 import type { Workspace } from '@mastra/core/workspace';
 import { env } from '../../lib/env';
-import { chatAgent, createChatAgent } from '../agents/chat';
+import { chatAgent } from '../agents/chat';
 import { codeSubagent } from '../agents/code';
 import { dataSubagent } from '../agents/data';
 import { researchSubagent } from '../agents/research';
@@ -34,7 +34,7 @@ import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
 import { type ChatFeatures, features as defaultFeatures } from './features';
 import { createDefaultMemory, getSharedStore } from './memory';
-import { resolveToolCategory } from './tool-categories';
+import { PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
 import {
   createBrowser,
   createChatWorkspace,
@@ -75,12 +75,13 @@ export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
   ];
 }
 
-/** Plan mode's extra instructions; in `plans` mode the plan goes through write_plan. */
-export function planModeInstructions(f: ChatFeatures): string {
-  return f.workspaceMode === 'plans'
-    ? 'You are in PLAN mode. Investigate the request and produce a concise, ordered plan. Write it with write_plan, then call submit_plan with the path write_plan returns. Do NOT change anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.'
-    : 'You are in PLAN mode. Investigate the request and produce a concise, ordered plan, then call submit_plan with it. Do NOT create, edit, or run anything in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.';
-}
+/**
+ * Plan mode's extra instructions. Mastra's submit_plan takes the PATH of a plan file the
+ * agent wrote (never the plan text), so the agent writes it with the workspace's own
+ * write_file tool first.
+ */
+export const PLAN_MODE_INSTRUCTIONS =
+  'You are in PLAN mode. Investigate the request and produce a concise, ordered plan. Write it to a Markdown file under plans/ (e.g. plans/<short-name>.md) with mastra_workspace_write_file, then call submit_plan with that path. Write nothing else and run nothing in this mode — planning only. When the plan is approved, the session switches to Chat mode to execute it.';
 
 /**
  * The live singleton's persistent thread/message store. It MUST be the very same
@@ -112,26 +113,13 @@ export function createChatAgentController(opts?: {
    * the `browser` option instead, keeping AIMock runs hermetic.
    */
   workspace?: Workspace;
-  /**
-   * Which parts of the kit are on (lib/features.ts). Omit it for the env switches and the
-   * shared `chatAgent`; pass it (tests) to build an agent, roster and workspace for
-   * exactly that combination.
-   */
-  features?: ChatFeatures;
-  /** With `features`: the workspace root for the agent's own tools (write_plan). */
-  root?: string;
 }): AgentController {
-  const f = opts?.features ?? defaultFeatures;
-  const agent = opts?.features ? createChatAgent(opts.features, opts.root) : chatAgent;
+  const f = defaultFeatures;
+  const agent = chatAgent;
   const browser =
     opts?.browser === null || !f.browser ? undefined : (opts?.browser ?? createBrowser());
   const workspace =
-    opts?.workspace ??
-    createChatWorkspace({
-      features: f,
-      ...(opts?.root ? { root: opts.root } : {}),
-      ...(browser ? { browser } : {}),
-    });
+    opts?.workspace ?? createChatWorkspace({ features: f, ...(browser ? { browser } : {}) });
   return new AgentController({
     id: 'chat-agent-controller',
     defaultModeId: 'chat',
@@ -154,7 +142,10 @@ export function createChatAgentController(opts?: {
         description: 'Research and propose a plan; approving it switches to Chat to execute.',
         defaultModelId: CHAT_MODEL_ID,
         // Layered ABOVE the backing agent's own instructions for this mode only.
-        instructions: planModeInstructions(f),
+        instructions: PLAN_MODE_INSTRUCTIONS,
+        // Mastra's per-mode allowlist: only the read tools, the plan file's write and
+        // submit_plan are visible or runnable here (lib/tool-categories.ts).
+        availableTools: [...PLAN_MODE_TOOLS],
         // submit_plan approval in this mode flips the session to `chat` (plan→build).
         transitionsTo: 'chat',
       },
@@ -247,7 +238,7 @@ export function getChatAgentController(): Promise<AgentController> {
  */
 export async function getChatBrowser(): Promise<BrowserViewer> {
   if (!defaultFeatures.browser) {
-    throw new Error('the browser is switched off (WORKSPACE_BROWSER / WORKSPACE_MODE)');
+    throw new Error('the browser is switched off (WORKSPACE_BROWSER)');
   }
   await getChatAgentController();
   if (!singletonBrowser) {
@@ -280,8 +271,6 @@ export const AUTO_ALLOWED_TOOLS = [
   'task_complete',
   'task_check',
   'list_schedules',
-  // Writes a draft plan file in `plans` workspace mode; approving the plan is the decision.
-  'write_plan',
 ] as const;
 
 /**
