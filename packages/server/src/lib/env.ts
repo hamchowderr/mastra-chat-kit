@@ -58,10 +58,20 @@ const envSchema = z
     // an assistant that should not have them (lib/features.ts reads these).
     //
     // The workspace always has its filesystem and file tools; the shell sandbox and the
-    // browser each have a switch. The browser also needs the sandbox: the agent drives it
-    // with the browser CLI through execute_command.
+    // browser each have a switch. WORKSPACE_BROWSER=false turns the browser off whatever
+    // BROWSER_PROVIDER says.
     WORKSPACE_SANDBOX: boolish.default(true),
     WORKSPACE_BROWSER: boolish.default(true),
+    // Which browser (lib/features.ts resolveBrowser). `viewer`: the local Chrome above,
+    // which the agent drives with the browser CLI through the sandbox. `firecrawl`: hosted
+    // Firecrawl browser sessions with the provider's own browser_* tools
+    // (lib/firecrawl-browser.ts), needing FIRECRAWL_API_KEY and no sandbox. Unset:
+    // `firecrawl` when the key is set and the sandbox is off, otherwise `viewer` when the
+    // sandbox is on, otherwise no browser.
+    BROWSER_PROVIDER: z
+      .union([z.enum(['viewer', 'firecrawl']), z.literal('')])
+      .optional()
+      .transform((v) => v || undefined),
     // The specialist subagents the chat agent may delegate to. `data` also needs Dolt.
     SUBAGENT_CODE: boolish.default(true),
     SUBAGENT_RESEARCH: boolish.default(true),
@@ -82,6 +92,14 @@ const envSchema = z
     // The MCP endpoint those tools come from. The default is Firecrawl's hosted server;
     // override it for a self-hosted `firecrawl-mcp` (HTTP_STREAMABLE_SERVER=true) or a mock.
     FIRECRAWL_MCP_URL: z.string().url().default('https://mcp.firecrawl.dev/v2/mcp'),
+    // The Firecrawl API the `firecrawl` browser provider creates its sessions on. Override
+    // it for a self-hosted Firecrawl or a mock (scripts/firecrawl-browser-mock.ts).
+    FIRECRAWL_API_URL: z.string().url().default('https://api.firecrawl.dev'),
+    // Caps on each hosted browser session, in seconds: Firecrawl's `ttl` (total lifetime,
+    // 30-3600) and `activityTtl` (idle time, 10-3600). Sessions are closed when the run
+    // ends; these bound one left open, e.g. while a run waits on an approval.
+    FIRECRAWL_BROWSER_TTL: z.coerce.number().int().min(30).max(3600).default(600),
+    FIRECRAWL_BROWSER_IDLE_TTL: z.coerce.number().int().min(10).max(3600).default(300),
 
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.

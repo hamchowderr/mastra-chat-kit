@@ -18,6 +18,9 @@ import { searchKnowledge } from './chat';
  *   `allowedControllerTools` (lib/firecrawl.ts). Needs no sandbox or browser.
  * - otherwise the browser, which it inherits from the controller workspace and drives
  *   through the sandbox.
+ * The Firecrawl browser (BROWSER_PROVIDER=firecrawl) is not given to it. Mastra runs
+ * subagent tools with no approval gate, so it would click and type unasked; that provider
+ * needs the Firecrawl key, so research always has firecrawl_scrape to read pages.
  * It also has `searchKnowledge` while the demo tools are on. A non-forked subagent can't
  * see the parent conversation, so the delegating agent passes the full question as the
  * task.

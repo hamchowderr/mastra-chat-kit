@@ -6,6 +6,12 @@ import { AUTO_ALLOWED_TOOLS, chatSubagents } from '../../src/mastra/lib/agent-co
 import { FULL_FEATURES, resolveFeatures } from '../../src/mastra/lib/features';
 import { createFirecrawlClient, loadFirecrawlTools } from '../../src/mastra/lib/firecrawl';
 import {
+  BROWSER_ACTION_TOOLS,
+  BROWSER_AUTO_ALLOWED_TOOLS,
+  BROWSER_READ_TOOLS,
+  createFirecrawlBrowser,
+} from '../../src/mastra/lib/firecrawl-browser';
+import {
   CATEGORIZED_TOOLS,
   PLAN_MODE_TOOLS,
   READ_TOOLS,
@@ -58,10 +64,24 @@ afterAll(async () => {
   await fc.stop();
 });
 
+// The Firecrawl browser's tools, as the provider lists them (building it calls nothing).
+const browserNames = Object.keys(
+  createFirecrawlBrowser({
+    apiKey: 'fc-test-key',
+    apiUrl: 'http://127.0.0.1:9',
+    ttl: 600,
+    activityTtl: 300,
+  }).getTools(),
+);
+
 /** Every tool name the agent, a specialist, the controller or the workspace can expose. */
 function exposedToolNames(): Set<string> {
   const full = resolveFeatures(FULL_FEATURES, { dolt: true });
-  const names = new Set<string>([...Object.keys(chatTools(full)), ...firecrawlNames]);
+  const names = new Set<string>([
+    ...Object.keys(chatTools(full)),
+    ...firecrawlNames,
+    ...browserNames,
+  ]);
   for (const sub of chatSubagents(full)) {
     for (const name of Object.keys(sub.tools ?? {})) names.add(name);
   }
@@ -114,6 +134,30 @@ describe('Firecrawl tools skip the approval card and work in Plan mode', () => {
       expect(resolveToolCategory(name)).toBe('read');
       expect(AUTO_ALLOWED_TOOLS).toContain(name);
       expect(PLAN_MODE_TOOLS).toContain(name);
+    }
+  });
+});
+
+describe('Firecrawl browser tools: reads in read, actions ask every time', () => {
+  it('every browser tool the provider offers is sorted into reads or actions', () => {
+    const sorted = [...BROWSER_READ_TOOLS, ...BROWSER_ACTION_TOOLS, 'browser_close'];
+    expect([...browserNames].sort()).toEqual([...sorted].sort());
+  });
+
+  it('reads are in read and the Plan allowlist; only browser_goto among them asks first', () => {
+    for (const name of BROWSER_READ_TOOLS) {
+      expect(resolveToolCategory(name)).toBe('read');
+      expect(PLAN_MODE_TOOLS).toContain(name);
+    }
+    expect(AUTO_ALLOWED_TOOLS).not.toContain('browser_goto');
+    for (const name of BROWSER_AUTO_ALLOWED_TOOLS) expect(AUTO_ALLOWED_TOOLS).toContain(name);
+  });
+
+  it('actions have no category, are never auto-allowed, and are not in Plan mode', () => {
+    for (const name of BROWSER_ACTION_TOOLS) {
+      expect(resolveToolCategory(name)).toBeNull();
+      expect(AUTO_ALLOWED_TOOLS).not.toContain(name);
+      expect(PLAN_MODE_TOOLS).not.toContain(name);
     }
   });
 });

@@ -234,6 +234,7 @@ export function chatInstructions(f: ChatFeatures): string {
           '- When the user asks for an image, picture, drawing, or illustration, call generateImage with a vivid prompt.',
         ]
       : []),
+    ...(f.browser === 'firecrawl' ? [FIRECRAWL_BROWSER_INSTRUCTIONS] : []),
     ...(enabled.length
       ? [
           `- For substantial, self-contained work, delegate to a specialist subagent via the subagent tool rather than doing it inline. Pick the agentType by the task: ${enabled.map((k) => SUBAGENT_GUIDE[k]).join('; ')}. A subagent can't see this conversation, so put ALL the context it needs in the task. Handle small, quick things yourself.`,
@@ -249,6 +250,14 @@ export function chatInstructions(f: ChatFeatures): string {
   ];
   return `You are a helpful, concise assistant.\n\n${lines.join('\n')}`;
 }
+
+/**
+ * How to use the Firecrawl browser (lib/firecrawl-browser.ts), only when it is the browser.
+ * Its tools come from the provider (FirecrawlBrowser.getTools()), so the names here are
+ * @mastra/agent-browser's.
+ */
+const FIRECRAWL_BROWSER_INSTRUCTIONS =
+  '- When a page needs a real browser — clicking through, filling in a form, content that only appears after interaction — use the browser tools: browser_goto to open the page, browser_snapshot to read it and get element refs (@e1, @e2, …), then act with those refs (browser_click, browser_type, …) and snapshot again to check the result. Opening a site and every action on a page ask the user first, so to just read a page prefer firecrawl_scrape. The browser closes when your turn ends.';
 
 /** The chat agent's own tools for a set of features (the workspace adds its own). */
 export function chatTools(f: ChatFeatures) {
@@ -270,6 +279,8 @@ export function chatTools(f: ChatFeatures) {
 // results); the agent searches with its own tools, so the text names the path it has:
 // - Firecrawl (FIRECRAWL_API_KEY): firecrawl_search + firecrawl_scrape, from the
 //   controller's tools (lib/firecrawl.ts). Needs no sandbox or browser.
+//   With the Firecrawl browser (BROWSER_PROVIDER=firecrawl) it also hears about the
+//   browser_* tools, for pages that need interaction.
 // - otherwise the workspace browser (the SAME Chrome the Browser panel screencasts),
 //   which it drives through the sandbox, so resolveFeatures only leaves it on with one.
 // With neither, the toggle adds nothing: the agent has no way to reach the web.
@@ -280,6 +291,9 @@ The user has enabled web search for this turn. Look things up on the live web wi
 - When a result's excerpt is not enough, read that page with firecrawl_scrape.
 - Prefer what you found over your training data, and cite the URLs you actually used.`;
 
+const FIRECRAWL_BROWSER_SEARCH_INSTRUCTIONS = `
+- If what you need only shows after clicking through or filling something in, open the page with the browser tools (browser_goto, then browser_snapshot). The user can watch in the Browser panel.`;
+
 const BROWSER_SEARCH_INSTRUCTIONS = `
 
 The user has enabled web search for this turn. Use your browser tools to look things up on the live web:
@@ -289,7 +303,12 @@ The user has enabled web search for this turn. Use your browser tools to look th
 
 /** What the "Search" toggle adds for a set of RESOLVED features, or '' when it can't search. */
 export function webSearchInstructions(f: ChatFeatures): string {
-  if (f.firecrawl) return FIRECRAWL_SEARCH_INSTRUCTIONS;
+  if (f.firecrawl) {
+    return (
+      FIRECRAWL_SEARCH_INSTRUCTIONS +
+      (f.browser === 'firecrawl' ? FIRECRAWL_BROWSER_SEARCH_INSTRUCTIONS : '')
+    );
+  }
   if (f.browser) return BROWSER_SEARCH_INSTRUCTIONS;
   return '';
 }

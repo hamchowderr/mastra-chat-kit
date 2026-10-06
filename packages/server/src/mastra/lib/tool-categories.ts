@@ -1,5 +1,6 @@
 import type { ToolCategory } from '@mastra/core/agent-controller';
 import { WORKSPACE_TOOLS } from '@mastra/core/workspace';
+import { BROWSER_READ_TOOLS } from './firecrawl-browser';
 
 const { FILESYSTEM, SANDBOX, SEARCH, LSP } = WORKSPACE_TOOLS;
 
@@ -17,6 +18,10 @@ const { FILESYSTEM, SANDBOX, SEARCH, LSP } = WORKSPACE_TOOLS;
  *   delegated run). `ToolCategory` is a closed set, so they cannot get a category
  *   of their own, and sharing `other` with `generateImage` would let one
  *   "Always allow" on an image request switch off every one of these gates.
+ * - The Firecrawl browser's page actions (BROWSER_ACTION_TOOLS in
+ *   lib/firecrawl-browser.ts: click, type, press, select, hover, dialog, drag, tabs,
+ *   evaluate): they act on a live site, which no category describes. `execute` means the
+ *   sandbox shell, and an "Always allow" on a click must not also allow shell commands.
  * - Any tool not listed (a new tool, an MCP tool): it must be categorized on
  *   purpose, not picked up by an existing grant.
  */
@@ -31,6 +36,10 @@ const CATEGORIES: Record<string, ToolCategory> = {
   // Also auto-allowed (AUTO_ALLOWED_TOOLS), so they never show an approval card.
   firecrawl_search: 'read',
   firecrawl_scrape: 'read',
+  // The Firecrawl browser (lib/firecrawl-browser.ts): open a page, go back, look at it,
+  // scroll, wait. browser_goto still asks before each new site unless reads are always
+  // allowed; the others are also auto-allowed.
+  ...Object.fromEntries(BROWSER_READ_TOOLS.map((name) => [name, 'read' as const])),
   [FILESYSTEM.READ_FILE]: 'read',
   [FILESYSTEM.LIST_FILES]: 'read',
   [FILESYSTEM.FILE_STAT]: 'read',
