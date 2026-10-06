@@ -16,6 +16,7 @@
  * So: build the real image, then look inside it.
  *
  *   Phase 1 (contents)  — what must NOT be there, and what must.
+ *   Phase 1b (embedder) — one real fastembed embedding, as the runtime user, offline.
  *   Phase 2 (behaviour) — boot it and require the server to actually answer.
  *
  * Failures accumulate and are reported together, so one run tells you everything
@@ -169,6 +170,43 @@ async function checkContents() {
   log(`contents checked — ${errors.length} problem(s) so far`);
 }
 
+// ─── Phase 1b: the embedder ───────────────────────────────────────────────────
+//
+// Semantic recall and chat search embed with @mastra/fastembed, which keeps its model in
+// `~/.cache/mastra/fastembed-models` and nowhere else. The runtime user once had no home
+// directory, so the first embedding failed to `mkdir` there (EACCES) and every chat turn
+// failed with "Failed to determine the embedder's output dimension" — in production, with
+// every check here green. So: one real embedding, as the image's own user (uid 1001), with
+// NO network, which also proves the model is baked in rather than downloaded on first use.
+const EMBED_SCRIPT = `
+const { createRequire } = require('node:module');
+const req = createRequire('/app/.mastra/output/index.mjs');
+import(req.resolve('@mastra/fastembed')).then(async (m) => {
+  const fastembed = m.fastembed ?? m.default?.fastembed;
+  const { embeddings } = await fastembed.doEmbed({ values: ['hello world'] });
+  console.log('dims=' + embeddings[0].length);
+}).catch((e) => { console.log('error=' + e.message); process.exit(1); });
+`;
+
+async function checkEmbedder() {
+  log('running one embedding as the runtime user, offline');
+  const r = await docker(
+    ['run', '--rm', '--network', 'none', '--entrypoint', 'node', IMAGE, '-e', EMBED_SCRIPT],
+    { timeoutMs: 120_000 },
+  );
+  const out = `${r.stdout}\n${r.stderr}`;
+  if (r.code !== 0 || !/dims=384\b/.test(out)) {
+    errors.push(
+      `fastembed could not embed inside the image as the runtime user with no network ` +
+        `(exit ${r.code}): ${out.trim().split('\n').slice(-3).join(' | ')}. The model must be ` +
+        `baked into /home/mastra/.cache/mastra/fastembed-models and that home must exist and ` +
+        `be writable — see packages/server/Dockerfile.`,
+    );
+  } else {
+    log('embedder ok: 384-dim vector, no download');
+  }
+}
+
 // ─── Phase 2: behaviour ───────────────────────────────────────────────────────
 async function checkBehaviour() {
   log('starting the container');
@@ -256,6 +294,7 @@ async function checkBehaviour() {
 
 try {
   await checkContents();
+  await checkEmbedder();
   await checkBehaviour();
 } finally {
   // Always clean up, including on an unexpected throw — a leftover container holds
@@ -276,5 +315,5 @@ if (errors.length) {
 }
 
 console.log(
-  `\n[verify-image] ${IMAGE} is clean: no secrets, no host files, boots healthy, endpoints answer.\n`,
+  `\n[verify-image] ${IMAGE} is clean: no secrets, no host files, the embedder works offline, boots healthy, endpoints answer.\n`,
 );
