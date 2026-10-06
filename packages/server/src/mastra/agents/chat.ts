@@ -9,6 +9,7 @@ import { putImage } from '../lib/image-store';
 import { liveScorers } from '../lib/live-scorers';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
+import { toolScopeProcessor } from '../lib/tool-scope';
 import { getChatWorkspace } from '../lib/workspace';
 import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
@@ -372,7 +373,9 @@ export function createChatAgent(f: ChatFeatures = defaultFeatures): Agent {
     },
     memory: createDefaultMemory(),
     scorers: liveScorers,
-    inputProcessors: defaultInputProcessors,
+    // toolScopeProcessor: what a forked subagent run and a resumed Plan run are offered
+    // (lib/tool-scope.ts).
+    inputProcessors: [...defaultInputProcessors, toolScopeProcessor],
     outputProcessors: defaultOutputProcessors,
   });
 }

@@ -123,7 +123,10 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
         });
       } catch (err) {
         return c.json(
-          { error: err instanceof Error ? err.message : 'screencast unavailable' },
+          {
+            error: err instanceof Error ? err.message : 'screencast unavailable',
+            ...(browser.provider ? { provider: browser.provider } : {}),
+          },
           503,
         );
       }

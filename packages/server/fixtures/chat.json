@@ -1041,6 +1041,50 @@
     },
 
     {
+      "_comment": "A forked subagent asked to act on a page (tests/integration/firecrawl-browser.test.ts). A forked run is the chat agent itself with no approval gate, so lib/tool-scope.ts offers it no page action. The forked hop still calls browser_click, as a model might; the test checks the tool was not offered and did not run.",
+      "match": {
+        "userMessage": "Browse test: have a forked subagent sign up on the demo page.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_fork_delegate",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "research",
+              "task": "Fork task: press Sign up on the demo page.",
+              "forked": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_comment": "The parent's last hop: only once the fork's answer is the subagent result. The fork's own first request also ends on the cloned toolu_fork_delegate call, so it falls through to the next fixture.",
+      "match": {
+        "toolCallId": "toolu_fork_delegate",
+        "toolResultContains": "clicking is not available"
+      },
+      "response": {
+        "content": "The forked subagent could not press Sign up, because page actions are not available to it."
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_fork_delegate" },
+      "response": {
+        "toolCalls": [
+          { "id": "toolu_fork_click", "name": "browser_click", "arguments": { "ref": "@e2" } }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_fork_click" },
+      "response": {
+        "content": "I could not press Sign up: clicking is not available in a forked subagent."
+      }
+    },
+    {
       "_comment": "Image generation (generateImage posts to OPENAI_BASE_URL/images/generations, which AIMock serves). endpoint:image keeps it from matching chat requests. The bytes are a real 256x256 PNG (a sunset over mountains) so the demo renders an actual image; generateImage sniffs the format from the bytes. tests/unit/generate-image.test.ts.",
       "match": { "endpoint": "image" },
       "response": {
