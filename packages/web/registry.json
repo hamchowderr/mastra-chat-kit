@@ -336,7 +336,9 @@
       "registryDependencies": [
         "dialog",
         "dropdown-menu",
+        "sheet",
         "tabs",
+        "use-mobile",
         "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/context",

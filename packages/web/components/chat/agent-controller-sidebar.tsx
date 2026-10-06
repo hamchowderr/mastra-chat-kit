@@ -57,6 +57,7 @@ export function AgentControllerSidebar({
   refreshSignal,
   collapsed,
   onToggleCollapse,
+  fill = false,
 }: {
   activeThreadId: string | null;
   onSelect: (id: string) => void;
@@ -64,6 +65,8 @@ export function AgentControllerSidebar({
   refreshSignal: number;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  /** Fill the container's width (in a phone's sheet) instead of the fixed rail width. */
+  fill?: boolean;
 }) {
   const [showArchived, setShowArchived] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ThreadItem | null>(null);
@@ -144,10 +147,10 @@ export function AgentControllerSidebar({
         // Flush to the window edge — the sidebar is the recessed frame; the chat floats
         // inset as the rounded panel (see ChatSwitcher). No border: the inset chat's gap
         // (which reveals this sidebar tone) is what separates them.
-        collapsed ? 'w-0' : 'w-72',
+        fill ? 'w-full' : collapsed ? 'w-0' : 'w-72',
       )}
     >
-      <div className="flex h-full w-72 flex-col">
+      <div className={cn('flex h-full flex-col', fill ? 'w-full' : 'w-72')}>
         {/* Top bar: sidebar-collapse control (aligns with the floating one shown
             when collapsed, so it looks like it stays put). */}
         <div className="flex h-11 items-center px-2">

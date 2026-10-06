@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatSwitcher } from '@/components/chat/chat-switcher';
 import { WorkbenchPanel } from '@/components/chat/workbench-panel';
@@ -96,5 +96,62 @@ describe('WorkbenchPanel — tabs', () => {
   it('shows only the tabs it is given', () => {
     render(<Panel tabs={['memory', 'schedules']} />);
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Memory', 'Schedules']);
+  });
+});
+
+describe('ChatSwitcher — phones', () => {
+  const width = window.innerWidth;
+  beforeEach(() => {
+    window.innerWidth = 420;
+    const now = new Date().toISOString();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          threads: [{ id: 't1', title: 'Grant call', createdAt: now, updatedAt: now }],
+          messages: [],
+          schedules: [],
+          tree: [],
+          root: '',
+        }),
+      ),
+    );
+  });
+  afterEach(() => {
+    window.innerWidth = width;
+  });
+
+  it('starts with the conversations closed, and opens them over the chat as a sheet', async () => {
+    renderShell();
+    expect(screen.queryByRole('dialog', { name: 'Conversations' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Show conversations'));
+    const sheet = await screen.findByRole('dialog', { name: 'Conversations' });
+    expect(within(sheet).getByText('New chat')).toBeInTheDocument();
+  });
+
+  it('closes the sheet when a conversation is chosen', async () => {
+    renderShell();
+    fireEvent.click(screen.getByLabelText('Show conversations'));
+    const sheet = await screen.findByRole('dialog', { name: 'Conversations' });
+    fireEvent.click(await within(sheet).findByText('Grant call'));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Conversations' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('closes the sheet on New chat', async () => {
+    renderShell();
+    fireEvent.click(screen.getByLabelText('Show conversations'));
+    const sheet = await screen.findByRole('dialog', { name: 'Conversations' });
+    fireEvent.click(within(sheet).getByText('New chat'));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Conversations' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('opens the workbench as a sheet', async () => {
+    renderShell({ workbenchTabs: ['memory', 'schedules'] });
+    fireEvent.click(screen.getByLabelText('Show workbench'));
+    expect(await screen.findByRole('dialog', { name: 'Workbench' })).toBeInTheDocument();
   });
 });
