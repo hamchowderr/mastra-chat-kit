@@ -38,9 +38,12 @@ export function WorkbenchPanel({
   controller,
   onCollapse,
   tabs = WORKBENCH_TABS,
+  className,
 }: {
   controller: UseAgentControllerChat;
   onCollapse?: () => void;
+  /** Classes for the panel's root, e.g. `w-full` when it fills a phone's sheet. */
+  className?: string;
   /**
    * Which tabs to show, in the order given. Defaults to all five. A host whose agent has
    * no sandbox or browser can drop `terminal` and `browser`, and so on.
@@ -54,7 +57,7 @@ export function WorkbenchPanel({
   return (
     // Flush to the window edge — the right rail is part of the recessed frame; the chat
     // floats inset between the two rails (see ChatSwitcher).
-    <div className="flex min-h-0 w-[26rem] shrink-0 flex-col bg-sidebar">
+    <div className={cn('flex min-h-0 w-[26rem] shrink-0 flex-col bg-sidebar', className)}>
       <Tabs defaultValue={tabs[0] ?? 'files'} className="flex min-h-0 flex-1 flex-col gap-0">
         <TabsList
           variant="line"
@@ -97,7 +100,7 @@ export function WorkbenchPanel({
             type="button"
             aria-label="Hide workbench"
             onClick={onCollapse}
-            className="flex size-7 shrink-0 items-center justify-center self-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+            className="flex size-7 shrink-0 items-center justify-center self-center rounded-md max-md:size-11 text-muted-foreground transition hover:bg-accent hover:text-foreground"
           >
             <PanelRightCloseIcon className="size-4" />
           </button>
