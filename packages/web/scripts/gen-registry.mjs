@@ -306,6 +306,8 @@ const SERVER_FILES = [
   ['../server/src/mastra/routes/resource.ts', 'src/mastra/routes/resource.ts'],
   // Pure formatting helpers the thread routes need. No imports of its own.
   ['../server/src/mastra/lib/thread-utils.ts', 'src/mastra/lib/thread-utils.ts'],
+  // The turn's time zone: its request-context key and the Intl check. No imports.
+  ['../server/src/mastra/lib/time-zone.ts', 'src/mastra/lib/time-zone.ts'],
 ];
 items.push({
   name: 'chat-server',

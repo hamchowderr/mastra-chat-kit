@@ -38,6 +38,8 @@ export default defineConfig({
       // (a developer's own agent settings) must never send a test run to a real model.
       USE_AIMOCK: 'true',
       CHAT_MODEL: 'anthropic/claude-sonnet-4-6',
+      // Today's date falls back to this zone when a turn sends none (lib/turn-context.ts).
+      DEFAULT_TIMEZONE: 'UTC',
       AIMOCK_URL: 'http://127.0.0.1:4010',
       // Route provider SDKs at AIMock (anthropic appends /messages to this base).
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:4010/v1',

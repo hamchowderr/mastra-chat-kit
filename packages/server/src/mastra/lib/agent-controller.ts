@@ -37,6 +37,7 @@ import { type ChatFeatures, features as defaultFeatures } from './features';
 import { DISCOVERY_BACKOFF_MS, disconnectFirecrawl, getFirecrawlTools } from './firecrawl';
 import { createDefaultMemory, getSharedStore } from './memory';
 import { AUTO_ALLOWED_TOOLS, PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
+import { withTurnContext } from './turn-context';
 import {
   createBrowser,
   createChatWorkspace,
@@ -74,13 +75,14 @@ export const CHAT_RESOURCE_ID = 'chat-kit-user';
  * `searchKnowledge` only while the demo tools are on.
  */
 export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
+  // Each gets today's date after its own instructions, as the chat agent does.
   return [
     ...(f.subagents.code ? [codeSubagent] : []),
     ...(f.subagents.research ? [researchSubagentFor(f)] : []),
     ...(f.subagents.writer ? [writerSubagent] : []),
     ...(f.subagents.review ? [reviewerSubagent] : []),
     ...(f.subagents.data ? [dataSubagent] : []),
-  ];
+  ].map((subagent) => withTurnContext(subagent));
 }
 
 /**

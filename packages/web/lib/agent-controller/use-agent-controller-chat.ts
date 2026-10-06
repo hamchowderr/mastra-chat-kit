@@ -74,6 +74,18 @@ export type UseAgentControllerChatOptions = {
 };
 
 /**
+ * The browser's IANA time zone (e.g. `America/New_York`), sent with each turn so the
+ * agent knows today's date where the user is. Undefined if the runtime can't say.
+ */
+export function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * The Agent Controller transport, mirroring `useChat`'s shape (`{ messages,
  * sendMessage, status }`) but speaking the AgentController SSE protocol instead of the
  * AI SDK UIMessage stream. POSTs `{ text, threadId }` to the proxy, parses the
@@ -241,6 +253,7 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
             webSearch: opts?.webSearch,
             mode: opts?.mode,
             files: opts?.files,
+            timeZone: browserTimeZone(),
           }),
         });
       } catch (err) {
@@ -305,7 +318,7 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         const res = await fetch('/api/agent-controller/answer', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ ...body, timeZone: browserTimeZone() }),
         });
         await readEventStream(res, onEvent);
         setStatus('ready');

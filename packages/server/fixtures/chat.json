@@ -1138,6 +1138,26 @@
     },
 
     {
+      "_comment": "TODAY'S DATE (lib/turn-context.ts): \"Friday\" resolves from the date the turn-context processor adds after the instructions. tests/integration/turn-context.test.ts freezes the clock at 2026-10-16T05:30Z: Thursday 22:30 in Los Angeles, already Friday in UTC, so the two zones give different Fridays.",
+      "match": {
+        "userMessage": "When is Friday?",
+        "systemMessage": "Current date and time: Thursday 2026-10-15"
+      },
+      "response": {
+        "content": "Friday is 2026-10-16."
+      }
+    },
+    {
+      "_comment": "The same question when the zone fell back to UTC (none sent, or one Intl doesn't know): it is already Friday there, so the next Friday is a week on.",
+      "match": {
+        "userMessage": "When is Friday?",
+        "systemMessage": "Current date and time: Friday 2026-10-16"
+      },
+      "response": {
+        "content": "Friday is 2026-10-23."
+      }
+    },
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {
