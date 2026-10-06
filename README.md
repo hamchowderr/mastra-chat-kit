@@ -252,8 +252,9 @@ them default to the full kit, so an existing server changes nothing.
 
 | Variable | Default | Off means |
 |---|---|---|
-| `WORKSPACE_SANDBOX` | `true` | No shell (`execute_command`), and so no browser either: the agent drives the browser with its CLI through the shell. |
-| `WORKSPACE_BROWSER` | `true` | No headless browser and no Browser panel. Without Firecrawl, no web search either. |
+| `WORKSPACE_SANDBOX` | `true` | No shell (`execute_command`), and so no local browser either: the agent drives the `viewer` browser with its CLI through the shell. The `firecrawl` browser still works. |
+| `WORKSPACE_BROWSER` | `true` | No browser of either kind and no Browser panel. Without Firecrawl, no web search either. |
+| `BROWSER_PROVIDER` | unset (auto) | Which browser, not an off switch. `viewer`: a local Chrome driven through the sandbox. `firecrawl`: hosted [Firecrawl browser sessions](https://docs.firecrawl.dev/features/browser) through `@mastra/browser-firecrawl`, needing `FIRECRAWL_API_KEY` and no sandbox. Unset: `firecrawl` when the key is set and the sandbox is off, else `viewer` when the sandbox is on, else none. A provider whose needs are missing gives no browser. |
 | `SUBAGENT_CODE` · `_RESEARCH` · `_WRITER` · `_REVIEW` · `_DATA` | `true` | That specialist is not offered. Each is also dropped when what it works with is missing: `code` needs the sandbox, `research` Firecrawl or the browser, `data` Dolt. With none left there is no `subagent` tool. |
 | `TOOL_GENERATE_IMAGE` | `true` | No `generateImage`. |
 | `TOOL_DEMO` | `true` | No `getWeather` / `searchKnowledge` demo tools. |
@@ -263,6 +264,7 @@ One capability is off until you set a key:
 | Variable | Default | Set means |
 |---|---|---|
 | `FIRECRAWL_API_KEY` | unset | Web search through [Firecrawl](https://www.firecrawl.dev): the chat agent and the research subagent get `firecrawl_search` and `firecrawl_scrape` from Firecrawl's hosted MCP server (`FIRECRAWL_MCP_URL`, default `https://mcp.firecrawl.dev/v2/mcp`). It needs no sandbox or browser, so it is the web search for a server with `WORKSPACE_SANDBOX=false`. The composer's Search toggle then points the agent at Firecrawl. Both tools run without an approval card and work in Plan mode. Each search or scrape spends Firecrawl credits. |
+| `FIRECRAWL_API_URL`, `FIRECRAWL_BROWSER_TTL`, `FIRECRAWL_BROWSER_IDLE_TTL` | `https://api.firecrawl.dev`, `600`, `300` | For the `firecrawl` browser: the API its sessions are created on, and Firecrawl's caps on each session in seconds (total lifetime, and idle time). Its `browser_*` tools come from the provider. Opening a site (`browser_goto`) and every page action (click, type, …) ask first; looking at the open page (snapshot, screenshot, scroll, wait, back) does not, and works in Plan mode. Each conversation gets its own session, closed when the run ends and when the server stops. Sessions are billed per browser minute. |
 
 The chat agent's instructions are built from the same switches, so it is never
 told about a tool or specialist it does not have. Pair them with the

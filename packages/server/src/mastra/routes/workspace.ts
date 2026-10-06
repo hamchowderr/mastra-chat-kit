@@ -5,6 +5,7 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import { registerApiRoute } from '@mastra/core/server';
+import { resourceIdOf } from './resource';
 import type { ChatServerDeps } from './types';
 
 export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
@@ -44,8 +45,9 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
     },
   }),
 
-  // Workbench Browser panel: a live screencast (SSE) of the controller agent's Chrome
-  // (the @mastra/browser-viewer instance). Launches the browser on first view, then
+  // Workbench Browser panel: a live screencast (SSE) of the controller agent's browser,
+  // for the requesting user. Launches the browser on first view (a provider may refuse,
+  // e.g. a hosted one that only streams a session the agent already opened), then
   // forwards base64 JPEG frames + URL changes; the agent's browser tools drive the
   // SAME window, so the panel shows what the agent sees.
   registerApiRoute('/browser/screencast', {
@@ -53,7 +55,7 @@ export const createWorkspaceRoutes = (deps: ChatServerDeps) => [
     handler: async (c) => {
       let browser: Awaited<ReturnType<ChatServerDeps['getBrowser']>>;
       try {
-        browser = await deps.getBrowser();
+        browser = await deps.getBrowser(resourceIdOf(c));
       } catch {
         // The browser is off (WORKSPACE_BROWSER, or no sandbox to drive it with).
         return c.json({ error: 'browser not available' }, 404);

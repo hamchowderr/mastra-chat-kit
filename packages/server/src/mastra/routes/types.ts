@@ -76,8 +76,11 @@ export type ChatServerDeps = {
   /** Generated-image byte store (`/images/:id`). */
   getImage: (id: string) => unknown | undefined;
 
-  /** Live browser for `/browser/screencast`. */
-  getBrowser: () => Promise<ScreencastBrowser>;
+  /**
+   * Live browser for `/browser/screencast`, for one user (the resource id; undefined is
+   * the shared user). A browser shared by every user can ignore it.
+   */
+  getBrowser: (resourceId?: string) => Promise<ScreencastBrowser>;
 
   /**
    * Semantic thread search. OPTIONAL — omit it and `/threads/search` answers

@@ -71,6 +71,13 @@ lists, with inputs that pay or act on pages removed (`restrictDefinition`). They
 with no approval card, so never widen those schemas. Tests never call Firecrawl: `scripts/firecrawl-mock.ts` serves the real tool
 list from AIMock's MCP mock.
 
+The Firecrawl browser (`lib/firecrawl-browser.ts`, `BROWSER_PROVIDER=firecrawl`) is the
+AgentController's `browser`, never the workspace's: a workspace browser reaches every
+subagent, and subagents run with no approval gate. Its read tools are `BROWSER_READ_TOOLS`
+(`read`, Plan mode), its page actions `BROWSER_ACTION_TOOLS` (no category). Sessions close
+at run end (`closeSessionsAtRunEnd`) and on shutdown. Tests drive it against
+`scripts/firecrawl-browser-mock.ts` (each session a local headless Chrome over CDP).
+
 ---
 
 ## Boot Order (critical)
