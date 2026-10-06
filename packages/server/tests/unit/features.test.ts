@@ -1,4 +1,6 @@
 import { tmpdir } from 'node:os';
+import type { AgentControllerSubagent } from '@mastra/core/agent-controller';
+import { RequestContext } from '@mastra/core/request-context';
 import { describe, expect, it } from 'vitest';
 import { chatInstructions, chatTools, webSearchInstructions } from '../../src/mastra/agents/chat';
 import { chatSubagents, PLAN_MODE_INSTRUCTIONS } from '../../src/mastra/lib/agent-controller';
@@ -133,24 +135,35 @@ describe('feature switches — which browser (BROWSER_PROVIDER)', () => {
   });
 });
 
+/** A subagent's instructions as one string (they carry today's date, so they are dynamic). */
+async function instructionsOf(subagent?: AgentControllerSubagent): Promise<string> {
+  const { instructions } = subagent ?? {};
+  const resolved =
+    typeof instructions === 'function'
+      ? await instructions({ requestContext: new RequestContext() } as never)
+      : instructions;
+  return [resolved].flat().map(String).join('\n');
+}
+
 describe('feature switches — Firecrawl', () => {
   const sandboxOff = resolveFeatures(
     { ...FULL_FEATURES, sandbox: false, firecrawl: true },
     { dolt: false },
   );
 
-  it('the research subagent takes the Firecrawl tools from the controller', () => {
+  it('the research subagent takes the Firecrawl tools from the controller', async () => {
     const research = chatSubagents(sandboxOff).find((s) => s.id === 'research');
     expect(research?.allowedControllerTools).toEqual([...FIRECRAWL_TOOLS]);
-    expect(String(research?.instructions)).toContain('firecrawl_search');
-    expect(String(research?.instructions)).not.toContain('browser');
+    const instructions = await instructionsOf(research);
+    expect(instructions).toContain('firecrawl_search');
+    expect(instructions).not.toContain('browser');
   });
 
-  it('without Firecrawl the research subagent reads the web with the browser', () => {
+  it('without Firecrawl the research subagent reads the web with the browser', async () => {
     const f = resolveFeatures({ ...FULL_FEATURES, firecrawl: false }, { dolt: false });
     const research = chatSubagents(f).find((s) => s.id === 'research');
     expect(research?.allowedControllerTools).toBeUndefined();
-    expect(String(research?.instructions)).toContain('browser tools');
+    expect(await instructionsOf(research)).toContain('browser tools');
   });
 
   it('the Search toggle points at Firecrawl when it is on, else the browser, else adds nothing', () => {

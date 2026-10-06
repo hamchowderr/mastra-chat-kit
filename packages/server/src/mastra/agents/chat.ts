@@ -10,6 +10,7 @@ import { liveScorers } from '../lib/live-scorers';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
 import { toolScopeProcessor } from '../lib/tool-scope';
+import { TurnContextProcessor } from '../lib/turn-context';
 import { getChatWorkspace } from '../lib/workspace';
 import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
@@ -374,8 +375,10 @@ export function createChatAgent(f: ChatFeatures = defaultFeatures): Agent {
     memory: createDefaultMemory(),
     scorers: liveScorers,
     // toolScopeProcessor: what a forked subagent run and a resumed Plan run are offered
-    // (lib/tool-scope.ts).
-    inputProcessors: [...defaultInputProcessors, toolScopeProcessor],
+    // (lib/tool-scope.ts). TurnContextProcessor: today's date and time in the user's
+    // zone, added after the instructions on every step (lib/turn-context.ts), so the
+    // instructions stay a stable, cacheable prefix.
+    inputProcessors: [...defaultInputProcessors, toolScopeProcessor, new TurnContextProcessor()],
     outputProcessors: defaultOutputProcessors,
   });
 }

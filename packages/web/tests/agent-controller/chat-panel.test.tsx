@@ -181,6 +181,7 @@ describe('ChatPanel — the parts that keep a run moving', () => {
     expect(api.sent('/api/agent-controller/answer')[0].body).toEqual({
       answer: 'Lyon',
       toolCallId: 'q1',
+      timeZone: expect.any(String),
     });
   });
 
