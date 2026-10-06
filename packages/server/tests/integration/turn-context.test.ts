@@ -72,14 +72,14 @@ async function postStream(resourceId: string, body: Record<string, unknown>) {
 
 /**
  * The chat agent's system prompt (instructions, then the turn context), from the
- * provider requests. The thread-title call goes to the model too, so pick the chat one.
+ * provider requests. The thread-title call goes to the model too, so pick the one with the date.
  */
 function systemOf(sent: string[]): string {
   const systems = sent.map((body) => {
     const { system } = JSON.parse(body) as { system?: string | { text: string }[] };
     return typeof system === 'string' ? system : (system ?? []).map((b) => b.text).join('\n');
   });
-  return systems.find((s) => s.includes('You are a helpful')) ?? '';
+  return systems.find((s) => s.includes('Current date and time')) ?? '';
 }
 
 describe("today's date (AIMock)", () => {
@@ -97,9 +97,9 @@ describe("today's date (AIMock)", () => {
     );
     expect(system).toContain('The next seven days: Friday 2026-10-16,');
     // After the instructions, so the instruction prefix stays the same every turn.
-    expect(system.indexOf('Current date and time')).toBeGreaterThan(
-      system.indexOf('You are a helpful'),
-    );
+    const instructions = system.indexOf('Never fabricate tool results');
+    expect(instructions).toBeGreaterThan(-1);
+    expect(system.indexOf('Current date and time')).toBeGreaterThan(instructions);
   });
 
   it('resolves "Friday" to the coming Friday in that zone, end to end', async () => {
@@ -176,7 +176,7 @@ describe("today's date in subagents (AIMock)", () => {
     const withCall = systemsOf(sent).filter(({ body }) => body.includes('toolu_date_fork'));
     expect(withCall.length).toBeGreaterThanOrEqual(2);
     for (const { system } of withCall) {
-      expect(system).toContain('You are a helpful');
+      expect(system).toContain('Never fabricate tool results');
       expect(system).toContain(LA_TODAY);
     }
   });
@@ -188,7 +188,7 @@ describe("today's date in subagents (AIMock)", () => {
     expect(JSON.stringify(events)).toContain('The writer answered.');
     const writer = systemsOf(sent).find(
       ({ body, system }) =>
-        body.includes('Writer date task') && !system.includes('You are a helpful'),
+        body.includes('Writer date task') && !system.includes('Never fabricate tool results'),
     );
     expect(writer).toBeDefined();
     expect(writer?.system).toContain(LA_TODAY);
