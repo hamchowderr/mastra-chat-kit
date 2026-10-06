@@ -1158,6 +1158,58 @@
       }
     },
     {
+      "_comment": "TODAY'S DATE in subagents (tests/integration/turn-context.test.ts). A forked run is the chat agent itself, so the turn-context processor adds the date; its request ends on the cloned toolu_date_fork call, so it falls through to the second fixture below.",
+      "match": {
+        "userMessage": "Date test: ask a forked subagent what day it is.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_date_fork",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "writer",
+              "task": "Fork date task: what day is it?",
+              "forked": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_date_fork", "toolResultContains": "Fork says" },
+      "response": { "content": "The forked subagent answered." }
+    },
+    {
+      "match": { "toolCallId": "toolu_date_fork" },
+      "response": { "content": "Fork says: it is the day in the system prompt." }
+    },
+    {
+      "_comment": "A non-forked specialist (the writer) gets the date after its own instructions (withTurnContext).",
+      "match": {
+        "userMessage": "Date test: ask the writer what day it is.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_date_writer",
+            "name": "subagent",
+            "arguments": { "agentType": "writer", "task": "Writer date task: what day is it?" }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "Writer date task: what day is it?" },
+      "response": { "content": "Writer says: it is the day in the system prompt." }
+    },
+    {
+      "match": { "toolCallId": "toolu_date_writer" },
+      "response": { "content": "The writer answered." }
+    },
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {

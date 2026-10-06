@@ -1,6 +1,8 @@
+import { RequestContext } from '@mastra/core/request-context';
 import { InMemoryStore } from '@mastra/core/storage';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createChatAgentController } from '../../src/mastra/lib/agent-controller';
+import { TIME_ZONE_KEY } from '../../src/mastra/lib/time-zone';
 import { createControllerRoutes } from '../../src/mastra/routes/controller';
 import type { ChatServerDeps } from '../../src/mastra/routes/types';
 import { ctx, deps, find } from '../helpers/route-harness';
@@ -120,5 +122,76 @@ describe("today's date (AIMock)", () => {
     expect(status).toBe(200);
     expect(systemOf(sent)).toContain('Current date and time: Friday 2026-10-16, 05:30 (UTC,');
     expect(text).toContain('Friday is 2026-10-23.');
+  });
+});
+
+describe("today's date in subagents (AIMock)", () => {
+  /** Run one turn on a real session, approving any gate, in Los Angeles time. */
+  async function turn(resourceId: string, content: string) {
+    const controller = createChatAgentController({
+      storage: new InMemoryStore(),
+      resourceId,
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId });
+    // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+      if (event.type === 'tool_approval_required') {
+        session.respondToToolApproval({ decision: 'approve' });
+      }
+    });
+    try {
+      await session.thread.create();
+      const requestContext = new RequestContext();
+      requestContext.set(TIME_ZONE_KEY, 'America/Los_Angeles');
+      await session.sendMessage({ content, requestContext });
+    } finally {
+      unsubscribe();
+      await controller.destroy();
+    }
+    return events;
+  }
+
+  const systemsOf = (sent: string[]) =>
+    sent.map((body) => {
+      const parsed = JSON.parse(body) as { system?: string | { text: string }[] };
+      const system =
+        typeof parsed.system === 'string'
+          ? parsed.system
+          : (parsed.system ?? []).map((b) => b.text).join('\n');
+      return { body, system };
+    });
+  const LA_TODAY = 'Current date and time: Thursday 2026-10-15, 22:30 (America/Los_Angeles';
+
+  it('a forked subagent run (the chat agent itself) gets the date from the processor', async () => {
+    const sent = captureProviderRequests();
+    const events = await turn('u-date-fork', 'Date test: ask a forked subagent what day it is.');
+
+    expect(JSON.stringify(events)).toContain('The forked subagent answered.');
+    // Two requests carry the delegate call: the fork's own (it ends on the cloned call)
+    // and the parent's hop after it. Both are the chat agent, and both carry the date.
+    const withCall = systemsOf(sent).filter(({ body }) => body.includes('toolu_date_fork'));
+    expect(withCall.length).toBeGreaterThanOrEqual(2);
+    for (const { system } of withCall) {
+      expect(system).toContain('You are a helpful');
+      expect(system).toContain(LA_TODAY);
+    }
+  });
+
+  it('a specialist (the writer) gets the date after its own instructions', async () => {
+    const sent = captureProviderRequests();
+    const events = await turn('u-date-writer', 'Date test: ask the writer what day it is.');
+
+    expect(JSON.stringify(events)).toContain('The writer answered.');
+    const writer = systemsOf(sent).find(
+      ({ body, system }) =>
+        body.includes('Writer date task') && !system.includes('You are a helpful'),
+    );
+    expect(writer).toBeDefined();
+    expect(writer?.system).toContain(LA_TODAY);
+    expect(writer?.system.indexOf(LA_TODAY)).toBeGreaterThan(0);
   });
 });
