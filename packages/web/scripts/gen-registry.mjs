@@ -116,6 +116,8 @@ function classify(relFiles) {
       if (ownKeys.has(key)) continue; // import within this same item
       if (key.startsWith('components/ai-elements/')) noteElement(posix.basename(key));
       else if (key.startsWith('components/ui/')) ui.add(posix.basename(key));
+      // A shadcn hook (hooks/use-mobile) is a shadcn registry item of the same name.
+      else if (key.startsWith('hooks/')) ui.add(posix.basename(key));
       else if (key === 'lib/utils') {
         /* cn() — shadcn init provides this; not a registry dep */
       } else if (key.startsWith('lib/')) lib.add('chat-engine');
@@ -456,6 +458,7 @@ function validate(allItems) {
       if (shippedKeys.has(key)) continue;
       if (key === 'lib/utils') continue; // shadcn init provides cn()
       if (key.startsWith('components/ui/')) continue; // registryDependency
+      if (key.startsWith('hooks/')) continue; // shadcn hook, a registryDependency
       if (key.startsWith('components/ai-elements/')) continue; // registryDependency
       errors.push(`${rel} imports "${spec}" -> ${key}, which no registry item ships`);
     }
