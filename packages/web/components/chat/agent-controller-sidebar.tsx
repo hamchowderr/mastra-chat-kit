@@ -158,7 +158,7 @@ export function AgentControllerSidebar({
             type="button"
             aria-label="Hide conversations"
             onClick={onToggleCollapse}
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground active:scale-[0.96]"
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-sidebar-accent max-md:size-11 hover:text-foreground active:scale-[0.96]"
           >
             <PanelLeftIcon className="size-4" />
           </button>

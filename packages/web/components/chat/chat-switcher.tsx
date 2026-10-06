@@ -112,7 +112,7 @@ export function ChatSwitcher({
         aria-label="Show conversations"
         onClick={() => (isMobile ? setListOpen(true) : setLeftCollapsed(false))}
         className={cn(
-          'absolute top-2.5 left-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]',
+          'absolute top-2.5 left-2.5 z-20 flex size-8 items-center max-md:size-11 justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]',
           !leftCollapsed && 'md:hidden',
         )}
       >
@@ -134,7 +134,7 @@ export function ChatSwitcher({
             type="button"
             aria-label="Show workbench"
             onClick={() => setRightCollapsed(false)}
-            className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
+            className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center max-md:size-11 justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground active:scale-[0.96]"
           >
             <PanelRightIcon className="size-4" />
           </button>

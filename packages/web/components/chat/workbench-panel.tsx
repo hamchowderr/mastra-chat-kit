@@ -100,7 +100,7 @@ export function WorkbenchPanel({
             type="button"
             aria-label="Hide workbench"
             onClick={onCollapse}
-            className="flex size-7 shrink-0 items-center justify-center self-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+            className="flex size-7 shrink-0 items-center justify-center self-center rounded-md max-md:size-11 text-muted-foreground transition hover:bg-accent hover:text-foreground"
           >
             <PanelRightCloseIcon className="size-4" />
           </button>
