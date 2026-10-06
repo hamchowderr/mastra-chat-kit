@@ -34,21 +34,9 @@ import { reviewerSubagent } from '../agents/reviewer';
 import { writerSubagent } from '../agents/writer';
 import type { ScreencastBrowser } from '../routes/types';
 import { type ChatFeatures, features as defaultFeatures } from './features';
-import {
-  DISCOVERY_BACKOFF_MS,
-  disconnectFirecrawl,
-  FIRECRAWL_TOOLS,
-  getFirecrawlTools,
-} from './firecrawl';
-import {
-  BROWSER_AUTO_ALLOWED_TOOLS,
-  closeFirecrawlBrowser,
-  closeSessionsAtRunEnd,
-  firecrawlLiveView,
-  getFirecrawlBrowser,
-} from './firecrawl-browser';
+import { DISCOVERY_BACKOFF_MS, disconnectFirecrawl, getFirecrawlTools } from './firecrawl';
 import { createDefaultMemory, getSharedStore } from './memory';
-import { PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
+import { AUTO_ALLOWED_TOOLS, PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
 import {
   createBrowser,
   createChatWorkspace,
@@ -64,6 +52,13 @@ import {
 export { createBrowser, WORKSPACE_ROOT };
 
 const CHAT_MODEL_ID = env.CHAT_MODEL;
+
+/**
+ * lib/firecrawl-browser.ts, loaded only when the Firecrawl browser is the browser, so the
+ * default setup never loads `@mastra/browser-firecrawl` (agent-browser, webdriverio).
+ */
+const firecrawlBrowserLib =
+  defaultFeatures.browser === 'firecrawl' ? await import('./firecrawl-browser') : null;
 
 /**
  * The resource id of the one shared Session the kit serves by default. With
@@ -141,7 +136,7 @@ export function createChatAgentController(opts?: {
   const firecrawlBrowser =
     opts?.browser === null || f.browser !== 'firecrawl'
       ? undefined
-      : (opts?.browser ?? getFirecrawlBrowser());
+      : (opts?.browser ?? firecrawlBrowserLib?.getFirecrawlBrowser());
   const workspace =
     opts?.workspace ?? createChatWorkspace({ features: f, ...(viewer ? { browser: viewer } : {}) });
   const controller = new AgentController({
@@ -225,9 +220,14 @@ export function createChatAgentController(opts?: {
                 await getFirecrawlTools();
               },
               shutdown: async () => {
-                await disconnectFirecrawl();
-                if (firecrawlBrowser) {
-                  await (opts?.browser ? firecrawlBrowser.close() : closeFirecrawlBrowser());
+                try {
+                  await disconnectFirecrawl();
+                } finally {
+                  if (firecrawlBrowser) {
+                    await (opts?.browser
+                      ? firecrawlBrowser.close()
+                      : firecrawlBrowserLib?.closeFirecrawlBrowser());
+                  }
                 }
               },
             },
@@ -246,7 +246,7 @@ export function createChatAgentController(opts?: {
     workspace,
   });
   // Each run's hosted browser sessions close when the run ends.
-  if (firecrawlBrowser) closeSessionsAtRunEnd(controller, firecrawlBrowser);
+  if (firecrawlBrowser) firecrawlBrowserLib?.closeSessionsAtRunEnd(controller, firecrawlBrowser);
   return controller;
 }
 
@@ -308,9 +308,12 @@ export async function getChatBrowser(resourceId?: string): Promise<ScreencastBro
     );
   }
   const controller = await getChatAgentController();
-  if (defaultFeatures.browser === 'firecrawl') {
+  if (firecrawlBrowserLib) {
     const session = await controller.getSessionByResource(resourceId ?? CHAT_RESOURCE_ID);
-    return firecrawlLiveView(getFirecrawlBrowser(), session?.thread.getId());
+    return firecrawlBrowserLib.firecrawlLiveView(
+      firecrawlBrowserLib.getFirecrawlBrowser(),
+      session?.thread.getId(),
+    );
   }
   if (!singletonBrowser) {
     throw new Error('chat browser not initialized');
@@ -318,39 +321,8 @@ export async function getChatBrowser(resourceId?: string): Promise<ScreencastBro
   return singletonBrowser;
 }
 
-/**
- * Tools the live session runs without an approval gate: the controller's interaction
- * and bookkeeping tools, where a gate would only be a redundant, confusing extra click.
- *  - ask_user — the answer prompt IS the interaction; without this the user would
- *    first approve "Run ask_user?" (showing the question as raw args), THEN the prompt.
- *  - submit_plan — likewise: the plan card's Approve / Reject IS the decision. Gated,
- *    the user would approve "Run submit_plan?" and only then see the plan to approve.
- *  - task_write/update/complete/check — pure progress tracking that drives the <Task>
- *    element; gating them makes the user approve "task_write" before seeing a to-do list.
- *  - list_schedules — read-only view of existing schedules (the schedules panel + the
- *    agent answering "what's scheduled?"). Its mutating siblings start_schedule /
- *    stop_schedule stay GATED: creating a recurring background run is a real side effect,
- *    so it flows through the approval gate (an intentional HITL demo).
- *  - firecrawl_search / firecrawl_scrape — web lookups that change nothing. They spend
- *    Firecrawl credits, but the key's owner turned them on by setting the key, and a
- *    card before every search would make web search unusable.
- *  - BROWSER_AUTO_ALLOWED_TOOLS — the Firecrawl browser's look-only tools (snapshot,
- *    screenshot, scroll, wait, back) and browser_close. Opening a new site
- *    (browser_goto) and every page action (click, type, …) stay GATED.
- * Everything with a real side effect (fs writes, shell, browser, subagents, start/stop
- * schedule) stays gated. Exported so tests drive a session with the same grants.
- */
-export const AUTO_ALLOWED_TOOLS = [
-  'ask_user',
-  'submit_plan',
-  'task_write',
-  'task_update',
-  'task_complete',
-  'task_check',
-  'list_schedules',
-  ...FIRECRAWL_TOOLS,
-  ...BROWSER_AUTO_ALLOWED_TOOLS,
-] as const;
+// Tools every session runs without an approval card (lib/tool-categories.ts says why).
+export { AUTO_ALLOWED_TOOLS };
 
 /**
  * Get-or-create the Session for one user (a resource id), so the

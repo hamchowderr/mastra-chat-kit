@@ -74,7 +74,11 @@ list from AIMock's MCP mock.
 The Firecrawl browser (`lib/firecrawl-browser.ts`, `BROWSER_PROVIDER=firecrawl`) is the
 AgentController's `browser`, never the workspace's: a workspace browser reaches every
 subagent, and subagents run with no approval gate. Its read tools are `BROWSER_READ_TOOLS`
-(`read`, Plan mode), its page actions `BROWSER_ACTION_TOOLS` (no category). Sessions close
+(`read`, Plan mode), its page actions `BROWSER_ACTION_TOOLS` (no category); the lists
+are plain names in `lib/tool-categories.ts`, and `firecrawl-browser.ts` is only imported
+when that provider is chosen. `lib/tool-scope.ts` (an input processor on the chat agent)
+limits forked subagent runs to `FORKED_RUN_TOOLS` and keeps the Plan allowlist on
+resumed runs; keep both when adding tools. Sessions close
 at run end (`closeSessionsAtRunEnd`) and on shutdown. Tests drive it against
 `scripts/firecrawl-browser-mock.ts` (each session a local headless Chrome over CDP).
 

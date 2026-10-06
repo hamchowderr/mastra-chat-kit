@@ -1,4 +1,3 @@
-import { BROWSER_TOOLS } from '@mastra/agent-browser';
 import { FirecrawlBrowser } from '@mastra/browser-firecrawl';
 import type { AgentController, Session } from '@mastra/core/agent-controller';
 import type { MastraBrowser } from '@mastra/core/browser';
@@ -32,62 +31,13 @@ import type { ScreencastBrowser } from '../routes/types';
  *   FIRECRAWL_BROWSER_IDLE_TTL seconds without activity, in case neither of those runs.
  */
 
-const {
-  GOTO,
-  BACK,
-  SNAPSHOT,
-  SCREENSHOT,
-  SCROLL,
-  WAIT,
-  CLOSE,
-  CLICK,
-  TYPE,
-  PRESS,
-  SELECT,
-  HOVER,
-  DIALOG,
-  DRAG,
-  TABS,
-  EVALUATE,
-} = BROWSER_TOOLS;
-
 /**
- * Browser tools that read pages and change nothing on them: the `read` category, so
- * they are in Plan mode and an "Always allow" on reads covers them (lib/tool-categories.ts).
- * browser_goto is here (it loads a page, as firecrawl_scrape does) but is not
- * auto-allowed: opening a new site still asks first.
+ * Tools the provider is built without. browser_evaluate runs arbitrary JavaScript in the
+ * page; the other tools cover what the agent needs, so it is not offered at all
+ * (`excludeTools`, the provider's own option). The tool names and their approval rules
+ * are in lib/tool-categories.ts.
  */
-export const BROWSER_READ_TOOLS = [GOTO, BACK, SNAPSHOT, SCREENSHOT, SCROLL, WAIT] as const;
-
-/**
- * Browser tools that run with no approval card: looking at the page already open, going
- * back to a page already visited, and closing the session (which only stops billing).
- */
-export const BROWSER_AUTO_ALLOWED_TOOLS = [
-  BACK,
-  SNAPSHOT,
-  SCREENSHOT,
-  SCROLL,
-  WAIT,
-  CLOSE,
-] as const;
-
-/**
- * Browser tools that act on a page: click, type, press keys, pick options, hover, answer
- * dialogs, drag, open/switch/close tabs, and run JavaScript in the page. They have no
- * category, so each call asks, and an "Always allow" approves only that call.
- */
-export const BROWSER_ACTION_TOOLS = [
-  CLICK,
-  TYPE,
-  PRESS,
-  SELECT,
-  HOVER,
-  DIALOG,
-  DRAG,
-  TABS,
-  EVALUATE,
-] as const;
+export const EXCLUDED_BROWSER_TOOLS = ['browser_evaluate'] as const;
 
 /** A FirecrawlBrowser with the kit's session settings. */
 export function createFirecrawlBrowser({
@@ -107,6 +57,7 @@ export function createFirecrawlBrowser({
     apiKey,
     apiUrl,
     scope: 'thread',
+    excludeTools: [...EXCLUDED_BROWSER_TOOLS],
     firecrawl: { ttl, activityTtl },
   });
 }
@@ -140,11 +91,16 @@ export async function closeRunSessions(
   const threadIds = new Set<string>();
   const current = session.thread.getId();
   if (current) threadIds.add(current);
-  const threads = await controller.queryThreads({
-    resourceId: session.identity.getResourceId(),
-    includeForkedSubagents: true,
-  });
-  for (const thread of threads) threadIds.add(thread.id);
+  try {
+    const threads = await controller.queryThreads({
+      resourceId: session.identity.getResourceId(),
+      includeForkedSubagents: true,
+    });
+    for (const thread of threads) threadIds.add(thread.id);
+  } catch (err) {
+    // Still close the run's own thread; a forked thread's session falls to the idle TTL.
+    console.warn(`Listing threads to close their browser sessions failed: ${err}`);
+  }
   await Promise.all(
     [...threadIds]
       .filter((id) => browser.hasThreadSession(id) && browser.isBrowserRunning(id))
@@ -206,6 +162,7 @@ export function firecrawlLiveView(
     browser.hasThreadSession(threadId as string) &&
     browser.isBrowserRunning(threadId as string);
   return {
+    provider: browser.provider,
     isBrowserRunning: open,
     launch: async () => {
       throw new Error('the agent has not opened the browser in this conversation yet');

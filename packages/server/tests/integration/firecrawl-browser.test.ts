@@ -118,7 +118,7 @@ async function turn(
   return { events, approvals, ran, threadId: thread.id, blob: JSON.stringify(events) };
 }
 
-const ACTION_TOOLS = ['browser_click', 'browser_type', 'browser_press', 'browser_evaluate'];
+const ACTION_TOOLS = ['browser_click', 'browser_type', 'browser_press', 'browser_select'];
 
 describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandbox off)', () => {
   it('a browse turn: the agent opens a page (asks) and reads it (does not), and the session closes when the run ends', async () => {
@@ -134,6 +134,8 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
     );
     expect(offered[0]).toEqual(expect.arrayContaining(['firecrawl_search', 'firecrawl_scrape']));
     expect(offered[0]).not.toContain('mastra_workspace_execute_command');
+    // browser_evaluate (JavaScript in the page) is left out of the provider's toolset.
+    expect(offered[0]).not.toContain('browser_evaluate');
 
     // Opening the site asked; reading it did not.
     expect(approvals).toEqual(['browser_goto']);
@@ -178,19 +180,45 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
       { mode: 'plan' },
     ).finally(restore);
 
-    // The Plan turn's request. Only the first one is checked: once an approval resumes the
-    // run, @mastra/core 1.69 offers the resumed request the full toolset, in Plan mode, for
-    // every tool (plan-mode.test.ts's write_file approval shows the same). The gate still
-    // asks before any action runs.
-    const planTurn = offered[0];
-    expect(planTurn).toEqual(
-      expect.arrayContaining(['browser_goto', 'browser_snapshot', 'browser_back']),
-    );
-    for (const action of [...ACTION_TOOLS, 'browser_close']) expect(planTurn).not.toContain(action);
+    // Every request of the Plan turn, including the step resumed after the browser_goto
+    // approval (lib/tool-scope.ts keeps the allowlist there; the controller alone does not).
+    expect(offered.length).toBeGreaterThan(1);
+    for (const names of offered) {
+      expect(names).toEqual(
+        expect.arrayContaining(['browser_goto', 'browser_snapshot', 'browser_back']),
+      );
+      for (const action of [...ACTION_TOOLS, 'browser_close']) expect(names).not.toContain(action);
+    }
     expect(approvals).toEqual(['browser_goto']);
     expect(ran).toEqual(['browser_goto', 'browser_snapshot']);
     expect(blob).toContain('a Mastra newsletter sign-up');
     expect(browserMock.open()).toEqual([]);
+  });
+
+  it('a forked subagent is not offered page actions, and its click does not run', async () => {
+    const { offered, restore } = spyOnOfferedTools();
+    const before = browserMock.sessions().length;
+    const { approvals, events, blob } = await turn(
+      'Browse test: have a forked subagent sign up on the demo page.',
+    ).finally(restore);
+
+    // Delegating asks; nothing inside the fork can.
+    expect(approvals).toEqual(['subagent']);
+    // The fork's own request: the chat agent's tools minus everything that would need
+    // an approval card (lib/tool-scope.ts).
+    const fork = offered.find((names) => !names.includes('subagent'));
+    expect(fork).toBeDefined();
+    expect(fork).toEqual(expect.arrayContaining(['browser_snapshot', 'firecrawl_scrape']));
+    for (const hidden of [...ACTION_TOOLS, 'browser_goto', 'generateImage', 'setGoal']) {
+      expect(fork).not.toContain(hidden);
+    }
+    // The fork still asked for the click, as a model might, but it never ran: no result
+    // came back for it, and no browser session was opened.
+    const started = events.filter((e) => e.type === 'subagent_tool_start');
+    expect(started.map((e) => e.subToolName)).toEqual(['browser_click']);
+    expect(events.filter((e) => e.type === 'subagent_tool_end')).toEqual([]);
+    expect(browserMock.sessions()).toHaveLength(before);
+    expect(blob).toContain('page actions are not available to it');
   });
 
   it('the Browser panel streams a thread’s open session, and never opens one itself', async () => {
