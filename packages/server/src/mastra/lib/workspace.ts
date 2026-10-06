@@ -82,7 +82,8 @@ export function createChatWorkspace({
     id: 'chat-workspace',
     filesystem: new LocalFilesystem({ basePath: root }),
     ...(features.sandbox ? { sandbox: new LocalSandbox({ workingDirectory: root }) } : {}),
-    ...(browser && features.browser ? { browser } : {}),
+    // Only the viewer goes in the workspace; the Firecrawl browser sits on the controller.
+    ...(browser && features.browser === 'viewer' ? { browser } : {}),
     // Per-tool safety policy (698.21). requireReadBeforeWrite forces the agent to read
     // a file before overwriting/editing it; delete always needs explicit approval.
     tools: {
@@ -103,7 +104,7 @@ let workspaceSingleton: Workspace | null = null;
 export function getChatWorkspace(): Workspace {
   if (!workspaceSingleton) {
     workspaceSingleton = createChatWorkspace(
-      defaultFeatures.browser ? { browser: getChatBrowserInstance() } : {},
+      defaultFeatures.browser === 'viewer' ? { browser: getChatBrowserInstance() } : {},
     );
   }
   return workspaceSingleton;

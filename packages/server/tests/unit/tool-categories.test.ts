@@ -5,8 +5,13 @@ import { chatTools } from '../../src/mastra/agents/chat';
 import { AUTO_ALLOWED_TOOLS, chatSubagents } from '../../src/mastra/lib/agent-controller';
 import { FULL_FEATURES, resolveFeatures } from '../../src/mastra/lib/features';
 import { createFirecrawlClient, loadFirecrawlTools } from '../../src/mastra/lib/firecrawl';
+import { createFirecrawlBrowser } from '../../src/mastra/lib/firecrawl-browser';
 import {
+  BROWSER_ACTION_TOOLS,
+  BROWSER_AUTO_ALLOWED_TOOLS,
+  BROWSER_READ_TOOLS,
   CATEGORIZED_TOOLS,
+  FORKED_RUN_TOOLS,
   PLAN_MODE_TOOLS,
   READ_TOOLS,
   resolveToolCategory,
@@ -58,10 +63,24 @@ afterAll(async () => {
   await fc.stop();
 });
 
+// The Firecrawl browser's tools, as the provider lists them (building it calls nothing).
+const browserNames = Object.keys(
+  createFirecrawlBrowser({
+    apiKey: 'fc-test-key',
+    apiUrl: 'http://127.0.0.1:9',
+    ttl: 600,
+    activityTtl: 300,
+  }).getTools(),
+);
+
 /** Every tool name the agent, a specialist, the controller or the workspace can expose. */
 function exposedToolNames(): Set<string> {
   const full = resolveFeatures(FULL_FEATURES, { dolt: true });
-  const names = new Set<string>([...Object.keys(chatTools(full)), ...firecrawlNames]);
+  const names = new Set<string>([
+    ...Object.keys(chatTools(full)),
+    ...firecrawlNames,
+    ...browserNames,
+  ]);
   for (const sub of chatSubagents(full)) {
     for (const name of Object.keys(sub.tools ?? {})) names.add(name);
   }
@@ -115,5 +134,56 @@ describe('Firecrawl tools skip the approval card and work in Plan mode', () => {
       expect(AUTO_ALLOWED_TOOLS).toContain(name);
       expect(PLAN_MODE_TOOLS).toContain(name);
     }
+  });
+});
+
+describe('Firecrawl browser tools: reads in read, actions ask every time', () => {
+  // The lists are plain names (so the categories never load the provider); this pins
+  // them to the provider's real toolset.
+  it('every browser tool the provider offers is sorted into reads or actions, and evaluate is not offered', () => {
+    const sorted = [...BROWSER_READ_TOOLS, ...BROWSER_ACTION_TOOLS, 'browser_close'];
+    expect([...browserNames].sort()).toEqual([...sorted].sort());
+    expect(browserNames).not.toContain('browser_evaluate');
+  });
+
+  it('reads are in read and the Plan allowlist; only browser_goto among them asks first', () => {
+    for (const name of BROWSER_READ_TOOLS) {
+      expect(resolveToolCategory(name)).toBe('read');
+      expect(PLAN_MODE_TOOLS).toContain(name);
+    }
+    expect(AUTO_ALLOWED_TOOLS).not.toContain('browser_goto');
+    for (const name of BROWSER_AUTO_ALLOWED_TOOLS) expect(AUTO_ALLOWED_TOOLS).toContain(name);
+  });
+
+  it('actions have no category, are never auto-allowed, and are not in Plan mode or a forked run', () => {
+    for (const name of BROWSER_ACTION_TOOLS) {
+      expect(resolveToolCategory(name)).toBeNull();
+      expect(AUTO_ALLOWED_TOOLS).not.toContain(name);
+      expect(PLAN_MODE_TOOLS).not.toContain(name);
+      expect(FORKED_RUN_TOOLS).not.toContain(name);
+    }
+  });
+
+  it('a forked run gets no tool that would need an approval card', () => {
+    for (const name of [
+      'browser_goto',
+      'mastra_workspace_write_file',
+      'mastra_workspace_edit_file',
+      'mastra_workspace_delete',
+      'mastra_workspace_execute_command',
+      'generateImage',
+      'setGoal',
+      'start_schedule',
+      'subagent',
+    ]) {
+      expect(FORKED_RUN_TOOLS).not.toContain(name);
+    }
+    expect(FORKED_RUN_TOOLS).toEqual(
+      expect.arrayContaining([
+        'browser_snapshot',
+        'firecrawl_scrape',
+        'mastra_workspace_read_file',
+      ]),
+    );
   });
 });

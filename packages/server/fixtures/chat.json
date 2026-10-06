@@ -956,6 +956,135 @@
     },
 
     {
+      "_comment": "FIRECRAWL BROWSER (lib/firecrawl-browser.ts, BROWSER_PROVIDER=firecrawl) — tests/integration/firecrawl-browser.test.ts and a local run, with Firecrawl's browser API mocked by scripts/firecrawl-browser-mock.ts (a local headless Chrome stands in for the hosted session). The page is a data: URL (DEMO_PAGE_URL there), so nothing touches the network. Opening it asks first (browser_goto); the snapshot does not. Each hop matches only on what the real page returned.",
+      "match": {
+        "userMessage": "Browse test: open the demo page and tell me what is on it.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_br_goto",
+            "name": "browser_goto",
+            "arguments": {
+              "url": "data:text/html,%3Ctitle%3EFirecrawl%20browser%20demo%3C%2Ftitle%3E%3Ch1%3EMastra%20newsletter%3C%2Fh1%3E%3Cp%20id%3D%22status%22%3ENot%20signed%20up%20yet%3C%2Fp%3E%3Clabel%3EEmail%20%3Cinput%20type%3D%22email%22%3E%3C%2Flabel%3E%3Cbutton%20onclick%3D%22document.getElementById('status').textContent%3D'Signed%20up'%22%3ESign%20up%3C%2Fbutton%3E"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_br_goto", "toolResultContains": "Firecrawl browser demo" },
+      "response": {
+        "toolCalls": [{ "id": "toolu_br_snap", "name": "browser_snapshot", "arguments": {} }]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_br_snap", "toolResultContains": "Sign up" },
+      "response": {
+        "content": "The demo page is a Mastra newsletter sign-up: an **Email** field and a **Sign up** button."
+      }
+    },
+    {
+      "_comment": "The Firecrawl browser acting on a page: open (asks), snapshot (does not), click Sign up (asks), then a full snapshot that only says \"Signed up\" if the click really ran in the page.",
+      "match": {
+        "userMessage": "Browse test: sign up on the demo page.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_br2_goto",
+            "name": "browser_goto",
+            "arguments": {
+              "url": "data:text/html,%3Ctitle%3EFirecrawl%20browser%20demo%3C%2Ftitle%3E%3Ch1%3EMastra%20newsletter%3C%2Fh1%3E%3Cp%20id%3D%22status%22%3ENot%20signed%20up%20yet%3C%2Fp%3E%3Clabel%3EEmail%20%3Cinput%20type%3D%22email%22%3E%3C%2Flabel%3E%3Cbutton%20onclick%3D%22document.getElementById('status').textContent%3D'Signed%20up'%22%3ESign%20up%3C%2Fbutton%3E"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_br2_goto", "toolResultContains": "Firecrawl browser demo" },
+      "response": {
+        "toolCalls": [{ "id": "toolu_br2_snap", "name": "browser_snapshot", "arguments": {} }]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_br2_snap", "toolResultContains": "@e2" },
+      "response": {
+        "toolCalls": [
+          { "id": "toolu_br2_click", "name": "browser_click", "arguments": { "ref": "@e2" } }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_br2_click", "toolResultContains": "\"success\":true" },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_br2_check",
+            "name": "browser_snapshot",
+            "arguments": { "interactiveOnly": false }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_br2_click" },
+      "response": { "content": "I left the page as it was: you declined the click on **Sign up**." }
+    },
+    {
+      "match": { "toolCallId": "toolu_br2_check", "toolResultContains": "Signed up" },
+      "response": {
+        "content": "Done: I pressed **Sign up**, and the page now says **Signed up**."
+      }
+    },
+
+    {
+      "_comment": "A forked subagent asked to act on a page (tests/integration/firecrawl-browser.test.ts). A forked run is the chat agent itself with no approval gate, so lib/tool-scope.ts offers it no page action. The forked hop still calls browser_click, as a model might; the test checks the tool was not offered and did not run.",
+      "match": {
+        "userMessage": "Browse test: have a forked subagent sign up on the demo page.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_fork_delegate",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "research",
+              "task": "Fork task: press Sign up on the demo page.",
+              "forked": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "_comment": "The parent's last hop: only once the fork's answer is the subagent result. The fork's own first request also ends on the cloned toolu_fork_delegate call, so it falls through to the next fixture.",
+      "match": {
+        "toolCallId": "toolu_fork_delegate",
+        "toolResultContains": "clicking is not available"
+      },
+      "response": {
+        "content": "The forked subagent could not press Sign up, because page actions are not available to it."
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_fork_delegate" },
+      "response": {
+        "toolCalls": [
+          { "id": "toolu_fork_click", "name": "browser_click", "arguments": { "ref": "@e2" } }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_fork_click" },
+      "response": {
+        "content": "I could not press Sign up: clicking is not available in a forked subagent."
+      }
+    },
+    {
       "_comment": "Image generation (generateImage posts to OPENAI_BASE_URL/images/generations, which AIMock serves). endpoint:image keeps it from matching chat requests. The bytes are a real 256x256 PNG (a sunset over mountains) so the demo renders an actual image; generateImage sniffs the format from the bytes. tests/unit/generate-image.test.ts.",
       "match": { "endpoint": "image" },
       "response": {

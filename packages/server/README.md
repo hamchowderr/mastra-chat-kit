@@ -255,7 +255,7 @@ See `.env.example` for the full list with comments. Minimum required:
 - `TURSO_DATABASE_URL` — storage; defaults to `file:./mastra.db` for local dev (set a `libsql://` URL + `TURSO_AUTH_TOKEN` for Turso in prod)
 - At least one of: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`
 
-Optional switches turn parts of the agent off — `WORKSPACE_SANDBOX`, `WORKSPACE_BROWSER`, `SUBAGENT_CODE` / `_RESEARCH` / `_WRITER` /
+Optional switches turn parts of the agent off — `WORKSPACE_SANDBOX`, `WORKSPACE_BROWSER`, `BROWSER_PROVIDER` (which browser), `SUBAGENT_CODE` / `_RESEARCH` / `_WRITER` /
 `_REVIEW` / `_DATA`, `TOOL_GENERATE_IMAGE`, `TOOL_DEMO`. All default to on; see the root
 README → *Switches, users and auth*. `MASTRA_JWT_SECRET` (shared with the web proxy) turns
 on auth and one Session per signed-in user.
@@ -300,6 +300,61 @@ the tools a real `firecrawl-mcp` lists (`fixtures/firecrawl-mcp-tools.json`, ref
 `scripts/capture-firecrawl-tools.ts`). To run the server against it, start
 `pnpm exec tsx scripts/firecrawl-mock.ts 4021` and set
 `FIRECRAWL_MCP_URL=http://127.0.0.1:4021/mcp` with any `FIRECRAWL_API_KEY`.
+
+### Firecrawl hosted browser
+
+`BROWSER_PROVIDER=firecrawl` (or unset, with `FIRECRAWL_API_KEY` set and
+`WORKSPACE_SANDBOX=false`) gives the agent a browser that runs at Firecrawl
+(`src/mastra/lib/firecrawl-browser.ts`):
+
+- **Provider.** `@mastra/browser-firecrawl`'s `FirecrawlBrowser`, a Mastra SDK browser
+  provider. It creates [Browser Sandbox](https://docs.firecrawl.dev/features/browser)
+  sessions with the Firecrawl API and drives them over CDP with `@mastra/agent-browser`'s
+  tools (`browser_goto`, `browser_snapshot`, `browser_click`, …). Nothing runs on the host.
+- **Where it sits.** On the AgentController's `browser`, not in the workspace. A workspace
+  browser goes to every agent built with that workspace, and the controller runs
+  subagents with no approval gate, so the writer, review and research subagents would get
+  page actions unasked. The research subagent reads pages with `firecrawl_scrape`.
+- **Approvals.** `browser_goto`, `browser_back`, `browser_snapshot`,
+  `browser_screenshot`, `browser_scroll` and `browser_wait` are in the `read` category
+  and in Plan mode. All but `browser_goto` are auto-allowed, so opening a new site asks
+  first; but an auto-allowed one (snapshot, scroll, back, …) still starts a billed
+  session, or reopens one after the run that had it ended, with no card. `browser_close`
+  is auto-allowed. The page actions (`browser_click`, `_type`, `_press`, `_select`,
+  `_hover`, `_dialog`, `_drag`, `_tabs`) have no category, so each call asks, and an
+  "Always allow" approves only that call. `browser_evaluate` (JavaScript in the page) is
+  not offered: the provider is built with `excludeTools`.
+- **Forked subagents and resumed Plan runs.** A forked subagent is the chat agent itself,
+  run with no approval gate, and a run resumed after an approval loses its mode's
+  allowlist in the controller. An input processor on the chat agent
+  (`src/mastra/lib/tool-scope.ts`) sets `activeTools` on each step: a forked run gets
+  only `FORKED_RUN_TOOLS` (auto-allowed tools and reads, without `browser_goto`; no
+  edits, shell, deletes or page actions, with either browser), and a Plan run keeps
+  Plan mode's allowlist after a resume. A tool left out is not offered, and a call to it
+  returns "not found".
+- **Loading.** `lib/firecrawl-browser.ts` is imported only when this provider is chosen,
+  so the default setup does not load `@mastra/browser-firecrawl`. The tool names and
+  their rules are plain lists in `lib/tool-categories.ts`, checked against the
+  provider's real `getTools()` in tests.
+- **Image size.** `agent-browser` (a required peer) ships its CLI for five platforms in
+  its own package (about 33 MB), and `mastra build` installs it whole, so the container
+  carries all five; the provider does not use the CLI. The package has no supported way
+  to install a single platform's binary.
+- **Sessions.** One per conversation thread (`scope: 'thread'`). A run's sessions close
+  when it ends (`agent_end`, unless it is parked on an approval or a question), and every
+  session closes when the server stops (the controller's `firecrawl` interval handler).
+  Firecrawl ends one after `FIRECRAWL_BROWSER_TTL` seconds, or
+  `FIRECRAWL_BROWSER_IDLE_TTL` idle seconds, in case neither runs.
+- **Browser panel.** `/browser/screencast` streams the user's current thread with the
+  provider's own CDP screencast. Opening the panel never starts a session: until the
+  agent opens the browser it answers 503 (with the provider, so the panel says so), the
+  stream ends with the run, and the panel offers "Try again" after either.
+
+Tests mock Firecrawl's browser API with `scripts/firecrawl-browser-mock.ts`, where each
+session is a local headless Chrome reached over CDP. It needs a Chrome
+(`BROWSER_EXECUTABLE_PATH`, `pnpm setup:browser`, or an installed Chrome). To run the
+server against it, start `pnpm exec tsx scripts/firecrawl-browser-mock.ts 4023` and set
+`FIRECRAWL_API_URL=http://127.0.0.1:4023` with `FIRECRAWL_API_KEY=fc-test-key`.
 
 ---
 

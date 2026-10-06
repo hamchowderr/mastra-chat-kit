@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 let root: string;
 let controller: AgentController;
 let AUTO_ALLOWED_TOOLS: readonly string[] = [];
+let PLAN_MODE_TOOLS: readonly string[] = [];
 
 beforeAll(async () => {
   root = mkdtempSync(path.join(tmpdir(), 'plan-mode-'));
@@ -28,6 +29,7 @@ beforeAll(async () => {
   // Dynamic imports: env.ts reads process.env once, when it first loads.
   const ac = await import('../../src/mastra/lib/agent-controller');
   AUTO_ALLOWED_TOOLS = ac.AUTO_ALLOWED_TOOLS;
+  ({ PLAN_MODE_TOOLS } = await import('../../src/mastra/lib/tool-categories'));
   const { getChatWorkspace } = await import('../../src/mastra/lib/workspace');
   controller = ac.createChatAgentController({
     storage: new InMemoryStore(),
@@ -99,7 +101,7 @@ describe('plan mode in the full workspace (AIMock)', () => {
         'mastra_workspace_read_file',
       ]),
     );
-    for (const hidden of [
+    const hiddenInPlan = [
       'mastra_workspace_edit_file',
       'mastra_workspace_delete',
       'mastra_workspace_execute_command',
@@ -107,8 +109,18 @@ describe('plan mode in the full workspace (AIMock)', () => {
       'start_schedule',
       'generateImage',
       'subagent',
-    ]) {
+    ];
+    for (const hidden of hiddenInPlan) {
       expect(planTurn).not.toContain(hidden);
+    }
+    // The step after the write_file approval is a RESUMED run. The controller does not
+    // pass the mode's allowlist to a resume, so lib/tool-scope.ts re-applies it from the
+    // request context's mode: that step is still limited to Plan mode's tools.
+    const resumedPlanStep = offered[1];
+    expect(resumedPlanStep).toEqual(expect.arrayContaining(['submit_plan']));
+    for (const name of resumedPlanStep ?? []) expect(PLAN_MODE_TOOLS).toContain(name);
+    for (const hidden of hiddenInPlan) {
+      expect(resumedPlanStep).not.toContain(hidden);
     }
 
     // The plan went through the workspace's own write tool (after its approval card),
