@@ -10,6 +10,7 @@
 import type { registerApiRoute } from '@mastra/core/server';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
+import { isTimeZone } from '../lib/time-zone';
 
 /** The media types a composer attachment may have: images, PDFs and plain text. */
 export const ATTACHMENT_MEDIA_TYPES = [
@@ -95,6 +96,15 @@ const attachment = z
     }
   });
 
+/**
+ * The browser's IANA time zone. Optional, and never a reason to refuse a turn: a zone
+ * `Intl` doesn't know reads as absent, and the turn falls back to `DEFAULT_TIMEZONE`.
+ */
+export const timeZone = z
+  .unknown()
+  .optional()
+  .transform((v) => (isTimeZone(v) ? v : undefined));
+
 export const streamBodySchema = z
   .object({
     text: absent(z.string()),
@@ -105,6 +115,8 @@ export const streamBodySchema = z
     // The composer's Plan toggle: 'plan' | 'chat'. Unknown ids are ignored later.
     mode: absent(z.string()),
     webSearch: absent(z.boolean()),
+    // The browser's IANA time zone, for today's date (lib/turn-context.ts).
+    timeZone,
     // The composer's attachments (FileUIPart), `url` already converted to a data URL
     // by the client at submit time.
     files: absent(z.array(attachment).max(MAX_ATTACHMENTS)),

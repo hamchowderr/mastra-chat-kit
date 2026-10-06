@@ -106,7 +106,20 @@ describe('/agent-controller/stream', () => {
 
     const off = fakeSession();
     await run(off, { text: 'hi' });
-    expect(off.sendMessage.mock.calls[0]?.[0]?.requestContext).toBeUndefined();
+    const ctxOff = off.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxOff.get('webSearch')).toBeUndefined();
+  });
+
+  it("puts the browser's time zone on the request context, and drops one Intl doesn't know", async () => {
+    const known = fakeSession();
+    await run(known, { text: 'hi', timeZone: 'America/Los_Angeles' });
+    const ctxKnown = known.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxKnown.get('timeZone')).toBe('America/Los_Angeles');
+
+    const unknown = fakeSession();
+    await run(unknown, { text: 'hi', timeZone: 'Mars/Olympus_Mons' });
+    const ctxUnknown = unknown.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxUnknown.get('timeZone')).toBeUndefined();
   });
 
   it("maps the composer's attachments onto sendMessage files, and sends none without them", async () => {
@@ -214,6 +227,7 @@ describe('/agent-controller/answer', () => {
     expect(respondToToolSuspension).toHaveBeenCalledWith({
       resumeData: 'production',
       toolCallId: 's1',
+      requestContext: expect.any(RequestContext),
     });
     expect(events.map((e) => e.type)).toEqual(['tool_end', 'agent_end', '__done__']);
     expect(session.unsubscribe).toHaveBeenCalled();
@@ -234,7 +248,28 @@ describe('/agent-controller/answer', () => {
     expect(respondToToolSuspension).toHaveBeenCalledWith({
       resumeData: { action: 'rejected', feedback: 'add Berlin' },
       toolCallId: 'p1',
+      requestContext: expect.any(RequestContext),
     });
+  });
+
+  it("resumes in the user's time zone, so the resumed run knows today's date", async () => {
+    const session = fakeSession();
+    const respondToToolSuspension = vi.fn(async (_args: AnyEvent) => {
+      session.emit({ type: 'agent_end', reason: 'complete' });
+    });
+    const withResume = { ...session, respondToToolSuspension };
+
+    const known = ctx({ body: { answer: 'yes', timeZone: 'Asia/Tokyo' } });
+    await ((await answerRoute(withResume).handler(known.c)) as Response).text();
+    expect(respondToToolSuspension.mock.calls[0]?.[0].requestContext.get('timeZone')).toBe(
+      'Asia/Tokyo',
+    );
+
+    const unknown = ctx({ body: { answer: 'yes', timeZone: 'Mars/Olympus_Mons' } });
+    await ((await answerRoute(withResume).handler(unknown.c)) as Response).text();
+    expect(respondToToolSuspension.mock.calls[1]?.[0].requestContext.get('timeZone')).toBe(
+      undefined,
+    );
   });
 });
 

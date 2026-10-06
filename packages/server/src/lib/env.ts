@@ -100,6 +100,10 @@ const envSchema = z
     // ends; these bound one left open, e.g. while a run waits on an approval.
     FIRECRAWL_BROWSER_TTL: z.coerce.number().int().min(30).max(3600).default(600),
     FIRECRAWL_BROWSER_IDLE_TTL: z.coerce.number().int().min(10).max(3600).default(300),
+    // The time zone for a turn whose browser sent none (a scheduled run, an old client):
+    // an IANA name such as `America/New_York`. The agent reads today's date in it
+    // (src/mastra/lib/turn-context.ts). An unknown name falls back to UTC.
+    DEFAULT_TIMEZONE: z.string().default('UTC'),
 
     // Dolt (versioned business data) — the compose `dolt` service. Optional so
     // the app boots without Dolt; the Dolt tools error clearly if it's missing.
