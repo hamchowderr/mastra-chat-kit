@@ -87,6 +87,7 @@ describe('ChatPanel — Plan', () => {
     expect(api.sent('/api/agent-controller/answer')[0].body).toEqual({
       plan: { action: 'approved' },
       toolCallId: 'p1',
+      timeZone: expect.any(String),
     });
     expect(await screen.findByText(/switched to Chat mode/)).toBeInTheDocument();
     await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'false'));

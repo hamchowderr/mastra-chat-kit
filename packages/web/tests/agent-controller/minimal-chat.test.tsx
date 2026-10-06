@@ -42,6 +42,7 @@ describe('MinimalChat', () => {
     expect(api.sent('/api/agent-controller/answer')[0].body).toEqual({
       plan: { action: 'approved' },
       toolCallId: 'p1',
+      timeZone: expect.any(String),
     });
     expect(await screen.findByText(/Plan approved/)).toBeInTheDocument();
   });
