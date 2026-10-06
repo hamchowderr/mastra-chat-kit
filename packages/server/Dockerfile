@@ -26,7 +26,7 @@ COPY packages/server/package.json packages/server/
 RUN pnpm install --frozen-lockfile --filter @mastra-chat-kit/server...
 
 # Semantic recall and chat search embed with @mastra/fastembed, a LOCAL ONNX model
-# (bge-small-en-v1.5, 384-dim). Its only cache location is
+# (bge-small-en-v1.5, 384-dim, from Hugging Face since 1.3.2). Its only cache location is
 # `os.homedir()/.cache/mastra/fastembed-models` (no option or env), and it downloads
 # the model there on first use. Fetch it here, into a throwaway HOME, by running one real
 # embedding: the runtime stage copies it into the runtime user's home, so no chat turn
