@@ -25,6 +25,19 @@ COPY patches patches
 COPY packages/server/package.json packages/server/
 RUN pnpm install --frozen-lockfile --filter @mastra-chat-kit/server...
 
+# Semantic recall and chat search embed with @mastra/fastembed, a LOCAL ONNX model
+# (bge-small-en-v1.5, 384-dim). Its only cache location is
+# `os.homedir()/.cache/mastra/fastembed-models` (no option or env), and it downloads
+# the model there on first use. Fetch it here, into a throwaway HOME, by running one real
+# embedding: the runtime stage copies it into the runtime user's home, so no chat turn
+# downloads ~70 MB and a redeploy does not either. This layer depends only on the
+# install above, so a source-only change reuses it (no re-download).
+RUN cd packages/server && HOME=/opt/mastra-home node -e "\
+import('@mastra/fastembed').then(async ({ fastembed }) => {\
+  const { embeddings } = await fastembed.doEmbed({ values: ['warm up'] });\
+  if (embeddings[0]?.length !== 384) throw new Error('fastembed warm-up: unexpected dimension');\
+})"
+
 COPY packages/server packages/server
 WORKDIR /app/packages/server
 
@@ -52,6 +65,13 @@ ENV PORT=4111
 ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 
 COPY --from=build --chown=mastra:nodejs /app/packages/server/.mastra/output ./.mastra/output
+
+# The runtime user's home, with fastembed's model already in its cache (see the build
+# stage). The user is created with -M, so without this /home/mastra does not exist, and
+# fastembed's first `mkdir ~/.cache/...` fails with EACCES: every chat turn then fails
+# with "Failed to determine the embedder's output dimension". Owned by the user, so the
+# cache stays writable.
+COPY --from=build --chown=mastra:nodejs /opt/mastra-home /home/mastra
 
 # The workspace's headless browser (@mastra/browser-viewer → playwright-core) drives a
 # version-matched Chromium. `mastra build` externalizes @mastra/browser-viewer and its
