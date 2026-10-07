@@ -81,6 +81,10 @@ const envSchema = z
     // generateImage (needs OPENAI_API_KEY), and the demo tools getWeather + searchKnowledge.
     TOOL_GENERATE_IMAGE: boolish.default(true),
     TOOL_DEMO: boolish.default(true),
+    // Anthropic prompt caching (lib/turn-context.ts): cache breakpoints after the tools and
+    // instructions, after the stable turn-context sections, and on the conversation tail.
+    // Other providers ignore the markers.
+    PROMPT_CACHE: boolish.default(true),
 
     // Firecrawl web search (lib/firecrawl.ts). Setting the key turns it on: the agent
     // and the research subagent get Firecrawl's search and scrape tools from Firecrawl's
