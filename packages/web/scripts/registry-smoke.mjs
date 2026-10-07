@@ -76,7 +76,7 @@ const INIT_BASE_ARGS =
 // What a correct install must produce. These counts are the contract; if the
 // registry legitimately grows, update them here in the same commit.
 const EXPECT = {
-  'components/chat': 12,
+  'components/chat': 13,
   'components/ai-elements': 5, // OUR vendored ones; upstream adds more on top
   'app/api': 14, // route.ts files
 };
@@ -383,6 +383,7 @@ log('installing @mastra-chat-kit/chat-panel alone');
     'components/chat/composer.tsx',
     'components/chat/transcript.tsx',
     'components/chat/tool-views.tsx',
+    'components/chat/chat-markdown.tsx',
     'lib/agent-controller/use-agent-controller-chat.ts',
     'lib/mastra-proxy.ts',
     'app/api/agent-controller/stream/route.ts',

@@ -296,7 +296,8 @@
       "title": "Chat Tool Views",
       "description": "Shared renderers mapping real agent tool output onto AI Elements — used by every chat skin.",
       "dependencies": [
-        "lucide-react"
+        "lucide-react",
+        "streamdown"
       ],
       "registryDependencies": [
         "button",
@@ -325,6 +326,11 @@
           "path": "components/chat/transcript.tsx",
           "type": "registry:component",
           "target": "components/chat/transcript.tsx"
+        },
+        {
+          "path": "components/chat/chat-markdown.tsx",
+          "type": "registry:component",
+          "target": "components/chat/chat-markdown.tsx"
         }
       ]
     },
