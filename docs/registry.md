@@ -416,6 +416,25 @@ navigates in place; any other link opens in a new tab with `rel="noopener norefe
 showing the panel in a sheet or dialog closes it there, e.g.
 `<ChatPanel onNavigate={() => setSheetOpen(false)} />`.
 
+Every gated tool call stops at an approval card (`approval-view.tsx` in `chat-tool-views`).
+By default it names the tool in words ("Create task?") and lists the arguments as labelled
+fields. `approvalViews` (on `ChatPanel`, `ChatSwitcher`, `MinimalChat`, or `ApprovalCard`)
+gives a tool its own title and body, keyed by tool name:
+
+```tsx
+<ChatPanel
+  approvalViews={{
+    createTask: ({ args }) => ({ title: `Add the task "${(args as { title: string }).title}"` }),
+  }}
+/>
+```
+
+A renderer gets the pending call (`toolName`, `args`, `category`) and, when your agent
+server supplies one, a `preview`: `approvalPreview` in `chat-server`'s `ChatServerDeps` runs
+before the card is sent (a dry run, or the record as it is now) and its result rides on the
+`tool_approval_required` event. It must not change anything; a preview that fails or takes
+more than 10 seconds is left out. `BeforeAfter` draws one changed value.
+
 ### Fit it into your app
 
 `<ChatSwitcher />` takes options, so a host app changes what it needs without

@@ -6,8 +6,9 @@ import type { Session } from '@mastra/core/agent-controller';
  * /agent-controller/answer (resuming a suspended tool): on core 1.52 a suspending
  * tool ends the run, so the resumed run needs a response of its own to stream on.
  *
- * `decorate` lets a route enrich an event before it's sent. `prelude` events go out
- * before `run` starts. On client disconnect the run is aborted and forwarding stops.
+ * `decorate` lets a route enrich an event before it's sent; it may be async (an approval
+ * preview fetched from a host service), and events still go out in the order they came.
+ * `prelude` events go out before `run` starts. On client disconnect the run is aborted and forwarding stops.
  */
 export function sessionEventStream({
   session,
@@ -21,7 +22,7 @@ export function sessionEventStream({
   signal?: AbortSignal;
   run: () => Promise<unknown>;
   // biome-ignore lint/suspicious/noExplicitAny: see above
-  decorate?: (event: any) => any;
+  decorate?: (event: any) => any | Promise<any>;
   // biome-ignore lint/suspicious/noExplicitAny: see above
   prelude?: any[];
 }): Response {
@@ -44,7 +45,17 @@ export function sessionEventStream({
         }
       };
 
-      const unsubscribe = session.subscribe((event) => send(decorate(event)));
+      // Each event is sent after the ones before it, even when decorating one takes a while.
+      let sending: Promise<void> = Promise.resolve();
+      const unsubscribe = session.subscribe((event) => {
+        sending = sending.then(async () => {
+          try {
+            send(await decorate(event));
+          } catch {
+            send(event);
+          }
+        });
+      });
       // On client disconnect: stop forwarding, drop the subscription, abort the run.
       signal?.addEventListener('abort', () => {
         closed = true;
@@ -58,9 +69,12 @@ export function sessionEventStream({
       try {
         await run();
       } catch (err) {
+        // After the events already on their way.
+        await sending;
         send({ type: 'error', error: err instanceof Error ? err.message : String(err) });
       } finally {
         unsubscribe();
+        await sending;
         send({ type: '__done__' });
         if (!closed) {
           try {
