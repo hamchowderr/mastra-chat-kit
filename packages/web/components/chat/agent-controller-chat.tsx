@@ -3,13 +3,6 @@
 import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
 import { Agent, AgentContent, AgentHeader } from '@/components/ai-elements/agent';
 import {
-  Confirmation,
-  ConfirmationAction,
-  ConfirmationActions,
-  ConfirmationRequest,
-  ConfirmationTitle,
-} from '@/components/ai-elements/confirmation';
-import {
   Context,
   ContextContent,
   ContextContentBody,
@@ -49,6 +42,7 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
+import type { ApprovalViews } from '@/components/chat/approval-view';
 import { ChatMarkdown } from '@/components/chat/chat-markdown';
 import { Composer, type ComposerSubmit, type ModelOption } from '@/components/chat/composer';
 import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
@@ -60,7 +54,7 @@ import {
   KnowledgeSources,
   StepTrace,
 } from '@/components/chat/tool-views';
-import { SubmittedPlanCard } from '@/components/chat/transcript';
+import { ApprovalCard, SubmittedPlanCard } from '@/components/chat/transcript';
 import {
   type ActiveTool,
   type AgentControllerContentPart,
@@ -91,6 +85,11 @@ export type ChatOptions = {
   webSearch?: boolean;
   /** The empty-state heading and line under it. */
   greeting?: { title: string; description?: string };
+  /**
+   * What approval cards say, per tool name (components/chat/approval-view.tsx). Tools
+   * without one get their name in words and their arguments as fields.
+   */
+  approvalViews?: ApprovalViews;
 };
 
 const STARTERS: ChatSuggestion[] = [
@@ -157,7 +156,7 @@ export function AgentControllerChat({
     title: 'What’s on your mind today?',
     description: 'Ask a question, run some code, or browse the web.',
   };
-  const { transcript, status, sendMessage, approve, answerQuestion } = controller;
+  const { transcript, status, sendMessage, answerQuestion } = controller;
   // Goals are agent-driven — the agent calls its own `setGoal` tool for a standing
   // objective, so there's no goal control; `clearGoal` backs the goal card's dismiss.
   const { goal, clearGoal } = controller;
@@ -344,33 +343,7 @@ export function AgentControllerChat({
             )}
 
             {pendingApproval && (
-              <Confirmation
-                state="approval-requested"
-                approval={{ id: pendingApproval.toolCallId }}
-              >
-                <ConfirmationTitle>Run {pendingApproval.toolName}?</ConfirmationTitle>
-                <ConfirmationRequest>
-                  <pre className="overflow-x-auto text-xs">
-                    {JSON.stringify(pendingApproval.args, null, 2)}
-                  </pre>
-                  <ConfirmationActions>
-                    <ConfirmationAction onClick={() => approve('approve')}>
-                      Approve
-                    </ConfirmationAction>
-                    {pendingApproval.category && (
-                      <ConfirmationAction
-                        variant="outline"
-                        onClick={() => approve('always_allow_category')}
-                      >
-                        Always allow {pendingApproval.category} tools
-                      </ConfirmationAction>
-                    )}
-                    <ConfirmationAction variant="outline" onClick={() => approve('decline')}>
-                      Reject
-                    </ConfirmationAction>
-                  </ConfirmationActions>
-                </ConfirmationRequest>
-              </Confirmation>
+              <ApprovalCard controller={controller} views={options.approvalViews} />
             )}
 
             {/* Agent-driven ask_user: the run is suspended awaiting the user's answer

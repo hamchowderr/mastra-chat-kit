@@ -63,9 +63,14 @@ function streamRoute(session: FakeSession, over: Partial<ChatServerDeps> = {}) {
 }
 
 /** Run the route and return every SSE event it wrote. */
-async function run(session: FakeSession, body: Record<string, unknown>, signal?: AbortSignal) {
+async function run(
+  session: FakeSession,
+  body: Record<string, unknown>,
+  signal?: AbortSignal,
+  over: Partial<ChatServerDeps> = {},
+) {
   const { c } = ctx({ body, signal });
-  const res = (await streamRoute(session).handler(c)) as Response;
+  const res = (await streamRoute(session, over).handler(c)) as Response;
   const text = await res.text();
   return text
     .split('\n\n')
@@ -170,6 +175,51 @@ describe('/agent-controller/stream', () => {
     const events = await run(session, { text: 'hi' });
     const gates = events.filter((e) => e.type === 'tool_approval_required');
     expect(gates.map((e) => e.category)).toEqual(['read', null]);
+  });
+
+  it("adds the host's approvalPreview to the card, keeps event order, and survives a failing one", async () => {
+    const session = fakeSession(async () => {
+      session.emit({
+        type: 'tool_approval_required',
+        toolCallId: 'a',
+        toolName: 'slow',
+        args: { n: 1 },
+      });
+      session.emit({ type: 'message_update', id: 'm' });
+      session.emit({
+        type: 'tool_approval_required',
+        toolCallId: 'b',
+        toolName: 'broken',
+        args: {},
+      });
+      session.emit({ type: 'tool_approval_required', toolCallId: 'c', toolName: 'none', args: {} });
+    });
+    const approvalPreview = vi.fn(
+      async ({ toolName, args }: { toolName: string; args: unknown }) => {
+        if (toolName === 'slow') {
+          await new Promise((r) => setTimeout(r, 30));
+          return { before: 'old', after: 'new', args };
+        }
+        if (toolName === 'broken') throw new Error('preview failed');
+        return undefined;
+      },
+    );
+    const events = await run(session, { text: 'hi' }, undefined, { approvalPreview });
+    // Same order as emitted, though the first one waited for its preview.
+    expect(events.map((e) => e.toolCallId ?? e.type).filter((x) => x !== '__thread__')).toEqual([
+      'a',
+      'message_update',
+      'b',
+      'c',
+      '__done__',
+    ]);
+    const gates = events.filter((e) => e.type === 'tool_approval_required');
+    expect(gates[0].preview).toEqual({ before: 'old', after: 'new', args: { n: 1 } });
+    expect('preview' in gates[1]).toBe(false);
+    expect('preview' in gates[2]).toBe(false);
+    expect(approvalPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ toolName: 'slow', args: { n: 1 } }),
+    );
   });
 
   it('aborts the run and stops forwarding when the client disconnects', async () => {

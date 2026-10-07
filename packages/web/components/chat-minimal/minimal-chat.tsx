@@ -5,6 +5,7 @@ import { type FormEvent, useState } from 'react';
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
+import type { ApprovalViews } from '@/components/chat/approval-view';
 import { AskUserPrompt } from '@/components/chat/tool-views';
 import { ApprovalCard, partKey, TranscriptPart } from '@/components/chat/transcript';
 import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
@@ -27,7 +28,14 @@ import { cn } from '@/lib/utils';
  * Drop it in anywhere — a panel, a modal, a corner of an existing app:
  *   <MinimalChat />
  */
-export function MinimalChat({ className }: { className?: string }) {
+export function MinimalChat({
+  className,
+  approvalViews,
+}: {
+  className?: string;
+  /** What approval cards say, per tool name (components/chat/approval-view.tsx). */
+  approvalViews?: ApprovalViews;
+}) {
   const controller = useAgentControllerChat();
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
   const [input, setInput] = useState('');
@@ -89,7 +97,7 @@ export function MinimalChat({ className }: { className?: string }) {
           )}
 
           {/* Every tool is gated — without this the run parks forever. */}
-          <ApprovalCard controller={controller} />
+          <ApprovalCard controller={controller} views={approvalViews} />
         </ConversationContent>
       </Conversation>
 

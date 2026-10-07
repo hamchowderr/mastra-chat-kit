@@ -26,6 +26,43 @@ function turnRequestContext({ webSearch, timeZone }: { webSearch?: boolean; time
   return requestContext;
 }
 
+/** How long an approval card waits for the host's preview before it shows without one. */
+export const APPROVAL_PREVIEW_TIMEOUT_MS = 10_000;
+
+/**
+ * Enriches a `tool_approval_required` event before it's sent. It carries only the tool's
+ * name and arguments; this adds its Mastra `category` (so the UI can offer "Always allow
+ * <category> tools"; null means always-allow would approve just this one call) and, when the
+ * host supplies `approvalPreview`, a `preview` of what the call would change. A preview that
+ * fails or is slow is left out and the card shows the arguments alone.
+ */
+export function approvalDecorator(
+  deps: ChatServerDeps,
+  // Fetched only when an approval comes through.
+  getController: () => Promise<{ getToolCategory: (opts: { toolName: string }) => string | null }>,
+  resourceId?: string,
+) {
+  // biome-ignore lint/suspicious/noExplicitAny: SSE payloads are heterogeneous AgentControllerEvents
+  return async (event: any) => {
+    if (event.type !== 'tool_approval_required') return event;
+    const decorated = {
+      ...event,
+      category: (await getController()).getToolCategory({ toolName: event.toolName }),
+    };
+    if (!deps.approvalPreview) return decorated;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const preview = await Promise.race([
+      deps
+        .approvalPreview({ toolName: event.toolName, args: event.args, resourceId })
+        .catch(() => undefined),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), APPROVAL_PREVIEW_TIMEOUT_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    return preview === undefined ? decorated : { ...decorated, preview };
+  };
+}
+
 export const createControllerRoutes = (deps: ChatServerDeps) => [
   // Agent Controller endpoint: POST /agent-controller/stream → SSE of AgentControllerEvents.
   // Body: { text: string, threadId?: string }. The AgentController wraps the same
@@ -78,13 +115,8 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       return sessionEventStream({
         session,
         signal: c.req.raw.signal,
-        // tool_approval_required carries only the tool name. Add its category so the
-        // UI can offer "Always allow <category> tools"; null means always-allow
-        // would approve just this one call, so the UI hides that option.
-        decorate: (event) =>
-          event.type === 'tool_approval_required'
-            ? { ...event, category: agentController.getToolCategory({ toolName: event.toolName }) }
-            : event,
+        // Approval cards get the tool's category and the host's preview (approvalDecorator).
+        decorate: approvalDecorator(deps, async () => agentController, resourceIdOf(c)),
         // Hand the client the active thread id so it can continue the conversation.
         prelude: [{ type: '__thread__', threadId: activeThreadId }],
         run: async () => {
@@ -175,6 +207,8 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       return sessionEventStream({
         session,
         signal: c.req.raw.signal,
+        // A resumed run can stop at an approval too: its card gets the same decoration.
+        decorate: approvalDecorator(deps, deps.getAgentController, resourceIdOf(c)),
         run: () =>
           session.respondToToolSuspension({
             resumeData,

@@ -105,4 +105,18 @@ export type ChatServerDeps = {
    * erroring.
    */
   modelAllowlist: ReadonlySet<string>;
+
+  /**
+   * What an approval card should show beside the tool's arguments: a preview of what the
+   * call would change (a dry run, the record as it is now). OPTIONAL — omit it, or return
+   * undefined for a tool, and the card shows the arguments alone. Whatever it returns is
+   * sent to the browser as the `tool_approval_required` event's `preview` (so it must be
+   * JSON) for the host's card renderer (`approvalViews` on the chat skins). It must not
+   * change anything; it runs before she decides.
+   */
+  approvalPreview?: (call: {
+    toolName: string;
+    args: unknown;
+    resourceId?: string;
+  }) => Promise<unknown>;
 };
