@@ -193,5 +193,11 @@ describe("today's date in subagents (AIMock)", () => {
     expect(writer).toBeDefined();
     expect(writer?.system).toContain(LA_TODAY);
     expect(writer?.system.indexOf(LA_TODAY)).toBeGreaterThan(0);
+    // The same cache breakpoints as the chat agent: on its instructions, not on the date.
+    const { system: blocks } = JSON.parse(writer?.body ?? '{}') as {
+      system: { text: string; cache_control?: unknown }[];
+    };
+    expect(blocks[0]?.cache_control).toEqual({ type: 'ephemeral' });
+    expect(blocks.find((b) => b.text.includes(LA_TODAY))?.cache_control).toBeUndefined();
   });
 });
