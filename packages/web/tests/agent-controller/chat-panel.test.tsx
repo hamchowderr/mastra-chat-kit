@@ -139,6 +139,44 @@ describe('ChatPanel — the parts that keep a run moving', () => {
     expect(api.sent('/api/agent-controller/approve')[0].body).toEqual({ decision: 'approve' });
   });
 
+  it('an app link in a reply calls onNavigate (a phone sheet closes); a site link opens a tab', async () => {
+    fakeController({
+      stream: [
+        {
+          type: 'message_end',
+          message: {
+            id: 'a1',
+            role: 'assistant',
+            content: [
+              {
+                type: 'text',
+                text: 'Open [the grant](/grants/42), or read [the call](https://example.org/call).',
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const onNavigate = vi.fn();
+    render(
+      <TooltipProvider>
+        <ChatPanel
+          suggestions={[{ label: 'Grants', prompt: 'Which grants?' }]}
+          onNavigate={onNavigate}
+        />
+      </TooltipProvider>,
+    );
+    fireEvent.click(screen.getByText('Grants'));
+    const app = await screen.findByRole('link', { name: 'the grant' });
+    expect(app).not.toHaveAttribute('target');
+    app.addEventListener('click', (e) => e.preventDefault());
+    fireEvent.click(app);
+    expect(onNavigate).toHaveBeenCalledWith('/grants/42');
+    const site = screen.getByRole('link', { name: 'the call' });
+    expect(site).toHaveAttribute('target', '_blank');
+    expect(site.getAttribute('rel')).toContain('noopener');
+  });
+
   it('never hides a parked approval behind the greeting', async () => {
     fakeController({
       stream: [

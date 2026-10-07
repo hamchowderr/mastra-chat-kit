@@ -6,6 +6,7 @@ import { Conversation, ConversationContent } from '@/components/ai-elements/conv
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion } from '@/components/ai-elements/suggestion';
+import { ChatLinkProvider } from '@/components/chat/chat-markdown';
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
 import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
 import { AskUserPrompt } from '@/components/chat/tool-views';
@@ -53,6 +54,12 @@ export type ChatPanelProps = {
    * without a Plan mode.
    */
   plan?: boolean;
+  /**
+   * Called when a link in a reply to one of the app's own pages is followed: the page
+   * changes in place, and a host showing the panel in a sheet or dialog closes it here.
+   * Links to other sites open in a new tab.
+   */
+  onNavigate?: (href: string) => void;
 };
 
 /**
@@ -78,6 +85,7 @@ export function ChatPanel({
   className,
   onToolEnd,
   plan = true,
+  onNavigate,
 }: ChatPanelProps) {
   const controller = useAgentControllerChat({ onToolEnd });
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
@@ -114,122 +122,126 @@ export function ChatPanel({
   };
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col bg-background', className)}>
-      {/* Height from --chat-panel-header-height (default 3rem): a host sets it to its own
+    <ChatLinkProvider onNavigate={onNavigate}>
+      <div className={cn('flex h-full min-h-0 flex-col bg-background', className)}>
+        {/* Height from --chat-panel-header-height (default 3rem): a host sets it to its own
           header height so the two headers' bottom borders run on one line. */}
-      <header className="flex h-[var(--chat-panel-header-height,3rem)] shrink-0 items-center gap-1 border-b px-3">
-        <div className="min-w-0 flex-1 truncate font-medium text-sm">{title}</div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-8" aria-label="Chat history">
-              <HistoryIcon className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-80 w-72 overflow-y-auto">
-            <DropdownMenuLabel>Recent chats</DropdownMenuLabel>
-            {recent.length === 0 ? (
-              <p className="px-2 py-1.5 text-muted-foreground text-sm">No chats yet.</p>
-            ) : (
-              recent.map((t) => (
-                <DropdownMenuItem
-                  key={t.id}
-                  onSelect={() => void controller.openThread(t.id)}
-                  className={cn(t.id === controller.activeThreadId && 'bg-accent')}
-                >
-                  <span className="truncate">{t.title}</span>
-                </DropdownMenuItem>
-              ))
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          aria-label="New chat"
-          onClick={() => controller.reset()}
-        >
-          <SquarePenIcon className="size-4" />
-        </Button>
-        {actions}
-      </header>
+        <header className="flex h-[var(--chat-panel-header-height,3rem)] shrink-0 items-center gap-1 border-b px-3">
+          <div className="min-w-0 flex-1 truncate font-medium text-sm">{title}</div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-8" aria-label="Chat history">
+                <HistoryIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 w-72 overflow-y-auto">
+              <DropdownMenuLabel>Recent chats</DropdownMenuLabel>
+              {recent.length === 0 ? (
+                <p className="px-2 py-1.5 text-muted-foreground text-sm">No chats yet.</p>
+              ) : (
+                recent.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    onSelect={() => void controller.openThread(t.id)}
+                    className={cn(t.id === controller.activeThreadId && 'bg-accent')}
+                  >
+                    <span className="truncate">{t.title}</span>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            aria-label="New chat"
+            onClick={() => controller.reset()}
+          >
+            <SquarePenIcon className="size-4" />
+          </Button>
+          {actions}
+        </header>
 
-      {empty ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-y-auto px-6 text-center">
-          <div className="space-y-1.5">
-            <h2 className="text-balance font-semibold text-xl tracking-tight">{greeting.title}</h2>
-            {greeting.description && (
-              <p className="text-balance text-muted-foreground text-sm">{greeting.description}</p>
+        {empty ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-y-auto px-6 text-center">
+            <div className="space-y-1.5">
+              <h2 className="text-balance font-semibold text-xl tracking-tight">
+                {greeting.title}
+              </h2>
+              {greeting.description && (
+                <p className="text-balance text-muted-foreground text-sm">{greeting.description}</p>
+              )}
+            </div>
+            {suggestions.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2">
+                {suggestions.map((s) => (
+                  <Suggestion key={s.prompt} suggestion={s.prompt} onClick={send}>
+                    {s.label}
+                  </Suggestion>
+                ))}
+              </div>
             )}
           </div>
-          {suggestions.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-2">
-              {suggestions.map((s) => (
-                <Suggestion key={s.prompt} suggestion={s.prompt} onClick={send}>
-                  {s.label}
-                </Suggestion>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <Conversation className="min-h-0 flex-1">
-          <ConversationContent className="px-4">
-            {transcript.messages
-              .filter((m) => m.role === 'user' || m.role === 'assistant')
-              .map((m) => (
-                <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
-                  <MessageContent>
-                    {m.content.map((part, i) => (
-                      <TranscriptPart
-                        key={partKey(m.id, i)}
-                        part={part}
-                        resultsById={resultsById}
-                        controller={controller}
-                      />
-                    ))}
-                  </MessageContent>
-                </Message>
-              ))}
+        ) : (
+          <Conversation className="min-h-0 flex-1">
+            <ConversationContent className="px-4">
+              {transcript.messages
+                .filter((m) => m.role === 'user' || m.role === 'assistant')
+                .map((m) => (
+                  <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
+                    <MessageContent>
+                      {m.content.map((part, i) => (
+                        <TranscriptPart
+                          key={partKey(m.id, i)}
+                          part={part}
+                          resultsById={resultsById}
+                          controller={controller}
+                        />
+                      ))}
+                    </MessageContent>
+                  </Message>
+                ))}
 
-            {busy && transcript.messages.at(-1)?.role === 'user' && (
-              <Shimmer className="text-muted-foreground text-sm">Thinking…</Shimmer>
-            )}
+              {busy && transcript.messages.at(-1)?.role === 'user' && (
+                <Shimmer className="text-muted-foreground text-sm">Thinking…</Shimmer>
+              )}
 
-            {/* The agent asked a question; the run stays suspended until it's answered. */}
-            {pendingSuspension && (
-              <AskUserPrompt suspension={pendingSuspension} onAnswer={answerQuestion} />
-            )}
+              {/* The agent asked a question; the run stays suspended until it's answered. */}
+              {pendingSuspension && (
+                <AskUserPrompt suspension={pendingSuspension} onAnswer={answerQuestion} />
+              )}
 
-            {/* Every tool is gated — without this the run parks forever. */}
-            <ApprovalCard controller={controller} />
-          </ConversationContent>
-        </Conversation>
-      )}
+              {/* Every tool is gated — without this the run parks forever. */}
+              <ApprovalCard controller={controller} />
+            </ConversationContent>
+          </Conversation>
+        )}
 
-      {/* A failed turn says so, as the full shell does. Above the composer, so it shows on
+        {/* A failed turn says so, as the full shell does. Above the composer, so it shows on
           the empty state too (a first message can fail before any transcript exists). */}
-      {transcript.error && (
-        <p role="alert" className="shrink-0 px-4 pt-2 text-destructive text-sm">
-          AgentController error: {transcript.error}
-        </p>
-      )}
+        {transcript.error && (
+          <p role="alert" className="shrink-0 px-4 pt-2 text-destructive text-sm">
+            AgentController error: {transcript.error}
+          </p>
+        )}
 
-      {/* The kit's shared composer: Plan and attach on the left, dictate beside the send
+        {/* The kit's shared composer: Plan and attach on the left, dictate beside the send
           button, one rounded card. No model picker and no web search in a side panel. */}
-      <div className="shrink-0 p-3 pt-1">
-        <Composer
-          onSend={handleSend}
-          status={busy ? 'streaming' : status === 'error' ? 'error' : 'ready'}
-          models={false}
-          webSearch={false}
-          placeholder={placeholder}
-          toolsExtra={
-            plan ? <PlanModeToggle on={planMode.on} onToggle={planMode.toggle} /> : undefined
-          }
-          className="m-0"
-        />
+        <div className="shrink-0 p-3 pt-1">
+          <Composer
+            onSend={handleSend}
+            status={busy ? 'streaming' : status === 'error' ? 'error' : 'ready'}
+            models={false}
+            webSearch={false}
+            placeholder={placeholder}
+            toolsExtra={
+              plan ? <PlanModeToggle on={planMode.on} onToggle={planMode.toggle} /> : undefined
+            }
+            className="m-0"
+          />
+        </div>
       </div>
-    </div>
+    </ChatLinkProvider>
   );
 }
