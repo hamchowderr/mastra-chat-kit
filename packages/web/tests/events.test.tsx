@@ -60,6 +60,8 @@ describe('EventsPage — controller event → element reference', () => {
       'components/chat/workbench-schedules.tsx',
       'components/chat/composer.tsx',
       'components/chat/tool-views.tsx',
+      // The approval card (Confirmation), shared by every skin.
+      'components/chat/transcript.tsx',
     ];
     const web = resolve(fileURLToPath(import.meta.url), '../..');
     const imported = new Set<string>();
