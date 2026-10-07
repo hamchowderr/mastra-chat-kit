@@ -2,8 +2,10 @@ import type { AgentControllerSubagent } from '@mastra/core/agent-controller';
 import { RequestContext } from '@mastra/core/request-context';
 import { describe, expect, it } from 'vitest';
 import {
+  CACHE_BREAKPOINT,
   isTimeZone,
   resolveTimeZone,
+  stableSection,
   TIME_ZONE_KEY,
   TurnContextProcessor,
   todaySection,
@@ -68,54 +70,160 @@ describe("today's date", () => {
   });
 });
 
+type SystemMessage = { role: 'system'; content: string; providerOptions?: unknown };
+
+/** One processInputStep on these system messages. */
+const step = (
+  processor: TurnContextProcessor,
+  systemMessages: SystemMessage[],
+  requestContext?: RequestContext,
+) =>
+  processor.processInputStep({
+    systemMessages,
+    requestContext,
+  } as unknown as Parameters<TurnContextProcessor['processInputStep']>[0]) as Promise<{
+    systemMessages: SystemMessage[];
+  }>;
+
 describe('TurnContextProcessor', () => {
-  const step = (
-    systemMessages: { role: 'system'; content: string }[],
-    requestContext?: RequestContext,
-  ) =>
-    new TurnContextProcessor({ now: () => NOW }).processInputStep({
-      systemMessages,
-      requestContext,
-    } as unknown as Parameters<TurnContextProcessor['processInputStep']>[0]);
+  const plain = new TurnContextProcessor({ now: () => NOW, promptCache: false });
 
   it('adds the date AFTER the existing system messages, leaving them untouched', async () => {
     const instructions = { role: 'system' as const, content: 'You are a helpful assistant.' };
-    const result = await step([instructions], inZone('America/Los_Angeles'));
-    expect(result?.systemMessages[0]).toBe(instructions);
-    expect(result?.systemMessages).toHaveLength(2);
-    expect(String(result?.systemMessages[1]?.content)).toContain('Thursday 2026-10-15');
+    const result = await step(plain, [instructions], inZone('America/Los_Angeles'));
+    expect(result.systemMessages[0]).toBe(instructions);
+    expect(result.systemMessages).toHaveLength(2);
+    expect(String(result.systemMessages[1]?.content)).toContain('Thursday 2026-10-15');
   });
 
   it('takes extra sections, in order, for a project to extend', async () => {
     const processor = new TurnContextProcessor({
       now: () => NOW,
+      promptCache: false,
       sections: [todaySection, () => 'Business: Cultured Matter.', () => undefined],
     });
-    const result = await processor.processInputStep({
-      systemMessages: [],
-      requestContext: inZone('UTC'),
-    } as unknown as Parameters<TurnContextProcessor['processInputStep']>[0]);
-    const content = String(result?.systemMessages[0]?.content);
+    const result = await step(processor, [], inZone('UTC'));
+    const content = String(result.systemMessages[0]?.content);
     expect(content.indexOf('Current date and time')).toBeLessThan(content.indexOf('Business:'));
     expect(content.endsWith('Business: Cultured Matter.')).toBe(true);
+  });
+
+  it('without promptCache, adds no breakpoint and keeps the turn context in one message', async () => {
+    const processor = new TurnContextProcessor({
+      now: () => NOW,
+      promptCache: false,
+      sections: [stableSection(() => 'Business: Cultured Matter.'), todaySection],
+    });
+    const result = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
+    expect(result.systemMessages).toHaveLength(2);
+    expect(JSON.stringify(result.systemMessages)).not.toContain('cacheControl');
+    expect(result.systemMessages[1]?.content).toMatch(
+      /^Business: Cultured Matter\.\n\nCurrent date/,
+    );
+  });
+});
+
+describe('prompt-cache breakpoints', () => {
+  const cached = (sections = [stableSection(() => 'Business: Cultured Matter.'), todaySection]) =>
+    new TurnContextProcessor({ now: () => NOW, promptCache: true, sections });
+
+  it('marks the end of the instructions and of the stable sections, never the date', async () => {
+    const result = await step(cached(), [
+      { role: 'system', content: 'Instructions.' },
+      { role: 'system', content: 'Task list rules.' },
+    ]);
+    const [instructions, taskRules, stable, volatile] = result.systemMessages;
+    expect(result.systemMessages).toHaveLength(4);
+    // Only the LAST message before the turn context: its breakpoint caches the tools and
+    // every system message up to it.
+    expect(instructions).toEqual({ role: 'system', content: 'Instructions.' });
+    expect(taskRules?.providerOptions).toEqual(CACHE_BREAKPOINT);
+    expect(stable).toEqual({
+      role: 'system',
+      content: 'Business: Cultured Matter.',
+      providerOptions: CACHE_BREAKPOINT,
+    });
+    expect(volatile?.content).toContain('Current date and time');
+    expect(volatile?.providerOptions).toBeUndefined();
+  });
+
+  it('puts the stable sections first wherever they are listed, joined in order', async () => {
+    const result = await step(
+      cached([
+        todaySection,
+        stableSection(() => 'Profile.'),
+        stableSection(() => undefined),
+        stableSection(() => 'Voice.'),
+      ]),
+      [{ role: 'system', content: 'Instructions.' }],
+    );
+    expect(result.systemMessages.map((m) => m.content.split('\n')[0])).toEqual([
+      'Instructions.',
+      'Profile.',
+      expect.stringContaining('Current date and time'),
+    ]);
+    expect(result.systemMessages[1]?.content).toBe('Profile.\n\nVoice.');
+  });
+
+  it('keeps provider options already on the instructions', async () => {
+    const result = await step(cached([todaySection]), [
+      {
+        role: 'system',
+        content: 'Instructions.',
+        providerOptions: { anthropic: { foo: 1 }, openai: { bar: 2 } },
+      },
+    ]);
+    expect(result.systemMessages[0]?.providerOptions).toEqual({
+      anthropic: { foo: 1, cacheControl: { type: 'ephemeral' } },
+      openai: { bar: 2 },
+    });
+  });
+
+  it('with no stable section, adds only the instructions breakpoint', async () => {
+    const result = await step(cached([todaySection]), [
+      { role: 'system', content: 'Instructions.' },
+    ]);
+    expect(result.systemMessages).toHaveLength(2);
+    expect(JSON.stringify(result.systemMessages).match(/cacheControl/g)).toHaveLength(1);
+  });
+
+  it('gives a later step the same cached prefix', async () => {
+    const processor = cached();
+    const first = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
+    const later = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
+    expect(later.systemMessages.slice(0, 2)).toEqual(first.systemMessages.slice(0, 2));
   });
 });
 
 describe('subagents', () => {
+  const definition: AgentControllerSubagent = {
+    id: 'writer',
+    name: 'Writer',
+    description: 'Writes.',
+    instructions: 'You write things.',
+  };
+  type Resolve = (args: { requestContext: RequestContext }) => Promise<SystemMessage[]>;
+
   it('get the date after their own instructions, in the parent turn’s zone', async () => {
-    const definition: AgentControllerSubagent = {
-      id: 'writer',
-      name: 'Writer',
-      description: 'Writes.',
-      instructions: 'You write things.',
-    };
-    const wrapped = withTurnContext(definition);
+    const wrapped = withTurnContext(definition, undefined, { promptCache: false });
     expect(typeof wrapped.instructions).toBe('function');
-    const resolve = wrapped.instructions as (args: {
-      requestContext: RequestContext;
-    }) => Promise<string[]>;
-    const [own, context] = await resolve({ requestContext: inZone('Asia/Tokyo') });
-    expect(own).toBe('You write things.');
-    expect(context).toContain('(Asia/Tokyo, UTC+09:00)');
+    const [own, context] = await (wrapped.instructions as Resolve)({
+      requestContext: inZone('Asia/Tokyo'),
+    });
+    expect(own).toEqual({ role: 'system', content: 'You write things.' });
+    expect(context?.content).toContain('(Asia/Tokyo, UTC+09:00)');
+  });
+
+  it('get the same cache breakpoints as the chat agent', async () => {
+    const wrapped = withTurnContext(definition, [stableSection(() => 'Voice.'), todaySection], {
+      promptCache: true,
+    });
+    const messages = await (wrapped.instructions as Resolve)({ requestContext: inZone('UTC') });
+    expect(messages.map((m) => m.providerOptions)).toEqual([
+      CACHE_BREAKPOINT,
+      CACHE_BREAKPOINT,
+      undefined,
+    ]);
+    expect(messages[1]?.content).toBe('Voice.');
   });
 });
