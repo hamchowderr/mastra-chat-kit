@@ -408,6 +408,14 @@ is called each time the agent finishes a tool call, with the tool's name, its ca
 and whether it reported an error. A host uses it to refresh its own page after the agent
 changed something, e.g. `router.refresh()` once a write action ends.
 
+Links in the agent's replies (`chat-markdown.tsx` in `chat-tool-views`, used by every
+skin) skip Streamdown's "Open external link?" dialog. A link to one of your app's own
+pages (a path such as `/grants/42`, or a URL on your origin) is a Next.js `<Link>` and
+navigates in place; any other link opens in a new tab with `rel="noopener noreferrer"`.
+`onNavigate` (on `ChatPanel`) is called when one of your pages is opened that way: a host
+showing the panel in a sheet or dialog closes it there, e.g.
+`<ChatPanel onNavigate={() => setSheetOpen(false)} />`.
+
 ### Fit it into your app
 
 `<ChatSwitcher />` takes options, so a host app changes what it needs without

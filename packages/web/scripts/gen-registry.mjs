@@ -327,8 +327,13 @@ items.push({
 // Promoted out of the `chat` block so a second skin depends on THIS rather than on
 // the other skin — skins must never import each other (bd 23d).
 // transcript.tsx: the per-part renderer, the approval card and the plan card, which
-// every skin needs (approvals and plans park the run until answered).
-const TOOL_VIEW_FILES = ['components/chat/tool-views.tsx', 'components/chat/transcript.tsx'];
+// every skin needs (approvals and plans park the run until answered). chat-markdown.tsx:
+// replies as Markdown, with links that navigate in the app or open a new tab.
+const TOOL_VIEW_FILES = [
+  'components/chat/tool-views.tsx',
+  'components/chat/transcript.tsx',
+  'components/chat/chat-markdown.tsx',
+];
 {
   const c = classify(TOOL_VIEW_FILES);
   items.push({

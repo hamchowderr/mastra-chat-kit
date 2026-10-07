@@ -29,7 +29,6 @@ import {
   MessageAction,
   MessageActions,
   MessageContent,
-  MessageResponse,
 } from '@/components/ai-elements/message';
 import {
   Queue,
@@ -50,6 +49,7 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
+import { ChatMarkdown } from '@/components/chat/chat-markdown';
 import { Composer, type ComposerSubmit, type ModelOption } from '@/components/chat/composer';
 import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
 import {
@@ -474,7 +474,7 @@ function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?:
             </ToolContent>
           </Tool>
         ))}
-        {run?.text && <MessageResponse>{run.text}</MessageResponse>}
+        {run?.text && <ChatMarkdown>{run.text}</ChatMarkdown>}
         {running ? (
           <p className="animate-pulse text-muted-foreground text-xs italic">Working…</p>
         ) : run?.isError ? (
@@ -526,7 +526,7 @@ function renderContent(
   planView: PlanView,
 ) {
   if (part.type === 'text') {
-    return <MessageResponse key={i}>{(part as { text: string }).text}</MessageResponse>;
+    return <ChatMarkdown key={i}>{(part as { text: string }).text}</ChatMarkdown>;
   }
   if (part.type === 'thinking') {
     return (

@@ -10,7 +10,6 @@ import {
   ConfirmationRequest,
   ConfirmationTitle,
 } from '@/components/ai-elements/confirmation';
-import { MessageResponse } from '@/components/ai-elements/message';
 import {
   Plan,
   PlanAction,
@@ -29,6 +28,7 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
+import { ChatMarkdown } from '@/components/chat/chat-markdown';
 import { GeneratedImage } from '@/components/chat/tool-views';
 import { Button } from '@/components/ui/button';
 import type { AgentControllerContentPart } from '@/lib/agent-controller/events';
@@ -107,7 +107,7 @@ export function SubmittedPlanCard({
       </PlanHeader>
       <PlanContent>
         {body ? (
-          <MessageResponse>{body}</MessageResponse>
+          <ChatMarkdown>{body}</ChatMarkdown>
         ) : (
           <p className="text-muted-foreground text-sm">Loading the plan…</p>
         )}
@@ -183,7 +183,7 @@ export function TranscriptPart({
   controller: UseAgentControllerChat;
 }) {
   if (part.type === 'text') {
-    return <MessageResponse>{(part as { text: string }).text}</MessageResponse>;
+    return <ChatMarkdown>{(part as { text: string }).text}</ChatMarkdown>;
   }
   if (part.type === 'thinking') {
     return (

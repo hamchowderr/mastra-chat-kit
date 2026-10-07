@@ -1210,6 +1210,13 @@
       "response": { "content": "The writer answered." }
     },
     {
+      "_comment": "LINKS in a reply (web components/chat/chat-markdown.tsx): a link to one of the app's own pages navigates in place; a link to another site opens in a new tab. No link-safety dialog.",
+      "match": { "userMessage": "Where can I see the raw events?" },
+      "response": {
+        "content": "Open [the events page](/events) to see every event as it arrives. The format is described in [Mastra's docs](https://mastra.ai/docs)."
+      }
+    },
+    {
       "_comment": "Catch-all — MUST be last. `match` omits userMessage so it matches any request the specific fixtures above don't, so the reference chat always responds deterministically instead of 404 'No fixture matched'. The controller sends extra tools + a working-memory system prompt; this keeps the demo working for arbitrary input. Dedicated controller tool/approval fixtures are tracked in beads 6d2.",
       "match": {},
       "response": {
