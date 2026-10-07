@@ -142,7 +142,10 @@ async function instructionsOf(subagent?: AgentControllerSubagent): Promise<strin
     typeof instructions === 'function'
       ? await instructions({ requestContext: new RequestContext() } as never)
       : instructions;
-  return [resolved].flat().map(String).join('\n');
+  return [resolved]
+    .flat()
+    .map((m) => (typeof m === 'string' ? m : String(m?.content)))
+    .join('\n');
 }
 
 describe('feature switches — Firecrawl', () => {
@@ -191,6 +194,7 @@ describe('feature switches — a narrow assistant', () => {
       subagents: { code: true, research: true, writer: true, review: false, data: true },
       generateImage: false,
       demoTools: false,
+      promptCache: false,
     },
     { dolt: false },
   );

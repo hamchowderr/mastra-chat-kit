@@ -41,6 +41,8 @@ export type ChatFeatures = {
   generateImage: boolean;
   /** getWeather + searchKnowledge, the deterministic demo tools. */
   demoTools: boolean;
+  /** Anthropic prompt-cache breakpoints (lib/turn-context.ts). */
+  promptCache: boolean;
 };
 
 export const FULL_FEATURES: ChatFeatures = {
@@ -50,6 +52,7 @@ export const FULL_FEATURES: ChatFeatures = {
   subagents: { code: true, research: true, writer: true, review: true, data: true },
   generateImage: true,
   demoTools: true,
+  promptCache: true,
 };
 
 /**
@@ -117,4 +120,5 @@ export const features: ChatFeatures = resolveFeatures({
   },
   generateImage: env.TOOL_GENERATE_IMAGE,
   demoTools: env.TOOL_DEMO,
+  promptCache: env.PROMPT_CACHE,
 });

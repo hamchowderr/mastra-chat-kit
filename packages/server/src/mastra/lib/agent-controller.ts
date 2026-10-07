@@ -75,14 +75,15 @@ export const CHAT_RESOURCE_ID = 'chat-kit-user';
  * `searchKnowledge` only while the demo tools are on.
  */
 export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
-  // Each gets today's date after its own instructions, as the chat agent does.
+  // Each gets today's date after its own instructions, and the same cache breakpoints, as
+  // the chat agent does.
   return [
     ...(f.subagents.code ? [codeSubagent] : []),
     ...(f.subagents.research ? [researchSubagentFor(f)] : []),
     ...(f.subagents.writer ? [writerSubagent] : []),
     ...(f.subagents.review ? [reviewerSubagent] : []),
     ...(f.subagents.data ? [dataSubagent] : []),
-  ].map((subagent) => withTurnContext(subagent));
+  ].map((subagent) => withTurnContext(subagent, undefined, { promptCache: f.promptCache }));
 }
 
 /**

@@ -10,7 +10,7 @@ import { liveScorers } from '../lib/live-scorers';
 import { createDefaultMemory } from '../lib/memory';
 import { defaultInputProcessors, defaultOutputProcessors } from '../lib/processors';
 import { toolScopeProcessor } from '../lib/tool-scope';
-import { TurnContextProcessor } from '../lib/turn-context';
+import { CACHE_BREAKPOINT, TurnContextProcessor } from '../lib/turn-context';
 import { getChatWorkspace } from '../lib/workspace';
 import { listSchedules, startSchedule, stopSchedule } from '../tools/schedule';
 
@@ -366,19 +366,31 @@ export function createChatAgent(f: ChatFeatures = defaultFeatures): Agent {
     tools: chatTools(f),
     // Default execution options applied to EVERY run: enable
     // Anthropic extended thinking so the model emits real `reasoning` parts (→ the
-    // <Reasoning> element). Thinking requires temperature 1. Ignored by non-Anthropic
-    // providers, so it's safe regardless of CHAT_MODEL.
+    // <Reasoning> element). Thinking requires temperature 1. With PROMPT_CACHE, a
+    // request-level cacheControl, which Anthropic places on the last block of the prompt:
+    // each step reads the one before it, so a tool loop pays full price only for what it
+    // adds (the other two breakpoints are in lib/turn-context.ts). Ignored by
+    // non-Anthropic providers, so it's safe regardless of CHAT_MODEL.
     defaultOptions: {
       modelSettings: { temperature: 1 },
-      providerOptions: { anthropic: { thinking: { type: 'enabled', budgetTokens: 1500 } } },
+      providerOptions: {
+        anthropic: {
+          thinking: { type: 'enabled', budgetTokens: 1500 },
+          ...(f.promptCache ? CACHE_BREAKPOINT.anthropic : {}),
+        },
+      },
     },
     memory: createDefaultMemory(),
     scorers: liveScorers,
     // toolScopeProcessor: what a forked subagent run and a resumed Plan run are offered
     // (lib/tool-scope.ts). TurnContextProcessor: today's date and time in the user's
     // zone, added after the instructions on every step (lib/turn-context.ts), so the
-    // instructions stay a stable, cacheable prefix.
-    inputProcessors: [...defaultInputProcessors, toolScopeProcessor, new TurnContextProcessor()],
+    // instructions stay a stable, cacheable prefix, with the cache breakpoints.
+    inputProcessors: [
+      ...defaultInputProcessors,
+      toolScopeProcessor,
+      new TurnContextProcessor({ promptCache: f.promptCache }),
+    ],
     outputProcessors: defaultOutputProcessors,
   });
 }
