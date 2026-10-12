@@ -116,7 +116,7 @@ Type:
 What's the weather in Los Angeles?
 ```
 
-- **Steps** trace ("Called getWeather") and a **Run getWeather?** card with the tool's
+- **Steps** trace ("Called getWeather") and a **Get weather?** card with the tool's
   real arguments. Buttons: *Approve*, *Always allow read tools*, *Reject*.
 - Click **Approve**. The reply reads "The weather in Los Angeles looks clear right now."
 
@@ -133,7 +133,7 @@ What's the weather in Los Angeles?
 Research what the AgentController does and cite your sources.
 ```
 
-- A collapsed **reasoning** block, then **Run searchKnowledge?**
+- A collapsed **reasoning** block, then **Search knowledge?**
 - Click **Always allow read tools**. The second search runs **without** a card: the
   grant covers every read tool for the rest of the session.
 - Two searchKnowledge cards, each with **Used 2 sources** and **Citations: [1] [2]**
@@ -176,13 +176,13 @@ session back to Chat mode, and the run resumes on the same turn.
 Have the code subagent build a FizzBuzz script and run it.
 ```
 
-- **Run subagent?** Click **Approve**.
+- **Subagent?** Click **Approve**.
 - A **Subagent · code** card shows the task, then its own tool calls,
   `mastra_workspace_write_file` and `mastra_workspace_execute_command`, both
   *Completed*, and its summary. A subagent's tools don't ask for approval.
 - **fizzbuzz.js** appears in **Files**, which refreshes live while the agent runs.
   Click it to show the code.
-- The parent re-runs the script to check it: **Run mastra_workspace_execute_command?**
+- The parent re-runs the script to check it: **Mastra workspace execute command?**
   Click **Approve**.
 - Switch to **Terminal**: `1 2 Fizz 4 Buzz … 14 FizzBuzz`. That's real output from
   `node` in the sandbox.
@@ -212,7 +212,7 @@ Draft a one-line announcement for tonight's meetup.
 Generate an image of a sunset over the mountains.
 ```
 
-- **Run generateImage?** Click **Approve**.
+- **Generate image?** Click **Approve**.
 - A sunset over purple mountains renders inline, then "Here is your sunset over the
   mountains." It's a real 256×256 PNG served by AIMock's image endpoint.
 
@@ -224,7 +224,7 @@ Generate an image of a sunset over the mountains.
 Every weekday at 9am, remind me to post my standup update.
 ```
 
-- **Run start_schedule?** Click **Approve**. Recurring background work is always
+- **Start schedule?** Click **Approve**. Recurring background work is always
   gated.
 - Open the **Schedules** tab (collapse the sidebar first on a narrow screen):
   **Weekday standup reminder**, *Active*, `0 9 * * 1-5`, "next in …".

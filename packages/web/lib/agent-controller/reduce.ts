@@ -402,6 +402,8 @@ export function reduceAgentControllerEvent(
           args: event.args,
           // Added by the server route; null means "always allow" can't be offered.
           category: typeof event.category === 'string' ? event.category : null,
+          // Added by the server route when the host previews this tool.
+          ...(event.preview !== undefined ? { preview: event.preview } : {}),
         },
       };
     // The agent called `ask_user` (or another suspending builtin) and the run parked
