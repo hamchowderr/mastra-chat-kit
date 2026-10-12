@@ -331,6 +331,11 @@
           "path": "components/chat/chat-markdown.tsx",
           "type": "registry:component",
           "target": "components/chat/chat-markdown.tsx"
+        },
+        {
+          "path": "components/chat/approval-view.tsx",
+          "type": "registry:component",
+          "target": "components/chat/approval-view.tsx"
         }
       ]
     },
@@ -357,7 +362,6 @@
         "@mastra-chat-kit/chat-engine",
         "@mastra-chat-kit/chat-composer",
         "@mastra-chat-kit/chat-tool-views",
-        "https://ai-sdk.dev/elements/api/registry/confirmation.json",
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",

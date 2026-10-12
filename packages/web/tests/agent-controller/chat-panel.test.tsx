@@ -132,7 +132,7 @@ describe('ChatPanel — the parts that keep a run moving', () => {
     });
     renderPanel();
     fireEvent.click(screen.getByText('Weather'));
-    expect(await screen.findByText('Run getWeather?')).toBeInTheDocument();
+    expect(await screen.findByText('Get weather?')).toBeInTheDocument();
     expect(screen.getByText('Always allow read tools')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(api.sent('/api/agent-controller/approve')).toHaveLength(1));
@@ -185,7 +185,7 @@ describe('ChatPanel — the parts that keep a run moving', () => {
     });
     renderPanel();
     fireEvent.click(screen.getByText('Weather'));
-    expect(await screen.findByText('Run getWeather?')).toBeInTheDocument();
+    expect(await screen.findByText('Get weather?')).toBeInTheDocument();
   });
 
   it("shows the agent's ask_user question and answers it", async () => {

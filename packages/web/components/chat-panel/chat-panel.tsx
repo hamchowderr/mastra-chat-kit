@@ -6,6 +6,7 @@ import { Conversation, ConversationContent } from '@/components/ai-elements/conv
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion } from '@/components/ai-elements/suggestion';
+import type { ApprovalViews } from '@/components/chat/approval-view';
 import { ChatLinkProvider } from '@/components/chat/chat-markdown';
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
 import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
@@ -60,6 +61,11 @@ export type ChatPanelProps = {
    * Links to other sites open in a new tab.
    */
   onNavigate?: (href: string) => void;
+  /**
+   * What approval cards say, per tool name (components/chat/approval-view.tsx). Tools
+   * without one get their name in words and their arguments as fields.
+   */
+  approvalViews?: ApprovalViews;
 };
 
 /**
@@ -86,6 +92,7 @@ export function ChatPanel({
   onToolEnd,
   plan = true,
   onNavigate,
+  approvalViews,
 }: ChatPanelProps) {
   const controller = useAgentControllerChat({ onToolEnd });
   const { transcript, status, sendMessage, answerQuestion, pendingSuspension } = controller;
@@ -213,7 +220,7 @@ export function ChatPanel({
               )}
 
               {/* Every tool is gated — without this the run parks forever. */}
-              <ApprovalCard controller={controller} />
+              <ApprovalCard controller={controller} views={approvalViews} />
             </ConversationContent>
           </Conversation>
         )}

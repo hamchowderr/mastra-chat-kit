@@ -28,6 +28,11 @@ import {
   ToolInput,
   ToolOutput,
 } from '@/components/ai-elements/tool';
+import {
+  type ApprovalViews,
+  approvalView,
+  useApprovalViews,
+} from '@/components/chat/approval-view';
 import { ChatMarkdown } from '@/components/chat/chat-markdown';
 import { GeneratedImage } from '@/components/chat/tool-views';
 import { Button } from '@/components/ui/button';
@@ -140,18 +145,28 @@ export function SubmittedPlanCard({
 }
 
 /**
- * The tool-approval card for the pending gate: the tool, its real arguments, and
- * Approve / Always allow <category> / Reject.
+ * The tool-approval card for the pending gate: what the call will do, and Approve / Always
+ * allow <category> / Reject. What it says comes from the host's renderer for the tool
+ * (`views`, or an ApprovalViewsProvider above it; components/chat/approval-view.tsx), else
+ * the tool's name in words and its arguments as labelled fields.
  */
-export function ApprovalCard({ controller }: { controller: UseAgentControllerChat }) {
+export function ApprovalCard({
+  controller,
+  views,
+}: {
+  controller: UseAgentControllerChat;
+  views?: ApprovalViews;
+}) {
+  const provided = useApprovalViews();
   const pending = controller.transcript.pendingApproval;
   if (!pending) return null;
   const { approve } = controller;
+  const view = approvalView(pending, views ?? provided);
   return (
     <Confirmation state="approval-requested" approval={{ id: pending.toolCallId }}>
-      <ConfirmationTitle>Run {pending.toolName}?</ConfirmationTitle>
+      <ConfirmationTitle>{view.title}</ConfirmationTitle>
       <ConfirmationRequest>
-        <pre className="overflow-x-auto text-xs">{JSON.stringify(pending.args, null, 2)}</pre>
+        {view.body && <div className="my-2 space-y-2">{view.body}</div>}
         <ConfirmationActions className="flex-wrap">
           <ConfirmationAction onClick={() => approve('approve')}>Approve</ConfirmationAction>
           {pending.category && (

@@ -97,7 +97,7 @@ await page.waitForTimeout(1500);
 
 await step('0. weather — the approval gate', async () => {
   await send("What's the weather in Los Angeles?");
-  await see('Run getWeather?');
+  await see('Get weather?');
   await shot('weather-approval');
   await click(/^Approve$/);
   await see(/Los Angeles looks clear/);
@@ -107,7 +107,7 @@ await step('0. weather — the approval gate', async () => {
 await step('1. research — sources, always-allow', async () => {
   await newChat();
   await send('Research what the AgentController does and cite your sources.');
-  await see('Run searchKnowledge?');
+  await see('Search knowledge?');
   await click(/Always allow read tools/);
   await see(/Overview: AgentController tool approvals/);
   await see(/Tool calls with side effects park at an approval gate/);
@@ -118,7 +118,7 @@ await step('2. plan mode — approve, then the live checklist', async () => {
   await newChat();
   await click(/^Plan$/);
   await send('Plan a weather briefing for Tokyo, Paris and New York, then carry it out.');
-  await see('Run mastra_workspace_write_file?');
+  await see('Mastra workspace write file?');
   await click(/^Approve$/);
   await see('Weather briefing: Tokyo, Paris, New York');
   await see('Approve plan');
@@ -132,9 +132,9 @@ await step('2. plan mode — approve, then the live checklist', async () => {
 await step('3. code subagent — Files + Terminal', async () => {
   await newChat();
   await send('Have the code subagent build a FizzBuzz script and run it.');
-  await see('Run subagent?');
+  await see('Subagent?');
   await click(/^Approve$/);
-  await see('Run mastra_workspace_execute_command?', 60_000);
+  await see('Mastra workspace execute command?', 60_000);
   await shot('code-subagent');
   await click(/^Approve$/);
   await see(/Verified — the output is in the/, 60_000);
@@ -159,7 +159,7 @@ await step('4. ask_user — the answer steers the reply', async () => {
 await step('5. image generation — a real PNG', async () => {
   await newChat();
   await send('Generate an image of a sunset over the mountains.');
-  await see('Run generateImage?');
+  await see('Generate image?');
   await click(/^Approve$/);
   await page.getByRole('img', { name: /sunset over layered purple mountains/i }).waitFor();
   const size = await page
@@ -172,7 +172,7 @@ await step('5. image generation — a real PNG', async () => {
 await step('6. schedules — a recurring job', async () => {
   await newChat();
   await send('Every weekday at 9am, remind me to post my standup update.');
-  await see('Run start_schedule?');
+  await see('Start schedule?');
   await click(/^Approve$/);
   await see(/runs at 09:00 Monday to Friday/);
   await tab('Schedules');

@@ -54,6 +54,11 @@ export type PendingApproval = {
   args: unknown;
   /** The tool's Mastra category ('read', 'edit', ...). Null: no "always allow". */
   category: string | null;
+  /**
+   * What the call would change, from the server's `approvalPreview` (a dry run, the record
+   * as it is now). Host-defined; undefined when the server sent none.
+   */
+  preview?: unknown;
 };
 
 /** One selectable choice on an `ask_user` prompt (label is the answer value). */
