@@ -6,13 +6,14 @@
  * ./events; the normalisers and upserts used here live in ./reduce-helpers.
  */
 
-import type {
-  AgentControllerGoal,
-  AgentControllerMessage,
-  AgentControllerTaskItem,
-  AgentControllerTranscript,
-  AgentControllerUsage,
-  SuspensionOption,
+import {
+  type AgentControllerGoal,
+  type AgentControllerMessage,
+  type AgentControllerTaskItem,
+  type AgentControllerTranscript,
+  type AgentControllerUsage,
+  approvalsState,
+  type SuspensionOption,
 } from './events';
 import {
   type AnyEvent,
@@ -46,7 +47,8 @@ export function reduceAgentControllerEvent(
       return {
         ...state,
         done: true,
-        pendingApproval: null,
+        // The run is over, so no gate it parked can still be answered.
+        ...approvalsState([]),
         // The run ended — any tool still marked "streaming input" is stale.
         activeTools: [],
         terminal: { ...state.terminal, running: false },
@@ -58,8 +60,10 @@ export function reduceAgentControllerEvent(
         ...state,
         terminal: { output: state.terminal.output + String(event.output ?? ''), running: true },
       };
-    // Once the gate resolves (approved → tool runs, or declined → run ends), the
-    // approval is no longer pending. Clear it on any of these resolution events.
+    // Once a gate resolves (approved → tool runs, or declined → run ends), its approval
+    // is no longer pending. Core parks one gate per tool call, so a `tool_end` clears only
+    // the approval with its toolCallId (another parallel gate stays answerable), and
+    // `agent_end` (no toolCallId: the run is over) clears them all.
     // These also settle a running command, so drop the Terminal's streaming caret.
     // A `tool_end` also RESOLVES a matching `ask_user` suspension — the suspended
     // tool re-ran with the answer and returned — so clear pendingSuspension only when
@@ -68,7 +72,11 @@ export function reduceAgentControllerEvent(
     case 'agent_end':
       return {
         ...state,
-        pendingApproval: null,
+        ...approvalsState(
+          event.type === 'tool_end'
+            ? state.pendingApprovals.filter((a) => a.toolCallId !== event.toolCallId)
+            : [],
+        ),
         pendingSuspension:
           event.toolCallId && state.pendingSuspension?.toolCallId === event.toolCallId
             ? null
@@ -393,19 +401,29 @@ export function reduceAgentControllerEvent(
             ),
           }
         : state;
-    case 'tool_approval_required':
+    // One card per parked gate, keyed by toolCallId: a second gated call in the same
+    // step adds a card instead of replacing the first (whose gate would then be
+    // unanswerable). A repeat of the same id updates its card in place.
+    case 'tool_approval_required': {
+      const approval = {
+        toolCallId: String(event.toolCallId ?? ''),
+        toolName: event.toolName,
+        args: event.args,
+        // Added by the server route; null means "always allow" can't be offered.
+        category: typeof event.category === 'string' ? event.category : null,
+        // Added by the server route when the host previews this tool.
+        ...(event.preview !== undefined ? { preview: event.preview } : {}),
+      };
+      const at = state.pendingApprovals.findIndex((a) => a.toolCallId === approval.toolCallId);
       return {
         ...state,
-        pendingApproval: {
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          args: event.args,
-          // Added by the server route; null means "always allow" can't be offered.
-          category: typeof event.category === 'string' ? event.category : null,
-          // Added by the server route when the host previews this tool.
-          ...(event.preview !== undefined ? { preview: event.preview } : {}),
-        },
+        ...approvalsState(
+          at === -1
+            ? [...state.pendingApprovals, approval]
+            : state.pendingApprovals.map((a, i) => (i === at ? approval : a)),
+        ),
       };
+    }
     // The agent called `ask_user` (or another suspending builtin) and the run parked
     // awaiting an answer. Lift the question out of the suspend payload so the UI can
     // render the prompt; the run resumes when the user answers (POST /agent-controller/answer).
