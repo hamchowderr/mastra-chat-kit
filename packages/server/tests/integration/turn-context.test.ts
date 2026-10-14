@@ -140,7 +140,7 @@ describe("today's date in subagents (AIMock)", () => {
     const unsubscribe = session.subscribe((event) => {
       events.push(event);
       if (event.type === 'tool_approval_required') {
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
       }
     });
     try {

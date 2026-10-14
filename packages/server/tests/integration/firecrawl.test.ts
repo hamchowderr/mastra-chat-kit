@@ -79,7 +79,7 @@ async function turn(content: string, threadTitle: string) {
     events.push(e);
     if (e.type === 'tool_approval_required') {
       approvals.push(e.toolName);
-      session.respondToToolApproval({ decision: 'approve' });
+      session.respondToToolApproval({ decision: 'approve', toolCallId: e.toolCallId });
     }
   });
   await session.thread.create({ title: threadTitle });

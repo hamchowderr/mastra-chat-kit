@@ -136,7 +136,36 @@ describe('ChatPanel — the parts that keep a run moving', () => {
     expect(screen.getByText('Always allow read tools')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(api.sent('/api/agent-controller/approve')).toHaveLength(1));
-    expect(api.sent('/api/agent-controller/approve')[0].body).toEqual({ decision: 'approve' });
+    // The decision names its gate: core answers only the toolCallId it is given.
+    expect(api.sent('/api/agent-controller/approve')[0].body).toEqual({
+      decision: 'approve',
+      toolCallId: 'c1',
+    });
+  });
+
+  it('drops an approval card the server no longer holds and says why', async () => {
+    fakeController({
+      stream: [
+        {
+          type: 'tool_approval_required',
+          toolCallId: 'c1',
+          toolName: 'getWeather',
+          args: { location: 'Paris' },
+          category: null,
+        },
+      ],
+      approve: () =>
+        Response.json(
+          { error: 'approval not accepted: stale_tool_call', reason: 'stale_tool_call' },
+          { status: 409 },
+        ),
+    });
+    renderPanel();
+    fireEvent.click(screen.getByText('Weather'));
+    expect(await screen.findByText('Get weather?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    await waitFor(() => expect(screen.queryByText('Get weather?')).not.toBeInTheDocument());
+    expect(await screen.findByText(/approval not accepted: stale_tool_call/)).toBeInTheDocument();
   });
 
   it('an app link in a reply calls onNavigate (a phone sheet closes); a site link opens a tab', async () => {

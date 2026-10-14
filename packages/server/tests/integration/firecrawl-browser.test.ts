@@ -96,7 +96,7 @@ async function turn(
     events.push(e);
     if (e.type === 'tool_approval_required') {
       approvals.push(e.toolName);
-      session.respondToToolApproval({ decision: decide(e.toolName) });
+      session.respondToToolApproval({ decision: decide(e.toolName), toolCallId: e.toolCallId });
     }
   });
   const thread = await session.thread.create({ title: content });

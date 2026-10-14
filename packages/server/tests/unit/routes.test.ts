@@ -191,6 +191,64 @@ describe('controller routes validate input before touching the session', () => {
     expect(getSession).not.toHaveBeenCalled();
   });
 
+  // Core answers only the gate a toolCallId names; without one the decision resolves
+  // nothing, so the route refuses it rather than reporting a no-op as success.
+  it('/agent-controller/approve rejects a decision with no toolCallId with 400', async () => {
+    const getSession = vi.fn(() => Promise.reject(new Error('must not be called')));
+    const route = find(
+      createControllerRoutes(deps({ getSession })),
+      '/agent-controller/approve',
+      'POST',
+    );
+    const { c, captured } = ctx({ body: { decision: 'approve' } });
+
+    await route.handler(c);
+
+    expect(captured.status).toBe(400);
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it('/agent-controller/approve answers the gate the toolCallId names', async () => {
+    const respondToToolApproval = vi.fn(() => ({ accepted: true as const }));
+    const route = find(
+      createControllerRoutes(
+        deps({ getSession: async () => ({ respondToToolApproval }) as never }),
+      ),
+      '/agent-controller/approve',
+      'POST',
+    );
+    const { c, captured } = ctx({ body: { decision: 'decline', toolCallId: 'call-7' } });
+
+    await route.handler(c);
+
+    expect(respondToToolApproval).toHaveBeenCalledWith({
+      decision: 'decline',
+      toolCallId: 'call-7',
+    });
+    expect(captured.status).toBe(200);
+    expect(captured.body).toEqual({ ok: true });
+  });
+
+  it('/agent-controller/approve reports a gate core did not take as 409 with its reason', async () => {
+    const respondToToolApproval = vi.fn(() => ({
+      accepted: false as const,
+      reason: 'stale_tool_call' as const,
+    }));
+    const route = find(
+      createControllerRoutes(
+        deps({ getSession: async () => ({ respondToToolApproval }) as never }),
+      ),
+      '/agent-controller/approve',
+      'POST',
+    );
+    const { c, captured } = ctx({ body: { decision: 'approve', toolCallId: 'gone' } });
+
+    await route.handler(c);
+
+    expect(captured.status).toBe(409);
+    expect(captured.body).toMatchObject({ reason: 'stale_tool_call' });
+  });
+
   it('/agent-controller/answer rejects a non-string, non-array answer with 400', async () => {
     const getSession = vi.fn(() => Promise.reject(new Error('must not be called')));
     const route = find(
