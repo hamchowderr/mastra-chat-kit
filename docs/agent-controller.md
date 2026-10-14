@@ -54,7 +54,10 @@ parts. That is enough for a chat box and nothing more. The controller wraps the 
 `chatAgent`, plus the required `Workspace`) and gets-or-creates its `Session`.
 `POST /agent-controller/stream` subscribes to the Session, sends the user message, and
 streams each `AgentControllerEvent` as SSE. `POST /agent-controller/approve` resolves a
-parked approval gate on the same still-open stream. An `ask_user` suspension ends the
+parked approval gate on the same still-open stream. Its body is `{ decision, toolCallId }`:
+core (≥1.75) answers only the gate the `toolCallId` from `tool_approval_required` names, so
+a missing id is a 400 and a gate core no longer holds is a 409 with core's `reason`
+(`not_pending` / `stale_tool_call` / `aborting`) rather than a silent `{ ok: true }`. An `ask_user` suspension ends the
 run, so `/stream` closes; `POST /agent-controller/answer` resolves it and streams the
 resumed run as SSE of its own (it used to return `{ok: true}` — an installed client that
 expects JSON from `/answer` must read the stream instead).

@@ -255,6 +255,11 @@ So install the other half into your Mastra project:
 npx shadcn@latest add @mastra-chat-kit/chat-server
 ```
 
+It needs `@mastra/core` 1.75.0 or newer: the routes call that version's Session API
+(`session.model.switch(modelId)`, and `respondToToolApproval({ decision, toolCallId })`,
+which answers only the gate the id names). The files typecheck under `strict` and
+`exactOptionalPropertyTypes`.
+
 Seven files — the three route modules, the SSE forwarder they share, the helper
 that reads which user a request is for, the `ChatServerDeps` type, and one pure
 formatting helper. Then register them and supply the dependencies:
@@ -339,7 +344,7 @@ The controller surface is the rest of it — the workbench panels and
 | Next route (installed) | → Mastra server endpoint |
 |---|---|
 | `/api/agent-controller/stream` | `/agent-controller/stream` (SSE) |
-| `POST /api/agent-controller/approve` | `POST /agent-controller/approve` (per-tool approval) |
+| `POST /api/agent-controller/approve` | `POST /agent-controller/approve` (per-tool approval; body `{ decision, toolCallId }`, 409 when the gate is gone) |
 | `POST /api/agent-controller/answer` | `POST /agent-controller/answer` (`ask_user` reply) |
 | `GET`/`DELETE /api/agent-controller/goal` | `GET`/`DELETE /agent-controller/goal` (read + dismiss; the agent *sets* goals via its own `setGoal` tool, not a web POST) |
 | `GET /api/agent-controller/om` | `GET /agent-controller/om` (observational memory) |

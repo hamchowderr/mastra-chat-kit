@@ -79,7 +79,7 @@ describe('plan mode in the full workspace (AIMock)', () => {
       // The plan file is a real write, so it asks first; approve it as the user would.
       if (e.type === 'tool_approval_required') {
         approvals.push(e.toolName);
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: e.toolCallId });
       }
     });
 

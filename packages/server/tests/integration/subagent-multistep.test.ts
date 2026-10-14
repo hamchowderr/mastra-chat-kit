@@ -7,14 +7,14 @@ import { InMemoryStore } from '@mastra/core/storage';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
- * A non-forked subagent can take more than one step (patches/@mastra__core@1.69.0.patch).
+ * A non-forked subagent can take more than one step.
  *
- * Unpatched, core copies the parent run's whole request context into a non-forked
- * subagent, including the parent's `MastraMemory` thread. The subagent has no memory, so
- * on its SECOND step the browser-context state signal finds a thread but no memory and
- * throws `computeStateSignal requires Mastra memory…`: the subagent dies after its first
- * tool call. The patch drops the parent memory context for non-forked runs, and makes the
- * runner skip a thread-less run before demanding memory.
+ * Before core 1.72.0, core copied the parent run's whole request context into a
+ * non-forked subagent, including the parent's `MastraMemory` thread. The subagent has no
+ * memory, so on its SECOND step the browser-context state signal found a thread but no
+ * memory and threw `computeStateSignal requires Mastra memory…`: the subagent died after
+ * its first tool call. The kit patched core for it until 1.72.0 fixed it upstream
+ * (mastra-ai/mastra#25291); this test fails on an unpatched 1.69.0 and passes on 1.75.0.
  *
  * Only reproduces in the DEV shape — the chat agent carrying the shared browser-bearing
  * workspace — so NODE_ENV is stubbed to development before the sources load.
@@ -60,7 +60,7 @@ describe('non-forked subagent, several steps (live wiring)', () => {
     const unsubscribe = session.subscribe((event) => {
       events.push(event);
       if (event.type === 'tool_approval_required') {
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
       }
     });
     await session.thread.create();

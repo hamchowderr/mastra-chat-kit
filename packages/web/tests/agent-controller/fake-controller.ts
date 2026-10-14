@@ -20,6 +20,7 @@ export function fakeController({
   threads = [],
   files = {},
   messages = {},
+  approve = () => Response.json({ ok: true }),
 }: {
   /** The events one /stream call plays back. */
   stream?: Event[];
@@ -30,6 +31,8 @@ export function fakeController({
   files?: Record<string, string>;
   /** A thread's stored messages, by thread id, for openThread. */
   messages?: Record<string, Array<{ id: string; role: string; parts: unknown[] }>>;
+  /** What one /approve call answers. Default `{ ok: true }` (the gate took the decision). */
+  approve?: () => Response;
 } = {}) {
   const calls: { url: string; body?: Record<string, unknown> }[] = [];
   vi.stubGlobal(
@@ -39,7 +42,7 @@ export function fakeController({
       calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       if (url === '/api/agent-controller/stream') return sse(stream);
       if (url === '/api/agent-controller/answer') return sse(answer);
-      if (url === '/api/agent-controller/approve') return Response.json({ ok: true });
+      if (url === '/api/agent-controller/approve') return approve();
       if (url === '/api/agent-controller/threads') {
         return Response.json({
           threads: threads.map((t) => ({

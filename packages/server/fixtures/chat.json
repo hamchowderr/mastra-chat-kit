@@ -630,7 +630,7 @@
       }
     },
     {
-      "_comment": "698.32 guard, TWO-step subagent (tests/integration/subagent-multistep.test.ts). The hello.txt subagent below answers in one text step, which never reaches the per-step state signal, so it cannot catch the browser-context throw that killed a memoryless subagent on its SECOND step (patched in patches/@mastra__core@1.69.0.patch). Here the subagent lists the workspace (step 1), then reports (step 2). Later hops match toolCallId, the id given to the previous hop's call. MUST precede the generic 'coding subagent' fixture (first match wins).",
+      "_comment": "698.32 guard, TWO-step subagent (tests/integration/subagent-multistep.test.ts). The hello.txt subagent below answers in one text step, which never reaches the per-step state signal, so it cannot catch the browser-context throw that killed a memoryless subagent on its SECOND step (a kit patch until core 1.72.0 fixed it upstream, mastra-ai/mastra#25291). Here the subagent lists the workspace (step 1), then reports (step 2). Later hops match toolCallId, the id given to the previous hop's call. MUST precede the generic 'coding subagent' fixture (first match wins).",
       "match": {
         "userMessage": "Guard 698.32: have the code subagent list the workspace",
         "hasToolResult": false

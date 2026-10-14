@@ -11,7 +11,7 @@ import { ChatLinkProvider } from '@/components/chat/chat-markdown';
 import { Composer, type ComposerSubmit } from '@/components/chat/composer';
 import { PlanModeToggle, usePlanMode } from '@/components/chat/plan-mode';
 import { AskUserPrompt } from '@/components/chat/tool-views';
-import { ApprovalCard, partKey, TranscriptPart } from '@/components/chat/transcript';
+import { ApprovalCards, partKey, TranscriptPart } from '@/components/chat/transcript';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -220,7 +220,7 @@ export function ChatPanel({
               )}
 
               {/* Every tool is gated — without this the run parks forever. */}
-              <ApprovalCard controller={controller} views={approvalViews} />
+              <ApprovalCards controller={controller} views={approvalViews} />
             </ConversationContent>
           </Conversation>
         )}
