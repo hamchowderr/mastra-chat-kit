@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckIcon, XIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Attachment, AttachmentPreview, Attachments } from '@/components/ai-elements/attachments';
 import {
   Confirmation,
@@ -36,7 +36,7 @@ import {
 import { ChatMarkdown } from '@/components/chat/chat-markdown';
 import { GeneratedImage } from '@/components/chat/tool-views';
 import { Button } from '@/components/ui/button';
-import type { AgentControllerContentPart } from '@/lib/agent-controller/events';
+import type { AgentControllerContentPart, PendingApproval } from '@/lib/agent-controller/events';
 import type { UseAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 import { useWorkspaceFile } from '@/lib/agent-controller/use-workspace';
 
@@ -144,37 +144,108 @@ export function SubmittedPlanCard({
   );
 }
 
+type ApprovalDecision = 'approve' | 'decline' | 'always_allow_category';
+
 /**
- * The tool-approval card for the pending gate: what the call will do, and Approve / Always
+ * The tool-approval card for one parked gate: what the call will do, and Approve / Always
  * allow <category> / Reject. What it says comes from the host's renderer for the tool
  * (`views`, or an ApprovalViewsProvider above it; components/chat/approval-view.tsx), else
  * the tool's name in words and its arguments as labelled fields.
+ *
+ * `approval` picks the gate; without it the card shows the first pending one. Its answer
+ * names that gate's `toolCallId`, so parallel gates are answered independently. Render
+ * every parked gate with `ApprovalCards`.
  */
 export function ApprovalCard({
+  controller,
+  views,
+  approval,
+}: {
+  controller: UseAgentControllerChat;
+  views?: ApprovalViews;
+  approval?: PendingApproval;
+}) {
+  const provided = useApprovalViews();
+  const pending = approval ?? controller.transcript.pendingApproval;
+  if (!pending) return null;
+  return (
+    <ApprovalCardBody
+      // Keyed by gate, so a new gate never inherits the last one's in-flight state.
+      key={pending.toolCallId}
+      pending={pending}
+      approve={controller.approve}
+      views={views ?? provided}
+    />
+  );
+}
+
+/** One card per parked gate (core parks one per gated tool call), in arrival order. */
+export function ApprovalCards({
   controller,
   views,
 }: {
   controller: UseAgentControllerChat;
   views?: ApprovalViews;
 }) {
-  const provided = useApprovalViews();
-  const pending = controller.transcript.pendingApproval;
-  if (!pending) return null;
-  const { approve } = controller;
-  const view = approvalView(pending, views ?? provided);
+  return (
+    <>
+      {controller.transcript.pendingApprovals.map((approval) => (
+        <ApprovalCard
+          key={approval.toolCallId}
+          controller={controller}
+          views={views}
+          approval={approval}
+        />
+      ))}
+    </>
+  );
+}
+
+function ApprovalCardBody({
+  pending,
+  approve,
+  views,
+}: {
+  pending: PendingApproval;
+  approve: UseAgentControllerChat['approve'];
+  views: ApprovalViews;
+}) {
+  // One answer per card: the buttons are disabled while it is in flight, and the ref
+  // stops a second click that lands before the disabled state renders.
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const decide = async (decision: ApprovalDecision) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      await approve(decision, pending.toolCallId);
+    } finally {
+      // A taken answer removes the card; a refused one leaves it to try again.
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+  const view = approvalView(pending, views);
   return (
     <Confirmation state="approval-requested" approval={{ id: pending.toolCallId }}>
       <ConfirmationTitle>{view.title}</ConfirmationTitle>
       <ConfirmationRequest>
         {view.body && <div className="my-2 space-y-2">{view.body}</div>}
         <ConfirmationActions className="flex-wrap">
-          <ConfirmationAction onClick={() => approve('approve')}>Approve</ConfirmationAction>
+          <ConfirmationAction disabled={busy} onClick={() => decide('approve')}>
+            Approve
+          </ConfirmationAction>
           {pending.category && (
-            <ConfirmationAction variant="outline" onClick={() => approve('always_allow_category')}>
+            <ConfirmationAction
+              variant="outline"
+              disabled={busy}
+              onClick={() => decide('always_allow_category')}
+            >
               Always allow {pending.category} tools
             </ConfirmationAction>
           )}
-          <ConfirmationAction variant="outline" onClick={() => approve('decline')}>
+          <ConfirmationAction variant="outline" disabled={busy} onClick={() => decide('decline')}>
             Reject
           </ConfirmationAction>
         </ConfirmationActions>

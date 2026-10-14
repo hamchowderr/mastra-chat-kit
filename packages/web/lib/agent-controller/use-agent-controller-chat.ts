@@ -5,6 +5,7 @@ import {
   type AgentControllerGoal,
   type AgentControllerSchedule,
   type AgentControllerTranscript,
+  approvalsState,
   emptyTranscript,
   uiMessagesToAgentController,
 } from './events';
@@ -290,12 +291,15 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
    * Resolve a parked tool-approval gate. The continuation events arrive on the
    * still-open SSE from the original sendMessage, so this just fires the decision.
    *
-   * The gate is named by its `toolCallId` (the pending approval's unless one is given),
-   * because the server answers only the gate it names: an unnamed or stale answer
-   * resolves nothing. Resolves `true` when the server took the decision and `false` when
-   * there was nothing to answer or it refused, with the reason in `transcript.error`. A
-   * gate the server no longer holds (409) drops its card, since no answer can reach it.
+   * The gate is named by its `toolCallId` (the first pending approval's unless one is
+   * given; core parks one gate per tool call), because the server answers only the gate
+   * it names: an unnamed or stale answer resolves nothing. Resolves `true` when the server
+   * took the decision and `false` when there was nothing to answer or it refused, with the
+   * reason in `transcript.error`. Either way an answered gate's card goes: a taken one is
+   * done, and one the server no longer holds (409) can't be reached by any answer. A 409
+   * for a gate this client already answered (a double click) is not an error.
    */
+  const answeredApprovals = useRef(new Set<string>());
   const pendingApprovalId = transcript.pendingApproval?.toolCallId;
   const approve = useCallback(
     async (
@@ -303,6 +307,12 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
       toolCallId: string | undefined = pendingApprovalId,
     ): Promise<boolean> => {
       if (!toolCallId) return false;
+      const dropCard = (error?: string) =>
+        setTranscript((s) => ({
+          ...s,
+          ...approvalsState(s.pendingApprovals.filter((a) => a.toolCallId !== toolCallId)),
+          ...(error !== undefined ? { error } : {}),
+        }));
       let res: Response;
       try {
         res = await fetch('/api/agent-controller/approve', {
@@ -314,14 +324,19 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         setTranscript((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
         return false;
       }
-      if (res.ok) return true;
+      if (res.ok) {
+        answeredApprovals.current.add(toolCallId);
+        dropCard();
+        return true;
+      }
       const reason = await refusalReason(res);
-      const gone = res.status === 409;
-      setTranscript((s) => ({
-        ...s,
-        error: reason,
-        ...(gone && s.pendingApproval?.toolCallId === toolCallId ? { pendingApproval: null } : {}),
-      }));
+      if (res.status !== 409) {
+        setTranscript((s) => ({ ...s, error: reason }));
+      } else if (answeredApprovals.current.has(toolCallId)) {
+        dropCard();
+      } else {
+        dropCard(reason);
+      }
       return false;
     },
     [pendingApprovalId],

@@ -54,7 +54,7 @@ import {
   KnowledgeSources,
   StepTrace,
 } from '@/components/chat/tool-views';
-import { ApprovalCard, SubmittedPlanCard } from '@/components/chat/transcript';
+import { ApprovalCards, SubmittedPlanCard } from '@/components/chat/transcript';
 import {
   type ActiveTool,
   type AgentControllerContentPart,
@@ -169,7 +169,6 @@ export function AgentControllerChat({
   const {
     messages,
     tasks,
-    pendingApproval,
     pendingSuspension,
     usage,
     info,
@@ -342,9 +341,7 @@ export function AgentControllerChat({
               </Task>
             )}
 
-            {pendingApproval && (
-              <ApprovalCard controller={controller} views={options.approvalViews} />
-            )}
+            <ApprovalCards controller={controller} views={options.approvalViews} />
 
             {/* Agent-driven ask_user: the run is suspended awaiting the user's answer
                 to a clarifying question. Answering resumes it on the open SSE. */}

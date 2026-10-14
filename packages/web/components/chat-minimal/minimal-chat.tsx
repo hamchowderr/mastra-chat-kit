@@ -7,7 +7,7 @@ import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import type { ApprovalViews } from '@/components/chat/approval-view';
 import { AskUserPrompt } from '@/components/chat/tool-views';
-import { ApprovalCard, partKey, TranscriptPart } from '@/components/chat/transcript';
+import { ApprovalCards, partKey, TranscriptPart } from '@/components/chat/transcript';
 import { useAgentControllerChat } from '@/lib/agent-controller/use-agent-controller-chat';
 import { cn } from '@/lib/utils';
 
@@ -97,7 +97,7 @@ export function MinimalChat({
           )}
 
           {/* Every tool is gated — without this the run parks forever. */}
-          <ApprovalCard controller={controller} views={approvalViews} />
+          <ApprovalCards controller={controller} views={approvalViews} />
         </ConversationContent>
       </Conversation>
 
