@@ -231,6 +231,12 @@ export type AgentControllerTranscript = {
   threadId: string | null;
   messages: AgentControllerMessage[];
   tasks: AgentControllerTaskItem[];
+  /**
+   * Every parked tool-approval gate, in arrival order. Core parks one gate per tool call
+   * (keyed by `toolCallId`), so parallel gated calls each need their own card and answer.
+   */
+  pendingApprovals: PendingApproval[];
+  /** The first of `pendingApprovals` (null when none), for single-card callers. */
   pendingApproval: PendingApproval | null;
   /** A parked `ask_user` suspension awaiting the user's answer (→ the AskUserPrompt). */
   pendingSuspension: PendingSuspension | null;
@@ -257,10 +263,21 @@ export type AgentControllerTranscript = {
   done: boolean;
 };
 
+/**
+ * The two approval fields for a list of parked gates: the list itself and its first
+ * entry. Set them together so `pendingApproval` never disagrees with the list.
+ */
+export function approvalsState(
+  list: PendingApproval[],
+): Pick<AgentControllerTranscript, 'pendingApprovals' | 'pendingApproval'> {
+  return { pendingApprovals: list, pendingApproval: list[0] ?? null };
+}
+
 export const emptyTranscript = (): AgentControllerTranscript => ({
   threadId: null,
   messages: [],
   tasks: [],
+  pendingApprovals: [],
   pendingApproval: null,
   pendingSuspension: null,
   pendingPlan: null,

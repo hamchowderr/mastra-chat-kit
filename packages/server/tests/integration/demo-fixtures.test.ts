@@ -91,7 +91,7 @@ async function runFlow(
   const unsubscribe = session.subscribe((event) => {
     events.push(event);
     if (event.type === 'tool_approval_required') {
-      session.respondToToolApproval({ decision: 'approve' });
+      session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
     }
     if (event.type === 'tool_suspended') {
       suspended = { toolName: event.toolName, toolCallId: event.toolCallId };

@@ -87,6 +87,49 @@ describe('controller reducer', () => {
     expect(finished.done).toBe(true);
   });
 
+  // Core parks one gate per tool call, so two gated calls in one step are two cards.
+  it('keeps one pending approval per parked gate, keyed by toolCallId', () => {
+    const gate = (toolCallId: string, toolName: string) => ({
+      type: 'tool_approval_required',
+      toolCallId,
+      toolName,
+      args: {},
+    });
+    const two = reduceAgentControllerEvents(emptyTranscript(), [
+      gate('c1', 'writeFile'),
+      gate('c2', 'deleteFile'),
+    ]);
+    expect(two.pendingApprovals.map((a) => a.toolCallId)).toEqual(['c1', 'c2']);
+    expect(two.pendingApproval?.toolCallId).toBe('c1');
+
+    // A repeat of an id updates its card in place rather than adding another.
+    const again = reduceAgentControllerEvent(two, { ...gate('c1', 'writeFile'), category: 'edit' });
+    expect(again.pendingApprovals.map((a) => a.toolCallId)).toEqual(['c1', 'c2']);
+    expect(again.pendingApprovals[0].category).toBe('edit');
+
+    // c1's tool finishing leaves c2's gate answerable.
+    const one = reduceAgentControllerEvent(two, { type: 'tool_end', toolCallId: 'c1' });
+    expect(one.pendingApprovals.map((a) => a.toolCallId)).toEqual(['c2']);
+    expect(one.pendingApproval?.toolCallId).toBe('c2');
+
+    // The run ending clears every gate it parked.
+    const ended = reduceAgentControllerEvent(two, { type: 'agent_end' });
+    expect(ended.pendingApprovals).toEqual([]);
+    expect(ended.pendingApproval).toBeNull();
+  });
+
+  it('an unrelated tool_end does not clear an approval card', () => {
+    const armed = reduceAgentControllerEvent(emptyTranscript(), {
+      type: 'tool_approval_required',
+      toolCallId: 'c1',
+      toolName: 'deleteFile',
+      args: {},
+    });
+    const s = reduceAgentControllerEvent(armed, { type: 'tool_end', toolCallId: 'other' });
+    expect(s.pendingApproval?.toolCallId).toBe('c1');
+    expect(s.pendingApprovals).toHaveLength(1);
+  });
+
   it('folds tool_suspended (ask_user) into a pending suspension with question + options', () => {
     const armed = reduceAgentControllerEvent(emptyTranscript(), {
       type: 'tool_suspended',

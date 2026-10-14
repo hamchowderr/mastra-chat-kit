@@ -2,6 +2,14 @@ import { InMemoryStore } from '@mastra/core/storage';
 import { describe, expect, it } from 'vitest';
 import { createBrowser, createChatAgentController } from '../../src/mastra/lib/agent-controller';
 
+/** The id of the latest parked approval gate: `respondToToolApproval` answers only the gate it names. */
+// biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide
+function lastApprovalId(events: any[]): string {
+  const gate = events.filter((e) => e.type === 'tool_approval_required').at(-1);
+  if (typeof gate?.toolCallId !== 'string') throw new Error('no tool_approval_required event');
+  return gate.toolCallId;
+}
+
 /**
  * The Agent Controller end-to-end through AIMock — deterministic, zero spend.
  * Proves the AgentController wraps `chatAgent` and emits AgentControllerEvents we
@@ -64,7 +72,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     expect(events.some((e) => e.type === 'tool_approval_required')).toBe(true);
 
     // Approve → the run resumes, the tool executes, and sendMessage resolves.
-    session.respondToToolApproval({ decision: 'approve' });
+    expect(
+      session.respondToToolApproval({ decision: 'approve', toolCallId: lastApprovalId(events) }),
+    ).toEqual({ accepted: true });
     await done;
 
     unsubscribe();
@@ -96,7 +106,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     const done = session.sendMessage({ content: "What's the weather in Los Angeles?" });
     await waitFor(() => events.some((e) => e.type === 'tool_approval_required'), 15_000);
 
-    session.respondToToolApproval({ decision: 'decline' });
+    expect(
+      session.respondToToolApproval({ decision: 'decline', toolCallId: lastApprovalId(events) }),
+    ).toEqual({ accepted: true });
     await done;
 
     unsubscribe();
@@ -128,7 +140,12 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     await session.thread.create({ title: 'always-allow' });
     const first = session.sendMessage({ content: "What's the weather in Los Angeles?" });
     await waitFor(() => gates() === 1, 15_000);
-    session.respondToToolApproval({ decision: 'always_allow_category' });
+    expect(
+      session.respondToToolApproval({
+        decision: 'always_allow_category',
+        toolCallId: lastApprovalId(events),
+      }),
+    ).toEqual({ accepted: true });
     await first;
 
     expect(JSON.stringify(events)).toContain('temperatureC');
@@ -165,7 +182,7 @@ describe('chat agent — Agent Controller (AIMock)', () => {
       // The subagent tool (and any nested tool) is approval-gated by default — approve
       // as gates arm so the delegation runs to completion.
       if (event.type === 'tool_approval_required') {
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
       }
     });
 
@@ -278,7 +295,7 @@ describe('chat agent — Agent Controller (AIMock)', () => {
       events.push(event);
       // Approve any OTHER gated tool; the task tools are granted below so they never gate.
       if (event.type === 'tool_approval_required' && !event.toolName?.startsWith('task_')) {
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
       }
     });
 
@@ -326,7 +343,7 @@ describe('chat agent — Agent Controller (AIMock)', () => {
       events.push(event);
       // Approve any OTHER gated tool; ask_user is granted below so it never gates.
       if (event.type === 'tool_approval_required' && event.toolName !== 'ask_user') {
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
       }
     });
 
@@ -383,7 +400,7 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     const unsubscribe = session.subscribe((event) => {
       events.push(event);
       if (event.type === 'tool_approval_required') {
-        session.respondToToolApproval({ decision: 'approve' });
+        session.respondToToolApproval({ decision: 'approve', toolCallId: event.toolCallId });
       }
     });
 

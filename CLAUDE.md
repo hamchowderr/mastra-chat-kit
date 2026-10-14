@@ -100,6 +100,14 @@ Running `npm install` inside `packages/server` writes a second lockfile that can
 resolve different versions than dev and CI tested; that is what shipped a
 container running an untested dependency tree (`mastra-chat-kit-j0p`).
 
+**Mastra versions move together.** `@mastra/*` are pinned exactly in
+`packages/server/package.json`, and the root `package.json` has a pnpm override
+`"@mastra/deployer": "<core version>"`: the `mastra` CLI depends on
+`@mastra/deployer@^<core>`, which otherwise resolves the newest deployer (and the
+`@mastra/server` it pins) instead of the one released with our core. Bump that
+override whenever you bump `@mastra/core`, then check `pnpm-lock.yaml` resolves
+`@mastra/deployer` and `@mastra/server` at the core version.
+
 ```bash
 pnpm install                 # from the repo root, always
 pnpm dev                     # server (:4111) + web (:3000) together

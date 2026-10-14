@@ -19,7 +19,15 @@ import { streamBodyLimit, streamBodySchema, timeZone } from './stream-body';
 import type { ChatServerDeps } from './types';
 
 /** A turn's request context: the composer's Search toggle and the browser's time zone. */
-function turnRequestContext({ webSearch, timeZone }: { webSearch?: boolean; timeZone?: string }) {
+function turnRequestContext({
+  webSearch,
+  timeZone,
+}: {
+  // `| undefined` so callers can pass a parsed-but-absent field under
+  // exactOptionalPropertyTypes (consumers compile with it).
+  webSearch?: boolean | undefined;
+  timeZone?: string | undefined;
+}) {
   const requestContext = new RequestContext();
   if (webSearch === true) requestContext.set('webSearch', true);
   if (timeZone) requestContext.set(TIME_ZONE_KEY, timeZone);
@@ -53,7 +61,11 @@ export function approvalDecorator(
     let timer: ReturnType<typeof setTimeout> | undefined;
     const preview = await Promise.race([
       deps
-        .approvalPreview({ toolName: event.toolName, args: event.args, resourceId })
+        .approvalPreview({
+          toolName: event.toolName,
+          args: event.args,
+          ...(resourceId !== undefined ? { resourceId } : {}),
+        })
         .catch(() => undefined),
       new Promise<undefined>((resolve) => {
         timer = setTimeout(() => resolve(undefined), APPROVAL_PREVIEW_TIMEOUT_MS);
@@ -124,7 +136,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           // Switching here — inside the subscribed
           // stream — lets the resulting `model_changed` event flow to the client too.
           if (model && deps.modelAllowlist.has(model)) {
-            await session.model.switch({ modelId: model });
+            await session.model.switch(model);
           }
           // Same for the mode: switching inside the stream sends `mode_changed` too.
           if (
@@ -147,12 +159,17 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
   // Agent Controller HITL: POST /agent-controller/approve resolves a parked tool-approval
   // gate. The matching /agent-controller/stream call is suspended at the gate; responding
   // here resumes it and the continuation events flow on that still-open SSE.
+  // Body: { decision, toolCallId }. `toolCallId` (from the `tool_approval_required`
+  // event) names the gate: core answers only the gate it names, so a missing or stale id
+  // resolves nothing. Such an answer is a 409 carrying core's reason ('not_pending' |
+  // 'stale_tool_call' | 'aborting'), never a silent `ok`.
   registerApiRoute('/agent-controller/approve', {
     method: 'POST',
     handler: async (c) => {
-      const { decision } = await c.req.json<{
-        decision?: 'approve' | 'decline' | 'always_allow_category';
-      }>();
+      const body = await c.req
+        .json<{ decision?: unknown; toolCallId?: unknown }>()
+        .catch(() => undefined);
+      const decision = body?.decision;
       if (
         decision !== 'approve' &&
         decision !== 'decline' &&
@@ -160,8 +177,18 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       ) {
         return c.json({ error: 'decision must be approve | decline | always_allow_category' }, 400);
       }
+      const toolCallId = body?.toolCallId;
+      if (typeof toolCallId !== 'string' || !toolCallId) {
+        return c.json({ error: 'toolCallId is required: the id of the pending approval' }, 400);
+      }
       const session = await deps.getSession(resourceIdOf(c));
-      session.respondToToolApproval({ decision });
+      const result = session.respondToToolApproval({ decision, toolCallId });
+      if (!result.accepted) {
+        return c.json(
+          { error: `approval not accepted: ${result.reason}`, reason: result.reason },
+          409,
+        );
+      }
       return c.json({ ok: true });
     },
   }),

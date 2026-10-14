@@ -96,7 +96,7 @@ async function turn(
     events.push(e);
     if (e.type === 'tool_approval_required') {
       approvals.push(e.toolName);
-      session.respondToToolApproval({ decision: decide(e.toolName) });
+      session.respondToToolApproval({ decision: decide(e.toolName), toolCallId: e.toolCallId });
     }
   });
   const thread = await session.thread.create({ title: content });
@@ -115,7 +115,17 @@ async function turn(
   const ran = events
     .filter((e) => e.type === 'tool_end' && !e.denied)
     .map((e) => names.get(e.toolCallId));
-  return { events, approvals, ran, threadId: thread.id, blob: JSON.stringify(events) };
+  // What each tool returned and how the run ended, for the failure message: a tool that
+  // ran but returned an error (a page that did not load) shows up here, not in `ran`.
+  const trail = events
+    .filter((e) => e.type === 'tool_end' || e.type === 'agent_end' || e.type === 'error')
+    .map((e) =>
+      e.type === 'tool_end'
+        ? `${names.get(e.toolCallId)} → ${JSON.stringify(e.result).slice(0, 300)}`
+        : `${e.type} ${e.reason ?? JSON.stringify(e.error ?? '')}`,
+    )
+    .join('\n');
+  return { events, approvals, ran, trail, threadId: thread.id, blob: JSON.stringify(events) };
 }
 
 const ACTION_TOOLS = ['browser_click', 'browser_type', 'browser_press', 'browser_select'];
@@ -124,7 +134,7 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
   it('a browse turn: the agent opens a page (asks) and reads it (does not), and the session closes when the run ends', async () => {
     const before = browserMock.sessions().length;
     const { offered, restore } = spyOnOfferedTools();
-    const { approvals, ran, blob } = await turn(
+    const { approvals, ran, trail, blob } = await turn(
       'Browse test: open the demo page and tell me what is on it.',
     ).finally(restore);
 
@@ -139,7 +149,7 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
 
     // Opening the site asked; reading it did not.
     expect(approvals).toEqual(['browser_goto']);
-    expect(ran).toEqual(['browser_goto', 'browser_snapshot']);
+    expect(ran, trail).toEqual(['browser_goto', 'browser_snapshot']);
     // The answer fixture only matches when the snapshot carries the real page's button.
     expect(blob).toContain('a Mastra newsletter sign-up');
 
@@ -151,10 +161,17 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
   });
 
   it('an action on the page asks for approval, and runs in the page once approved', async () => {
-    const { approvals, ran, events, blob } = await turn('Browse test: sign up on the demo page.');
+    const { approvals, ran, trail, events, blob } = await turn(
+      'Browse test: sign up on the demo page.',
+    );
 
     expect(approvals).toEqual(['browser_goto', 'browser_click']);
-    expect(ran).toEqual(['browser_goto', 'browser_snapshot', 'browser_click', 'browser_snapshot']);
+    expect(ran, trail).toEqual([
+      'browser_goto',
+      'browser_snapshot',
+      'browser_click',
+      'browser_snapshot',
+    ]);
     // The last snapshot is of the real page after the click.
     const check = events.filter((e) => e.type === 'tool_end').at(-1);
     expect(JSON.stringify(check.result)).toContain('Signed up');
@@ -163,19 +180,22 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
   });
 
   it('declining the action leaves the page alone', async () => {
-    const { approvals, ran, blob } = await turn('Browse test: sign up on the demo page.', {
+    const { approvals, ran, trail, blob } = await turn('Browse test: sign up on the demo page.', {
       decide: (tool) => (tool === 'browser_click' ? 'decline' : 'approve'),
     });
 
     expect(approvals).toEqual(['browser_goto', 'browser_click']);
-    expect(ran.filter((t) => t === 'browser_snapshot')).toHaveLength(1);
+    expect(
+      ran.filter((t) => t === 'browser_snapshot'),
+      trail,
+    ).toHaveLength(1);
     expect(blob).toContain('you declined the click');
     expect(browserMock.open()).toEqual([]);
   });
 
   it('Plan mode offers the read browser tools and none of the actions', async () => {
     const { offered, restore } = spyOnOfferedTools();
-    const { approvals, ran, blob } = await turn(
+    const { approvals, ran, trail, blob } = await turn(
       'Browse test: open the demo page and tell me what is on it.',
       { mode: 'plan' },
     ).finally(restore);
@@ -190,7 +210,7 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
       for (const action of [...ACTION_TOOLS, 'browser_close']) expect(names).not.toContain(action);
     }
     expect(approvals).toEqual(['browser_goto']);
-    expect(ran).toEqual(['browser_goto', 'browser_snapshot']);
+    expect(ran, trail).toEqual(['browser_goto', 'browser_snapshot']);
     expect(blob).toContain('a Mastra newsletter sign-up');
     expect(browserMock.open()).toEqual([]);
   });

@@ -45,7 +45,12 @@ const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
  * something a consumer already has (say `ai`) would fight their own resolution
  * for no benefit. Add an entry only when a version SKEW breaks the install.
  */
-const PINNED_DEPS = new Map([['shiki', '^3.23.0']]);
+// `@mastra/core`: the chat-server routes call core 1.75's Session API (model.switch(id),
+// respondToToolApproval({ toolCallId })); an older core installs but fails to compile.
+const PINNED_DEPS = new Map([
+  ['shiki', '^3.23.0'],
+  ['@mastra/core', '^1.75.0'],
+]);
 const withVersion = (pkg) => (PINNED_DEPS.has(pkg) ? `${pkg}@${PINNED_DEPS.get(pkg)}` : pkg);
 
 const toPosix = (p) => p.split('\\').join('/');
@@ -317,7 +322,7 @@ items.push({
     "The 16 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
   // Every import in these files is @mastra/core/*, hono (the route body cap), zod (the
   // stream body's schema) or a sibling that ships here.
-  dependencies: ['@mastra/core', 'hono', 'zod'],
+  dependencies: ['@mastra/core', 'hono', 'zod'].map(withVersion),
   registryDependencies: [],
   files: SERVER_FILES.map(([path, target]) => ({ path, type: 'registry:file', target })),
 });

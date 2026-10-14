@@ -102,6 +102,9 @@ writeFileSync(
         module: 'ESNext',
         moduleResolution: 'bundler',
         strict: true,
+        // Consumers compile with it (a Locus-style app does), and an optional property
+        // passed as `undefined` only fails there — so the shipped routes must pass it.
+        exactOptionalPropertyTypes: true,
         skipLibCheck: true,
         noEmit: true,
         types: [],
@@ -137,7 +140,8 @@ log('installing @mastra/core + typescript');
 {
   const { code, out } = await run(
     'npm',
-    ['install', '--silent', '@mastra/core@1.52.1', 'typescript@5.9.3'],
+    // The oldest core the routes support: 1.75 changed the Session API they call.
+    ['install', '--silent', '@mastra/core@1.75.0', 'typescript@5.9.3'],
     { cwd: PROJECT },
   );
   if (code !== 0) die('npm install @mastra/core failed', out);
