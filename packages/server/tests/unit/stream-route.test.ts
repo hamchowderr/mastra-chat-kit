@@ -82,7 +82,7 @@ describe('/agent-controller/stream', () => {
   it('switches to an allowlisted model, and ignores one that is not', async () => {
     const allowed = fakeSession();
     await run(allowed, { text: 'hi', model: 'openai/gpt-4.1-mini' });
-    expect(allowed.model.switch).toHaveBeenCalledWith({ modelId: 'openai/gpt-4.1-mini' });
+    expect(allowed.model.switch).toHaveBeenCalledWith('openai/gpt-4.1-mini');
 
     const blocked = fakeSession();
     await run(blocked, { text: 'hi', model: 'someone/expensive-model' });

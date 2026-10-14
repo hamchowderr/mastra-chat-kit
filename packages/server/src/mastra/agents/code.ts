@@ -56,9 +56,10 @@ Rules:
   // resourceId:"" — yet built it with the browser-bearing workspace). We ran it
   // forked as a workaround. It looked fixed later, but only because the guard's subagent
   // answered in ONE step: core still copies the parent's `MastraMemory` context into a
-  // non-forked subagent, so its SECOND step throws the same error (1.52.1 through
-  // 1.70.0-alpha.1). patches/@mastra__core@1.69.0.patch fixes that; guarded by
-  // tests/integration/subagent-multistep.test.ts, which takes two steps. See
-  // docs/agent-controller-events.md.
+  // non-forked subagent, so its SECOND step threw the same error (1.52.1 through
+  // 1.71.x; the kit carried a pnpm patch for it). Core 1.72.0 fixed it upstream
+  // (mastra-ai/mastra#25291: a memoryless subagent's browser context skips the state
+  // signal), so the patch is gone; tests/integration/subagent-multistep.test.ts, which
+  // takes two steps, still guards it. See docs/agent-controller-events.md.
   forked: false,
 };

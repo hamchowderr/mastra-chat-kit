@@ -289,14 +289,43 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
   /**
    * Resolve a parked tool-approval gate. The continuation events arrive on the
    * still-open SSE from the original sendMessage, so this just fires the decision.
+   *
+   * The gate is named by its `toolCallId` (the pending approval's unless one is given),
+   * because the server answers only the gate it names: an unnamed or stale answer
+   * resolves nothing. Resolves `true` when the server took the decision and `false` when
+   * there was nothing to answer or it refused, with the reason in `transcript.error`. A
+   * gate the server no longer holds (409) drops its card, since no answer can reach it.
    */
-  const approve = useCallback(async (decision: 'approve' | 'decline' | 'always_allow_category') => {
-    await fetch('/api/agent-controller/approve', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ decision }),
-    });
-  }, []);
+  const pendingApprovalId = transcript.pendingApproval?.toolCallId;
+  const approve = useCallback(
+    async (
+      decision: 'approve' | 'decline' | 'always_allow_category',
+      toolCallId: string | undefined = pendingApprovalId,
+    ): Promise<boolean> => {
+      if (!toolCallId) return false;
+      let res: Response;
+      try {
+        res = await fetch('/api/agent-controller/approve', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ decision, toolCallId }),
+        });
+      } catch (err) {
+        setTranscript((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
+        return false;
+      }
+      if (res.ok) return true;
+      const reason = await refusalReason(res);
+      const gone = res.status === 409;
+      setTranscript((s) => ({
+        ...s,
+        error: reason,
+        ...(gone && s.pendingApproval?.toolCallId === toolCallId ? { pendingApproval: null } : {}),
+      }));
+      return false;
+    },
+    [pendingApprovalId],
+  );
 
   /**
    * Resume a parked suspension and stream the resumed run. A suspending tool ENDS the
