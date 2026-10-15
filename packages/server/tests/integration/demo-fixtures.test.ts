@@ -119,6 +119,9 @@ async function runFlow(
     });
   }
   await run.catch(() => {});
+  // Core 1.77's respondToToolSuspension resolves at the resumed run's next boundary (an
+  // approval gate, answered above), not when the run ends: wait for the run itself.
+  await until(() => !session.run.isRunning());
   // Let the background title generation land in the journal too.
   await new Promise((r) => setTimeout(r, 300));
   unsubscribe();

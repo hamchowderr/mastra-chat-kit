@@ -236,6 +236,8 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         signal: c.req.raw.signal,
         // A resumed run can stop at an approval too: its card gets the same decoration.
         decorate: approvalDecorator(deps, deps.getAgentController, resourceIdOf(c)),
+        // The resumed run can park at an approval and carry on once it is answered.
+        untilRunEnds: true,
         run: () =>
           session.respondToToolSuspension({
             resumeData,

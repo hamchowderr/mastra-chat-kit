@@ -7,7 +7,7 @@ settings:
 overrides:
   '@types/react': 19.2.17
   '@types/react-dom': 19.2.3
-  '@mastra/deployer': 1.75.0
+  '@mastra/deployer': 1.77.0
 
 importers:
 
@@ -27,49 +27,49 @@ importers:
         version: 4.0.20(zod@4.4.3)
       '@mastra/agent-browser':
         specifier: 0.5.3
-        version: 0.5.3(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+        version: 0.5.3(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
       '@mastra/ai-sdk':
-        specifier: 1.10.7
-        version: 1.10.7(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+        specifier: 1.11.1
+        version: 1.11.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
       '@mastra/auth':
         specifier: 1.1.3
         version: 1.1.3
       '@mastra/browser-firecrawl':
         specifier: 0.2.3
-        version: 0.2.3(@mastra/agent-browser@0.5.3(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(agent-browser@0.19.0)
+        version: 0.2.3(@mastra/agent-browser@0.5.3(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(agent-browser@0.19.0)
       '@mastra/browser-viewer':
         specifier: 0.2.4
-        version: 0.2.4(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+        version: 0.2.4(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
       '@mastra/core':
-        specifier: 1.75.0
-        version: 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: 1.77.0
+        version: 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@mastra/duckdb':
-        specifier: 1.13.0
-        version: 1.13.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        specifier: 1.14.0
+        version: 1.14.0(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@mastra/editor':
-        specifier: 0.16.0
-        version: 0.16.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@mastra/mcp@1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3))(ws@8.21.3)(zod@4.4.3)
+        specifier: 0.16.2
+        version: 0.16.2(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@mastra/mcp@1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3))(ws@8.21.3)(zod@4.4.3)
       '@mastra/evals':
-        specifier: 1.10.5
-        version: 1.10.5(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(vitest@4.1.9)
+        specifier: 1.10.7
+        version: 1.10.7(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(vitest@4.1.9)
       '@mastra/fastembed':
-        specifier: 1.3.2
-        version: 1.3.2
+        specifier: 1.3.3
+        version: 1.3.3
       '@mastra/libsql':
-        specifier: 1.25.1
-        version: 1.25.1(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        specifier: 1.26.1
+        version: 1.26.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@mastra/loggers':
-        specifier: 1.3.5
-        version: 1.3.5(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        specifier: 1.3.7
+        version: 1.3.7(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@mastra/mcp':
         specifier: 1.18.0
-        version: 1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
+        version: 1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
       '@mastra/memory':
-        specifier: 1.36.0
-        version: 1.36.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        specifier: 1.37.1
+        version: 1.37.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@mastra/observability':
-        specifier: 1.18.4
-        version: 1.18.4(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+        specifier: 1.20.0
+        version: 1.20.0(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
       agent-browser:
         specifier: 0.19.0
         version: 0.19.0
@@ -96,8 +96,8 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(vitest@4.1.9)
       mastra:
-        specifier: 1.33.0
-        version: 1.33.0(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(rxjs@7.8.2)(typescript@6.0.3)(zod@4.4.3)
+        specifier: 1.34.1
+        version: 1.34.1(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(rxjs@7.8.2)(typescript@6.0.3)(zod@4.4.3)
       playwright-core:
         specifier: 1.61.1
         version: 1.61.1
@@ -333,8 +333,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider-utils@5.0.13':
-    resolution: {integrity: sha512-fScDJMDnTbx32kLDQqp0MvPjvwkgiwvlBxlmIg7XW5PbS91LG6JjH3PQG+34oMFglqfpQA355e24OdGj5PPoDw==}
+  '@ai-sdk/provider-utils@5.0.54':
+    resolution: {integrity: sha512-amqDxFnw9+dpVrDACRDGmExUUNOH9C1D2bhg/DqWJnamEOieDTXBBXLHujSby/0MqHdAFksnpE8Pzfqx6ABMBw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -347,16 +347,12 @@ packages:
     resolution: {integrity: sha512-5X1k57JBJ4H7H1QjX7CnJYAB1I19r/trVZTMcSms7/kLNZ8RaU4Nt2agcwZzv82Hfx6Q7/TOLU7agAKeFfc8cA==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/provider@4.0.17':
-    resolution: {integrity: sha512-VYMBxIQdcHqbIf1j+YZlI9Ati6LZ4wJe0GGd4z4a5H/KxTggjeOiyaVYTnfF7LHZK5jMQ+rofmzz4QPqf++NUw==}
+  '@ai-sdk/provider@4.0.22':
+    resolution: {integrity: sha512-1Jtmn36VNMOBo9CMUQrPqsR744qtqRloEiXpWCYS8ffPlhS2CrSNmoho5lPjp3R7EnkzBsGI6p51TA7fQJQZdA==}
     engines: {node: '>=22'}
 
   '@ai-sdk/provider@4.0.3':
     resolution: {integrity: sha512-e0CpNWJUY7OxAFAnCZkw+ri9QOHWwTs1tXP42782KFGCU07qt8NiXCrCVowyCB5dP2r5/Uls+g2oPd8kOJn9dw==}
-    engines: {node: '>=22'}
-
-  '@ai-sdk/provider@4.0.4':
-    resolution: {integrity: sha512-tbHKNLirllUNF3ZlkCsXnwab2ZV1Sl4b1H/Cp9ruCce15IBmskE8Gwkk0yo9xDWY+jho2of7lVXtwSsyrq7cwQ==}
     engines: {node: '>=22'}
 
   '@ai-sdk/react@4.0.40':
@@ -1389,8 +1385,8 @@ packages:
       '@mastra/core': '>=1.22.0-0 <2.0.0-0'
       zod: ^3.25.0 || ^4.0.0
 
-  '@mastra/ai-sdk@1.10.7':
-    resolution: {integrity: sha512-XrootmjFcQI2BIapYUX32BjTVtf4J/dRvdAn0wYo4nuh6LrDqvzcyu0P9h2KN5mqDYtGKaHZlyYtCXKCWFYAwg==}
+  '@mastra/ai-sdk@1.11.1':
+    resolution: {integrity: sha512-8efCokO02jT3rzV9G8Ee8Jn7L9fBRgkBvF83oJPosRVO54Hn0i+PKAnamSsbpoYnYgO3bvwL7NBwMs9pQeAe/g==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.5.0-0 <2.0.0-0'
@@ -1415,26 +1411,26 @@ packages:
       '@mastra/core': '>=1.26.0-0 <2.0.0-0'
       zod: ^3.25.0 || ^4.0.0
 
-  '@mastra/core@1.75.0':
-    resolution: {integrity: sha512-1yw89tyha4HU1eO34IC5sYdSCbXuw8WCVf4+pqmNyRmoHp0ZcPzyberdsbq9O8CTHuxKZbf7cgsI2QNI2L3SRA==}
+  '@mastra/core@1.77.0':
+    resolution: {integrity: sha512-fqsYjAcQa/kwNYQ/vM21p5g0Kfjq/FX5U0VtROCnfyXN6mcws/WZn9zXGdTE69pWi34lwc6ZBogKsz84r+Mu1w==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@mastra/deployer@1.75.0':
-    resolution: {integrity: sha512-6rJ11ZrYcDnt+WxkJMuZyAAUjrqrK/gDdv30+1tQBvtYcgHDfeuIW6IKbYfowU3C/EhqQtLPDAPlm4OlPQKKhQ==}
+  '@mastra/deployer@1.77.0':
+    resolution: {integrity: sha512-yB6ssnjvO3p5RdxIa++qMZmfwMGYmPBV+m/li0/QmcYM7YhomISLATpEOG/9PZoX1gUVUBO6reddy0MOntAOsQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.58.0-0 <2.0.0-0'
 
-  '@mastra/duckdb@1.13.0':
-    resolution: {integrity: sha512-bFzLeTVxjc3OYzo415tOy2w4cvcNhQooMOhlLmttta/JvTHMSgHg66z4ZTCIN8ogtu7tAWL20/uZahGyfy9Awg==}
+  '@mastra/duckdb@1.14.0':
+    resolution: {integrity: sha512-ycsgZ9mAvQiRAxuOA4xqw/HsnX5KlzUtsBeYRRhNcmRISTOwZS4OEZLUNXhipnDD75FyOxIUfV8m1vQF4+OM+w==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.68.0-0 <2.0.0-0'
 
-  '@mastra/editor@0.16.0':
-    resolution: {integrity: sha512-CenQjq77h7UEIjNUmjYtHk3PiHVU7HradrtHvOvqv+xNYwoXghIxrzY36rQJJ7FwJF6+cxXm4WnarOZ5xqV+Xg==}
+  '@mastra/editor@0.16.2':
+    resolution: {integrity: sha512-TgmKHw8tIrSEOM+Gr+mxxRcQlQ1A+TXbO2JUF5FM59w0DrWrgMcHxbdkZDiifOtaqtkuNs5twK5uTesRqhltgA==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.34.0-0 <2.0.0-0'
@@ -1443,8 +1439,8 @@ packages:
       '@mastra/mcp':
         optional: true
 
-  '@mastra/evals@1.10.5':
-    resolution: {integrity: sha512-6WqGrskqoxskgm9S/uDoBv5qE/t9By0lbbeGHjbuGt1uMJ/OSDAu/a5O6uvyhAsRAzXVSZS6VPi2PxTl0DRX8g==}
+  '@mastra/evals@1.10.7':
+    resolution: {integrity: sha512-4DoLggvQS7toso1pWxor6Egd0cMSmTrzYKE8Ed5SoVB1NzkE5JCK9q97QhZADOL7nNYTnNGr5cJ0vVslNIjHwA==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.0.0-0 <2.0.0-0'
@@ -1453,18 +1449,18 @@ packages:
       vitest:
         optional: true
 
-  '@mastra/fastembed@1.3.2':
-    resolution: {integrity: sha512-guZP1MR4lZcN1LkzYQY+vEQ/RquiofY58BXNk7LN5LiCrY/0SEbMPZK1ySl7ZnGrrUlB86aZrvctJgmaoDG0vA==}
+  '@mastra/fastembed@1.3.3':
+    resolution: {integrity: sha512-XFenAd3SJDoSrBGCBNdJQsijAQNgYw/JHsT6KdxA8k2WQ3V24voWVFkkNR1r0w6IrnPWUDm0/Up5+qODJyRDqQ==}
     engines: {node: '>=22.13.0'}
 
-  '@mastra/libsql@1.25.1':
-    resolution: {integrity: sha512-gFVXC68vHnqy3l0pMx1lOv5k+3iaemUd9WOE5qdinRcEzcvTd/1G1ZalUFiEZ1uCO9FtXNMirBLs5KNBj/9akQ==}
+  '@mastra/libsql@1.26.1':
+    resolution: {integrity: sha512-//M66ToTX60IdFHDpf1T/tSxXuiOkoZYjBTsLynm1nbYtjuyQP4TOC7U5f9qu4l9FljD75aex9ODHY0n1tBHsw==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
-      '@mastra/core': '>=1.68.0-0 <2.0.0-0'
+      '@mastra/core': '>=1.76.0-0 <2.0.0-0'
 
-  '@mastra/loggers@1.3.5':
-    resolution: {integrity: sha512-wGI2xle5VWAvRLXAbT2kzOlUovy5rRD89l0HoPNN12a2KU7QfLCX686KqCD0SrzVAzHENYHrgNm6Ek1lSSCkEg==}
+  '@mastra/loggers@1.3.7':
+    resolution: {integrity: sha512-PADgZTwf6nInd/HBcYXlHclhiBw9gLp3oR1TLKkgF5BNNbzVwbvlBZlqxOQuIatvXCWyIPS22cUzgZBmewiJHg==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.0.0-0 <2.0.0-0'
@@ -1475,27 +1471,27 @@ packages:
     peerDependencies:
       '@mastra/core': '>=1.64.0-0 <2.0.0-0'
 
-  '@mastra/memory@1.36.0':
-    resolution: {integrity: sha512-5qTm/f6TXjlEL9Ig800hbpbpuS5dqPijzQblL/nPomRvYiapIUK1jcLQuAmx4J7VzE1DmqYXFGcd8v1fb+DSDg==}
+  '@mastra/memory@1.37.1':
+    resolution: {integrity: sha512-nAgCtvDIKgTA9CXS/VfgePtcrJaolv9ojIqELABDURIZwu8lGBHFDeyo7V9ovpRbjfHcvKva1udv3BVyaaixTQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.4.1-0 <2.0.0-0'
 
-  '@mastra/observability@1.18.4':
-    resolution: {integrity: sha512-41T4v4ydBkpof36rpqKcJ64GS65RVHI/VN0/V2Peg1YS8KDAYqBkzLSv022TILZldC/dA9DqivPq7BqGMwrr+w==}
+  '@mastra/observability@1.20.0':
+    resolution: {integrity: sha512-g6Vd49qj+9EekKosImdbqXYarcWoUAlH5mAp3Xk5BeHarqvg5fjaOFDkGB/GbRPr9Hf3fYPuu4l8xOEC4BBI4g==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.16.0-0 <2.0.0-0'
       zod: ^3.25.0 || ^4.0.0
 
-  '@mastra/schema-compat@1.3.13':
-    resolution: {integrity: sha512-L3AkWcujcCC9qKYiGOxjRN0NrNMIxLAwn/ayjNlD3zhFSUBDI45LmlFxAYHLeAz315uogKb+9tZA/TjHnjb95w==}
+  '@mastra/schema-compat@1.3.14':
+    resolution: {integrity: sha512-EO4V5sTf99aoP5DSUYFh+GsGgFBEUWaxIT46nZ6b1qq/G880Hy5hbeOYCizb+UqiKOsKpGXi3xtCXL1GhwwPbQ==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@mastra/server@1.75.0':
-    resolution: {integrity: sha512-yFhGn8vfGjXCfVkJJOhh9psTk5PrI7nVyEjeFao0L+dOXD5smsZ+to5WqL7UpasIm02dBLQxmJ5IqNTuoZacdw==}
+  '@mastra/server@1.77.0':
+    resolution: {integrity: sha512-6R4I44aShpAclJGwf/ZKnNkEI+c/+nYPvOfLow4jMIHHe8Str+NQKy3Zdsvp9ogGfoUnEF5VD3qv1Z+iFJFYOg==}
     engines: {node: '>=22.13.0'}
     peerDependencies:
       '@mastra/core': '>=1.58.0-0 <2.0.0-0'
@@ -1512,8 +1508,8 @@ packages:
     resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/ext-apps@1.7.4':
-    resolution: {integrity: sha512-QQqysE549cf/Y0VabBmAACXhj92EhB3t8yVct2BHbkWiPTFA1S91EqTVjYXXcZEefXU0pmHcdObhsNMcomJIOQ==}
+  '@modelcontextprotocol/ext-apps@1.7.5':
+    resolution: {integrity: sha512-TjPH2S2y5UEGKhmI6+XGFuqfqOV4ppe1x6DA3txnUaEWkgtA4G5vo14jGKFZmegdkZ1H4QMLyujLvoU1BEdnAg==}
     engines: {node: '>=20'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.29.0
@@ -5349,8 +5345,8 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  mastra@1.33.0:
-    resolution: {integrity: sha512-m1R3Y8vOfVLclqMCM0VzPsgG7EvYWpLNr9TmL6ZEN4eIKXvHX2tyvQUzKzalgaLD2MffhIl7NYtitT2AGDMIww==}
+  mastra@1.34.1:
+    resolution: {integrity: sha512-4E8MFj8I0Vp384qbzNZAHBdG7Z+bGsZ4lP4znF6kqymHXH6aH3aRdIm5w104fkctoHGGhn3Ny6E9CF3RyTWd7A==}
     engines: {node: '>=22.13.0'}
     hasBin: true
     peerDependencies:
@@ -7289,12 +7285,13 @@ snapshots:
       eventsource-parser: 3.1.0
       zod: 4.4.3
 
-  '@ai-sdk/provider-utils@5.0.13(zod@4.4.3)':
+  '@ai-sdk/provider-utils@5.0.54(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.4
+      '@ai-sdk/provider': 4.0.22
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
+      undici: 7.30.0
       zod: 4.4.3
 
   '@ai-sdk/provider@2.0.3':
@@ -7305,15 +7302,11 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/provider@4.0.17':
+  '@ai-sdk/provider@4.0.22':
     dependencies:
       json-schema: 0.4.0
 
   '@ai-sdk/provider@4.0.3':
-    dependencies:
-      json-schema: 0.4.0
-
-  '@ai-sdk/provider@4.0.4':
     dependencies:
       json-schema: 0.4.0
 
@@ -7848,11 +7841,11 @@ snapshots:
       dequal: 2.0.3
       zod: 4.4.3
 
-  '@composio/mastra@0.10.5(@composio/core@0.18.1(ws@8.21.3)(zod@4.4.3))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
+  '@composio/mastra@0.10.5(@composio/core@0.18.1(ws@8.21.3)(zod@4.4.3))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@composio/core': 0.18.1(ws@8.21.3)(zod@4.4.3)
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@mastra/schema-compat': 1.3.13(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/schema-compat': 1.3.14(zod@4.4.3)
       zod: 4.4.3
 
   '@copilotkit/aimock@1.37.4(vitest@4.1.9)':
@@ -7898,7 +7891,7 @@ snapshots:
       open: 8.4.2
       picomatch: 4.0.4
       systeminformation: 5.31.11
-      undici: 7.28.0
+      undici: 7.30.0
       which: 4.0.0
       yocto-spinner: 1.2.0
 
@@ -8305,9 +8298,9 @@ snapshots:
     dependencies:
       '@lukeed/csprng': 1.1.0
 
-  '@mastra/agent-browser@0.5.3(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/agent-browser@0.5.3(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       agent-browser: 0.19.0
       zod: 4.4.3
     transitivePeerDependencies:
@@ -8319,9 +8312,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@mastra/ai-sdk@1.10.7(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/ai-sdk@1.11.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       zod: 4.4.3
 
   '@mastra/auth@1.1.3':
@@ -8331,34 +8324,34 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mastra/browser-firecrawl@0.2.3(@mastra/agent-browser@0.5.3(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(agent-browser@0.19.0)':
+  '@mastra/browser-firecrawl@0.2.3(@mastra/agent-browser@0.5.3(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(agent-browser@0.19.0)':
     dependencies:
-      '@mastra/agent-browser': 0.5.3(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/agent-browser': 0.5.3(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       agent-browser: 0.19.0
       firecrawl: 4.42.4
     transitivePeerDependencies:
       - debug
       - supports-color
 
-  '@mastra/browser-viewer@0.2.4(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/browser-viewer@0.2.4(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       playwright-core: 1.61.1
       zod: 4.4.3
 
-  '@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@a2a-js/sdk-v0_3': '@a2a-js/sdk@0.3.14(express@5.2.1)'
       '@a2a-js/sdk-v1': '@a2a-js/sdk@1.0.1(express@5.2.1)'
       '@ai-sdk/provider-utils-v6': '@ai-sdk/provider-utils@4.0.40(zod@4.4.3)'
-      '@ai-sdk/provider-utils-v7': '@ai-sdk/provider-utils@5.0.13(zod@4.4.3)'
+      '@ai-sdk/provider-utils-v7': '@ai-sdk/provider-utils@5.0.54(zod@4.4.3)'
       '@ai-sdk/provider-v5': '@ai-sdk/provider@2.0.3'
       '@ai-sdk/provider-v6': '@ai-sdk/provider@3.0.14'
-      '@ai-sdk/provider-v7': '@ai-sdk/provider@4.0.17'
+      '@ai-sdk/provider-v7': '@ai-sdk/provider@4.0.22'
       '@isaacs/ttlcache': 2.1.5
       '@lukeed/uuid': 2.0.1
-      '@mastra/schema-compat': 1.3.13(zod@4.4.3)
+      '@mastra/schema-compat': 1.3.14(zod@4.4.3)
       '@standard-schema/spec': 1.1.0
       chat: 4.41.0(ai@7.0.37(zod@4.4.3))(zod@4.4.3)
       croner: 10.0.1
@@ -8399,14 +8392,14 @@ snapshots:
       - zod-openapi
       - zod-to-json-schema
 
-  '@mastra/deployer@1.75.0(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)':
+  '@mastra/deployer@1.77.0(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)':
     dependencies:
       '@babel/core': 8.0.1
       '@babel/preset-typescript': 8.0.1(@babel/core@8.0.1)
       '@babel/traverse': 8.0.4
       '@hono/node-ws': 1.3.1(@hono/node-server@1.19.14(hono@4.13.8))(hono@4.13.8)
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@mastra/server': 1.75.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/server': 1.77.0(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
       '@optimize-lodash/rollup-plugin': 5.1.0(rollup@4.62.2)
       '@rollup/plugin-alias': 6.0.0(rollup@4.62.2)
       '@rollup/plugin-commonjs': 29.0.2(rollup@4.62.2)
@@ -8439,21 +8432,21 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@mastra/duckdb@1.13.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@mastra/duckdb@1.14.0(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
       '@duckdb/node-api': 1.5.2-r.2
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
-  '@mastra/editor@0.16.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@mastra/mcp@1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3))(ws@8.21.3)(zod@4.4.3)':
+  '@mastra/editor@0.16.2(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@mastra/mcp@1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3))(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@arcadeai/arcadejs': 2.4.1
       '@composio/core': 0.18.1(ws@8.21.3)(zod@4.4.3)
-      '@composio/mastra': 0.10.5(@composio/core@0.18.1(ws@8.21.3)(zod@4.4.3))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@mastra/memory': 1.36.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@mastra/schema-compat': 1.3.13(zod@4.4.3)
+      '@composio/mastra': 0.10.5(@composio/core@0.18.1(ws@8.21.3)(zod@4.4.3))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/memory': 1.37.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@mastra/schema-compat': 1.3.14(zod@4.4.3)
     optionalDependencies:
-      '@mastra/mcp': 1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
+      '@mastra/mcp': 1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@smithy/hash-node'
@@ -8462,9 +8455,9 @@ snapshots:
       - ws
       - zod
 
-  '@mastra/evals@1.10.5(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(vitest@4.1.9)':
+  '@mastra/evals@1.10.7(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(vitest@4.1.9)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       compromise: 14.15.1
       keyword-extractor: 0.0.28
       sentiment: 5.0.2
@@ -8472,32 +8465,32 @@ snapshots:
     optionalDependencies:
       vitest: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(@vitest/ui@4.1.9)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.4)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  '@mastra/fastembed@1.3.2':
+  '@mastra/fastembed@1.3.3':
     dependencies:
       '@anush008/tokenizers': 0.6.0
       '@huggingface/hub': 2.13.2
       onnxruntime-node: 1.26.0
 
-  '@mastra/libsql@1.25.1(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@mastra/libsql@1.26.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
       '@libsql/client': 0.18.0
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@mastra/loggers@1.3.5(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@mastra/loggers@1.3.7(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       pino: 10.3.1
       pino-pretty: 13.1.3
 
-  '@mastra/mcp@1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)':
+  '@mastra/mcp@1.18.0(@cfworker/json-schema@4.1.1)(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@5.2.1)(hono@4.13.8)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@modelcontextprotocol/client': 2.0.0
       '@modelcontextprotocol/core': 2.0.0
-      '@modelcontextprotocol/ext-apps': 1.7.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
+      '@modelcontextprotocol/ext-apps': 1.7.5(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
       '@modelcontextprotocol/node': 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.8)
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
       '@modelcontextprotocol/server': 2.0.0
@@ -8513,10 +8506,10 @@ snapshots:
       - supports-color
       - zod
 
-  '@mastra/memory@1.36.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@mastra/memory@1.37.1(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@mastra/schema-compat': 1.3.13(zod@4.6.5)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/schema-compat': 1.3.14(zod@4.6.5)
       async-mutex: 0.5.0
       diff: 8.0.4
       json-schema: 0.4.0
@@ -8527,26 +8520,26 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@mastra/observability@1.18.4(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/observability@1.20.0(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       zod: 4.4.3
 
-  '@mastra/schema-compat@1.3.13(zod@4.4.3)':
+  '@mastra/schema-compat@1.3.14(zod@4.4.3)':
     dependencies:
       json-schema-to-zod: 2.8.1
       zod: 4.4.3
       zod-from-json-schema: 0.5.3
 
-  '@mastra/schema-compat@1.3.13(zod@4.6.5)':
+  '@mastra/schema-compat@1.3.14(zod@4.6.5)':
     dependencies:
       json-schema-to-zod: 2.8.1
       zod: 4.6.5
       zod-from-json-schema: 0.5.3
 
-  '@mastra/server@1.75.0(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
+  '@mastra/server@1.77.0(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       hono: 4.13.8
       zod: 4.4.3
 
@@ -8568,7 +8561,7 @@ snapshots:
     dependencies:
       zod: 4.6.5
 
-  '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)':
+  '@modelcontextprotocol/ext-apps@1.7.5(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
       '@standard-schema/spec': 1.1.0
@@ -10756,7 +10749,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.28.0
+      undici: 7.30.0
       whatwg-mimetype: 4.0.0
 
   class-variance-authority@0.7.1:
@@ -12430,15 +12423,15 @@ snapshots:
 
   marked@17.0.6: {}
 
-  mastra@1.33.0(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(rxjs@7.8.2)(typescript@6.0.3)(zod@4.4.3):
+  mastra@1.34.1(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(rxjs@7.8.2)(typescript@6.0.3)(zod@4.4.3):
     dependencies:
       '@babel/parser': 8.0.4
       '@babel/types': 8.0.4
       '@clack/prompts': 1.7.0
       '@expo/devcert': 1.2.1
-      '@mastra/core': 1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@mastra/deployer': 1.75.0(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)
-      '@mastra/loggers': 1.3.5(@mastra/core@1.75.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@mastra/core': 1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@mastra/deployer': 1.77.0(@hono/node-server@1.19.14(hono@4.13.8))(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(typescript@6.0.3)(zod@4.4.3)
+      '@mastra/loggers': 1.3.7(@mastra/core@1.77.0(ai@7.0.37(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       archiver: 8.0.0
       commander: 14.0.3
       dotenv: 17.4.2
