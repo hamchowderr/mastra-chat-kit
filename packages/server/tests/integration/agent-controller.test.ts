@@ -1,6 +1,7 @@
 import { InMemoryStore } from '@mastra/core/storage';
 import { describe, expect, it } from 'vitest';
 import { createBrowser, createChatAgentController } from '../../src/mastra/lib/agent-controller';
+import { dismissParkedSuspensions } from '../../src/mastra/routes/dismiss-suspensions';
 
 /**
  * The Agent Controller end-to-end through AIMock — deterministic, zero spend.
@@ -160,8 +161,9 @@ describe('chat agent — Agent Controller (AIMock)', () => {
 
     // biome-ignore lint/suspicious/noExplicitAny: AgentControllerEvent union is wide
     const events: any[] = [];
+    const tStart = Date.now();
     const unsubscribe = session.subscribe((event) => {
-      events.push(event);
+      events.push({ ...event, _t: Date.now() - tStart });
       // The subagent tool (and any nested tool) is approval-gated by default — approve
       // as gates arm so the delegation runs to completion.
       if (event.type === 'tool_approval_required') {
@@ -170,12 +172,37 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     });
 
     await session.thread.create({ title: 'subagent' });
-    await session.sendMessage({ content: 'Use the code subagent to create hello.txt' });
+    const t0 = Date.now();
+    let sendErr: unknown = null;
+    try {
+      await session.sendMessage({ content: 'Use the code subagent to create hello.txt' });
+    } catch (e) {
+      sendErr = e;
+    }
 
     unsubscribe();
     await controller.destroy();
 
     const types = new Set(events.map((e) => e.type));
+    if (
+      (process.env.S04_DIAG ??
+        'C:/Users/HamCh/AppData/Local/Temp/claude/C--Users-HamCh-code-mastra-chat-kit/66ce7046-5cbe-4828-b0b5-42326ec5c51a/scratchpad/s04/diag.jsonl') &&
+      (!types.has('subagent_end') || process.env.S04_TRACE)
+    ) {
+      const fs = await import('node:fs');
+      try {
+        const j = await (await fetch('http://127.0.0.1:4010/__aimock/journal')).json();
+        events.push({ type: '__journal__', tail: (j as unknown[]).slice(-8) });
+      } catch (e) {
+        events.push({ type: '__journal__', error: String(e) });
+      }
+      fs.appendFileSync(
+        process.env.S04_DIAG ??
+          'C:/Users/HamCh/AppData/Local/Temp/claude/C--Users-HamCh-code-mastra-chat-kit/66ce7046-5cbe-4828-b0b5-42326ec5c51a/scratchpad/s04/diag.jsonl',
+        `${JSON.stringify({ at: new Date().toISOString(), ms: Date.now() - t0, sendErr: String(sendErr), events: events.map((e) => ({ ...e, ts: undefined })) }, (_k, v) => (v instanceof Error ? { name: v.name, message: v.message, stack: v.stack, cause: String(v.cause) } : v))}\n`,
+      );
+    }
+    if (sendErr) throw sendErr;
     // The subagent must have spawned and finished (the six subagent_* events fire).
     expect(types.has('subagent_start')).toBe(true);
     expect(types.has('subagent_end')).toBe(true);
@@ -363,6 +390,67 @@ describe('chat agent — Agent Controller (AIMock)', () => {
     const blob = JSON.stringify(events);
     expect(blob).toContain('ask_user');
     expect(events.some((e) => e.type === 'tool_end')).toBe(true);
+  });
+
+  // mastra-chat-kit-dpi. A new message dismisses an unanswered question. This drives
+  // the real Session the way /agent-controller/stream does — dismiss, switch to the
+  // thread, send — and proves a late answer to the dismissed card resumes nothing.
+  it('a new message dismisses a parked ask_user, and a late answer resumes nothing', async () => {
+    const controller = createChatAgentController({
+      storage: new InMemoryStore(),
+      resourceId: 'u-ac-dismiss',
+      browser: null,
+    });
+    await controller.init();
+    const session = await controller.createSession({ resourceId: 'u-ac-dismiss' });
+
+    // biome-ignore lint/suspicious/noExplicitAny: wide event union
+    const events: any[] = [];
+    const unsubscribe = session.subscribe((event) => {
+      events.push(event);
+      if (event.type === 'tool_approval_required' && event.toolName !== 'ask_user') {
+        session.respondToToolApproval({ decision: 'approve' });
+      }
+    });
+    session.grantTool('ask_user');
+
+    await session.thread.create({ title: 'dismiss' });
+    const threadId = session.thread.requireId();
+    // The suspending tool ends the run, so sendMessage resolves with the question parked.
+    await session.sendMessage({ content: 'Deploy the app for me.' });
+    const suspend = events.find((e) => e.type === 'tool_suspended');
+    expect(suspend?.toolName).toBe('ask_user');
+    expect(session.suspensions.hasPending()).toBe(true);
+
+    // The user sends something else instead of answering.
+    const dismissed = dismissParkedSuspensions(session);
+    expect(dismissed).toEqual([
+      expect.objectContaining({
+        type: 'tool_suspension_cancelled',
+        toolCallId: suspend.toolCallId,
+        toolName: 'ask_user',
+      }),
+    ]);
+    expect(session.suspensions.hasPending()).toBe(false);
+    await session.thread.switch({ threadId });
+    await session.sendMessage({ content: 'Hello' });
+    expect(JSON.stringify(events).toLowerCase()).toContain('help');
+
+    // The stale card is answered anyway: nothing resumes.
+    const before = events.length;
+    await session.respondToToolSuspension({
+      resumeData: 'production',
+      toolCallId: suspend.toolCallId,
+    });
+    const late = events.slice(before);
+
+    unsubscribe();
+    await controller.destroy();
+
+    expect(late.some((e) => e.type === 'agent_start')).toBe(false);
+    expect(late.some((e) => e.type === 'tool_end' && e.toolCallId === suspend.toolCallId)).toBe(
+      false,
+    );
   });
 
   // Agent-driven goals: goals aren't set by a UI control — the agent recognizes a standing

@@ -12,6 +12,7 @@
 
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
+import { dismissParkedSuspensions } from './dismiss-suspensions';
 import { sessionEventStream } from './session-sse';
 import type { ChatServerDeps } from './types';
 
@@ -55,6 +56,10 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         : undefined;
 
       const session = await deps.getSession();
+      // A new message dismisses an unanswered ask_user question. Do this before
+      // the thread switch: switch() also aborts, but create() does not, and
+      // neither tells the client which card to drop.
+      const dismissed = dismissParkedSuspensions(session);
       // Resume the given thread, or start a fresh thread when none is sent. No
       // placeholder title — the sidebar derives the display title from the first
       // user message (chat-app convention) until AI titling lands (see 698.11).
@@ -76,8 +81,9 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           event.type === 'tool_approval_required'
             ? { ...event, category: agentController.getToolCategory({ toolName: event.toolName }) }
             : event,
-        // Hand the client the active thread id so it can continue the conversation.
-        prelude: [{ type: '__thread__', threadId: activeThreadId }],
+        // Hand the client the active thread id so it can continue the conversation,
+        // and name any question the new message dismissed.
+        prelude: [{ type: '__thread__', threadId: activeThreadId }, ...dismissed],
         run: async () => {
           // Honor the composer's model pick (validated against MODEL_ALLOWLIST).
           // Switching here — inside the subscribed

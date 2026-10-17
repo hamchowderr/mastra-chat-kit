@@ -14,10 +14,16 @@ import { ctx, deps, find } from '../helpers/route-harness';
 // biome-ignore lint/suspicious/noExplicitAny: fake Session events are loose by design
 type AnyEvent = any;
 
-function fakeSession(sendMessage: (args: AnyEvent) => Promise<void> = async () => {}) {
+function fakeSession(
+  sendMessage: (args: AnyEvent) => Promise<void> = async () => {},
+  parked: Array<{ toolCallId: string; toolName: string }> = [],
+) {
   let listener: ((e: AnyEvent) => void) | null = null;
   const unsubscribe = vi.fn();
+  const pendingSuspensions = new Map(parked.map((p) => [p.toolCallId, p]));
   return {
+    displayState: { get: () => ({ pendingSuspensions }) },
+    suspensions: { hasPending: () => pendingSuspensions.size > 0 },
     thread: {
       create: vi.fn(async () => {}),
       switch: vi.fn(async () => {}),
@@ -131,6 +137,35 @@ describe('/agent-controller/stream', () => {
     const events = await run(session, { text: 'hi' });
     const gates = events.filter((e) => e.type === 'tool_approval_required');
     expect(gates.map((e) => e.category)).toEqual(['read', null]);
+  });
+
+  // mastra-chat-kit-dpi. A new message dismisses an unanswered ask_user question:
+  // the route drops the parked suspension through session.abort() BEFORE sending,
+  // and names it in a tool_suspension_cancelled so the web card clears.
+  it('dismisses a parked question before sending, and tells the client', async () => {
+    const session = fakeSession(async () => {}, [{ toolCallId: 's1', toolName: 'ask_user' }]);
+    const events = await run(session, { text: 'something else', threadId: 'thread-1' });
+
+    expect(session.abort).toHaveBeenCalledTimes(1);
+    expect(session.abort.mock.invocationCallOrder[0]).toBeLessThan(
+      session.sendMessage.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(events.slice(0, 2)).toEqual([
+      { type: '__thread__', threadId: 'thread-1' },
+      {
+        type: 'tool_suspension_cancelled',
+        toolCallId: 's1',
+        toolName: 'ask_user',
+        reason: 'dismissed by a new message',
+      },
+    ]);
+  });
+
+  it('leaves the run alone when no question is parked', async () => {
+    const session = fakeSession();
+    const events = await run(session, { text: 'hi' });
+    expect(session.abort).not.toHaveBeenCalled();
+    expect(events.some((e) => e.type === 'tool_suspension_cancelled')).toBe(false);
   });
 
   it('aborts the run and stops forwarding when the client disconnects', async () => {
