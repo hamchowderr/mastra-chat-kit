@@ -178,6 +178,38 @@ describe('controller reducer', () => {
     expect(s.done).toBe(true);
   });
 
+  // mastra-chat-kit-dpi. Sending a new message dismisses an unanswered question: the
+  // hook folds a __send__ sentinel before it posts, so the card is gone before the
+  // next run renders and never comes back when that run ends.
+  it('dismisses an unanswered question when the user sends a new message', () => {
+    const parked = reduceAgentControllerEvents(emptyTranscript(), [
+      {
+        type: 'tool_suspended',
+        toolCallId: 's1',
+        toolName: 'ask_user',
+        args: {},
+        suspendPayload: { question: 'Which environment should I deploy to?' },
+      },
+      { type: 'agent_end', reason: 'suspended' },
+      { type: '__done__' },
+    ]);
+    expect(parked.pendingSuspension).not.toBeNull();
+
+    const sent = reduceAgentControllerEvent(parked, { type: '__send__' });
+    expect(sent.pendingSuspension).toBeNull();
+
+    // The next run plays out and closes; the dismissed card stays gone.
+    const replied = reduceAgentControllerEvents(sent, [
+      {
+        type: 'message_end',
+        message: { id: 'm2', role: 'assistant', content: [{ type: 'text', text: 'Hi!' }] },
+      },
+      { type: 'agent_end', reason: 'complete' },
+      { type: '__done__' },
+    ]);
+    expect(replied.pendingSuspension).toBeNull();
+  });
+
   it('drops the suspension when the server cancels it', () => {
     const armed = reduceAgentControllerEvent(emptyTranscript(), {
       type: 'tool_suspended',

@@ -162,7 +162,8 @@ export function useAgentControllerChat(endpoint = '/api/agent-controller/stream'
       // NOTE: no optimistic user message — the AgentController echoes the user turn as its
       // own `message_start`/`message_end` (role=user) at the start of the run. Adding
       // our own would render the user's message twice (different ids → both kept).
-      setTranscript((s) => ({ ...s, error: null, done: false }));
+      // __send__ also dismisses any unanswered ask_user question (mastra-chat-kit-dpi).
+      setTranscript((s) => reduceAgentControllerEvent(s, { type: '__send__' }));
       setStatus('streaming');
 
       try {

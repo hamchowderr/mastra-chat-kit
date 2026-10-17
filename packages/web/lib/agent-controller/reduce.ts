@@ -36,10 +36,17 @@ export function reduceAgentControllerEvent(
   switch (event.type) {
     case '__thread__':
       return { ...state, threadId: event.threadId ?? state.threadId };
+    // The user sent a new message (folded by the hook before it posts). A new
+    // message dismisses an unanswered ask_user question: the server drops the
+    // parked suspension on /stream, so the card has nothing left to answer
+    // (mastra-chat-kit-dpi).
+    case '__send__':
+      return { ...state, pendingSuspension: null, error: null, done: false };
     // The stream closed. A pending ask_user question is deliberately KEPT: a
     // suspending tool ends the run (agent_end reason 'suspended') and the server
     // closes the stream while the question is still open (mastra-chat-kit-ymk). It
-    // clears when its tool ends, the server cancels it, or the user answers.
+    // clears when its tool ends, the server cancels it, the user answers, or the
+    // user sends a new message instead (__send__).
     case '__done__':
       return {
         ...state,

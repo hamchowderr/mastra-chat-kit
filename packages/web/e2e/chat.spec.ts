@@ -86,6 +86,29 @@ test('saves the finished chat to the history sidebar', async ({ page }) => {
   ).toBeVisible();
 });
 
+// mastra-chat-kit-dpi. Sending a new message instead of answering dismisses the
+// question: the card goes, the new reply renders, and a late answer to the
+// dismissed question resumes nothing on the server.
+test('a new message dismisses an unanswered question', async ({ page }) => {
+  await send(page, 'Deploy the app for me.');
+  const question = page.getByText('Which environment should I deploy to?');
+  await expect(question).toBeVisible();
+
+  await send(page, 'Hello');
+  await expect(convo(page).getByText(/how can i help/i)).toBeVisible();
+  await expect(question).toHaveCount(0);
+
+  // Answer the dismissed question anyway, straight through the proxy.
+  const res = await page.request.post('/api/agent-controller/answer', {
+    data: { answer: 'production' },
+  });
+  const types = (await res.text())
+    .split('\n\n')
+    .filter((chunk) => chunk.startsWith('data: '))
+    .map((chunk) => JSON.parse(chunk.slice('data: '.length)).type);
+  expect(types).toEqual(['__done__']);
+});
+
 // MUST stay last: the server keeps one Session for the whole run, and an
 // "Always allow" grant lasts for that session, so any later test that uses a
 // read tool would no longer see its approval card.
