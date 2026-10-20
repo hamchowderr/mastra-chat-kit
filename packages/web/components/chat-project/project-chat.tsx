@@ -43,12 +43,12 @@ export function ProjectChat({
 }: {
   className?: string;
   /** What approval cards say, per tool name (components/chat/approval-view.tsx). */
-  approvalViews?: ApprovalViews;
+  approvalViews?: ApprovalViews | undefined;
   /**
    * Controller modes the person can pick in the main chat, first one selected. Fewer than
    * two shows no picker.
    */
-  modes?: ReadonlyArray<{ id: string; name: string }>;
+  modes?: ReadonlyArray<{ id: string; name: string }> | undefined;
   placeholder?: string;
   emptyText?: string;
 }) {
@@ -225,7 +225,7 @@ function ChatView({
   work,
 }: {
   controller: UseAgentControllerChat;
-  approvalViews?: ApprovalViews;
+  approvalViews?: ApprovalViews | undefined;
   emptyText: string;
   /** A run going on the server that this view is not streaming (a thread's own). */
   working: boolean;
@@ -311,7 +311,10 @@ function ChatView({
           )}
 
           {/* Gated tools park the run until someone decides. */}
-          <ApprovalCards controller={controller} views={approvalViews} />
+          <ApprovalCards
+            controller={controller}
+            {...(approvalViews ? { views: approvalViews } : {})}
+          />
         </ConversationContent>
       </Conversation>
     </div>
@@ -328,7 +331,7 @@ function Composer({
   placeholder: string;
   busy: boolean;
   disabled?: boolean;
-  modes?: ReadonlyArray<{ id: string; name: string }>;
+  modes?: ReadonlyArray<{ id: string; name: string }> | undefined;
   onSend: (text: string, mode?: string) => Promise<boolean>;
 }) {
   const [input, setInput] = useState('');

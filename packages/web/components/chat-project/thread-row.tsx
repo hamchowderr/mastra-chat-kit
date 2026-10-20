@@ -37,8 +37,8 @@ export function ThreadRow({
   onOpen,
 }: {
   title: string;
-  threadId?: string;
-  status?: WorkThreadStatus;
+  threadId?: string | undefined;
+  status?: WorkThreadStatus | undefined;
   onOpen: (threadId: string) => void;
 }) {
   return (
