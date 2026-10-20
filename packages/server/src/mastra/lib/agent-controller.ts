@@ -273,7 +273,11 @@ export function createChatAgentController(opts?: {
   });
   // Each run's hosted browser sessions close when the run ends.
   if (firecrawlBrowser) firecrawlBrowserLib?.closeSessionsAtRunEnd(controller, firecrawlBrowser);
-  if (workThreads) workThreadsOf.set(controller, workThreads);
+  if (workThreads) {
+    workThreadsOf.set(controller, workThreads);
+    // Threads left working or waiting by an earlier process show as stopped.
+    void workThreads.recover().catch(() => undefined);
+  }
   return controller;
 }
 

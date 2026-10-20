@@ -107,10 +107,32 @@ export type WorkThreadsConfig = {
    * `RequestContext` or a plain record). Unset: the controller's own approval rules decide.
    */
   requireApproval?: (requestContext: unknown) => boolean;
+  /**
+   * Whether the run starting a thread had read untrusted content, by the host's own rule.
+   * Kept as the thread's `untrusted`, for the host to apply its rules to the thread's runs.
+   */
+  startsUntrusted?: (requestContext: unknown) => boolean;
+  /**
+   * Screens a report's text before it is saved into the main chat, where the agent reads
+   * it as its own words (a host withholding what reads like instructions, say).
+   */
+  screenReport?: (text: string, thread: WorkThreadInfo) => string;
+  /**
+   * Tears down the Session `openSession` opened, once its thread is idle with nothing
+   * waiting. The default deletes the `work:<threadId>` session `openWorkSession` opens.
+   */
+  closeSession?: (
+    controller: AgentController,
+    input: { resourceId: string; threadId: string },
+  ) => Promise<unknown>;
+  /** How long an idle work thread keeps its Session before it is torn down. Default 60 s. */
+  idleMs?: number;
 };
 
 type Tracked = {
   session: Session;
+  /** Stops following the Session. */
+  unsubscribe: () => void;
   /** Set while a run `start_thread` began is going: its outcome is reported. */
   background: boolean;
   /** The text of the run's latest finished assistant message. */
@@ -133,10 +155,25 @@ export function openWorkSession(
   });
 }
 
+/** Deletes the Session `openWorkSession` opened. */
+export function closeWorkSession(
+  controller: AgentController,
+  { resourceId, threadId }: { resourceId: string; threadId: string },
+): Promise<unknown> {
+  return controller.deleteSession({ resourceId, scope: `work:${threadId}` });
+}
+
 export type WorkThreads = ReturnType<typeof createWorkThreads>;
 
 export function createWorkThreads(config: WorkThreadsConfig) {
-  const live = new Map<string, Tracked>();
+  /**
+   * The work threads with a Session in this process. Set before any await when one is
+   * opened, so two requests for the same thread share one Session and one subscription.
+   */
+  const live = new Map<string, Promise<Tracked>>();
+  const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const idleMs = config.idleMs ?? 60_000;
+  const closeSession = config.closeSession ?? closeWorkSession;
   const memory = async () => {
     const store = await config.storage.getStore('memory');
     if (!store) throw new Error('work threads need a memory store');
@@ -168,7 +205,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     const thread = await store.getThreadById({ threadId });
     const info = workThreadOf(thread);
     if (!thread || !info) return;
-    const text = reportText(info.title || 'A thread', threadId, status, detail);
+    const said = detail && config.screenReport ? config.screenReport(detail, info) : detail;
+    const text = reportText(info.title || 'A thread', threadId, status, said);
     await store.saveMessages({
       messages: [
         {
@@ -188,10 +226,38 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     });
   }
 
-  /** Follows one work thread's Session for as long as the process lives. */
-  function track(threadId: string, session: Session): Tracked {
-    const tracked: Tracked = { session, background: false, lastReply: '', waitingOn: undefined };
-    live.set(threadId, tracked);
+  /**
+   * Tears a work thread's Session down once it has sat idle, with nothing waiting, for
+   * `idleMs`. Opening the thread again makes a new one.
+   */
+  function releaseWhenIdle(threadId: string, resourceId: string, tracked: Tracked) {
+    clearTimeout(idleTimers.get(threadId));
+    const timer = setTimeout(async () => {
+      idleTimers.delete(threadId);
+      const state = tracked.session.displayState.get();
+      if (state.isRunning || state.pendingApprovals.size > 0 || state.pendingSuspensions.size > 0)
+        return;
+      const current = await live.get(threadId);
+      if (current !== tracked) return;
+      live.delete(threadId);
+      tracked.unsubscribe();
+      await closeSession(await config.getController(), { resourceId, threadId }).catch(
+        () => undefined,
+      );
+    }, idleMs);
+    timer.unref?.();
+    idleTimers.set(threadId, timer);
+  }
+
+  /** Follows one work thread's Session until it is released. */
+  function track(threadId: string, resourceId: string, session: Session): Tracked {
+    const tracked: Tracked = {
+      session,
+      unsubscribe: () => undefined,
+      background: false,
+      lastReply: '',
+      waitingOn: undefined,
+    };
     // Reports and saves happen in order, one after another.
     let chain: Promise<void> = Promise.resolve();
     const later = (step: () => Promise<void>) => {
@@ -199,9 +265,10 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         // A failed status save or report must not stop the next one.
       });
     };
-    session.subscribe((event: AgentControllerEvent) => {
+    tracked.unsubscribe = session.subscribe((event: AgentControllerEvent) => {
       switch (event.type) {
         case 'agent_start':
+          clearTimeout(idleTimers.get(threadId));
           tracked.lastReply = '';
           tracked.waitingOn = undefined;
           later(() => setStatus(threadId, 'working'));
@@ -261,6 +328,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
               if (background && reason !== 'aborted') await report(threadId, 'done', reply);
             });
           }
+          if (reason !== 'suspended') releaseWhenIdle(threadId, resourceId, tracked);
           break;
         }
         default:
@@ -289,7 +357,13 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   }): Promise<{ threadId: string; title: string; status: WorkThreadStatus }> {
     const controller = await config.getController();
     const threadId = globalThis.crypto.randomUUID();
-    const info: WorkThreadInfo = { parentThreadId, title, status: 'working' };
+    const untrusted = config.startsUntrusted?.(requestContext) ?? false;
+    const info: WorkThreadInfo = {
+      parentThreadId,
+      title,
+      status: 'working',
+      ...(untrusted ? { untrusted } : {}),
+    };
     const store = await memory();
     const now = new Date();
     // Saved straight to the store, then opened: making it with `session.thread.create` on
@@ -305,8 +379,13 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         metadata: { [WORK_THREAD_KEY]: info },
       },
     });
-    const session = await openSession(controller, { resourceId, threadId });
-    const tracked = track(threadId, session);
+    const opening = openSession(controller, { resourceId, threadId }).then((session) =>
+      track(threadId, resourceId, session),
+    );
+    live.set(threadId, opening);
+    opening.catch(() => live.delete(threadId));
+    const tracked = await opening;
+    const { session } = tracked;
     tracked.background = true;
     // Not awaited: the main chat carries on while the thread works.
     void session
@@ -332,13 +411,51 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     const thread = await store.getThreadById({ threadId });
     const info = workThreadOf(thread);
     if (!thread || !info || thread.resourceId !== resourceId) return undefined;
-    const existing = live.get(threadId);
-    if (existing) return existing.session;
-    const controller = await config.getController();
-    const session = await openSession(controller, { resourceId, threadId });
-    track(threadId, session);
-    if (info.status === 'working') await setStatus(threadId, 'stopped');
-    return session;
+    let opening = live.get(threadId);
+    if (!opening) {
+      const fresh = (async () => {
+        const controller = await config.getController();
+        const tracked = track(
+          threadId,
+          resourceId,
+          await openSession(controller, { resourceId, threadId }),
+        );
+        // Nothing runs on a Session just opened: a thread left working or waiting by a
+        // run in an earlier process is stopped (its approval gates went with that process).
+        if (info.status === 'working' || info.status === 'needs_you') {
+          await setStatus(threadId, 'stopped');
+        }
+        releaseWhenIdle(threadId, resourceId, tracked);
+        return tracked;
+      })();
+      live.set(threadId, fresh);
+      fresh.catch(() => live.delete(threadId));
+      opening = fresh;
+    }
+    return (await opening).session;
+  }
+
+  /**
+   * Marks every work thread left working or waiting as stopped. Call once when the store's
+   * controller starts: nothing runs yet, and approval gates live only in the process that
+   * opened them. Threads the process has already opened are left alone.
+   */
+  async function recover(): Promise<void> {
+    const store = await memory();
+    const { threads } = await store.listThreads({ perPage: false });
+    for (const thread of threads) {
+      const info = workThreadOf(thread);
+      if (!info || live.has(thread.id)) continue;
+      if (info.status === 'working' || info.status === 'needs_you') {
+        await setStatus(thread.id, 'stopped');
+      }
+    }
+  }
+
+  /** A work thread's state, or undefined for any other thread. */
+  async function threadInfo(threadId: string): Promise<WorkThreadInfo | undefined> {
+    const store = await memory();
+    return workThreadOf(await store.getThreadById({ threadId }));
   }
 
   const tool = createTool({
@@ -385,9 +502,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     tool,
     start,
     sessionForThread,
-    /** Whether a work thread has a run going in this process. */
-    isRunning(threadId: string): boolean {
-      return live.get(threadId)?.session.displayState.get().isRunning ?? false;
-    },
+    threadInfo,
+    recover,
   };
 }

@@ -18,6 +18,11 @@ export type WorkThreadInfo = {
   parentThreadId: string;
   title: string;
   status: WorkThreadStatus;
+  /**
+   * The run that started it had read untrusted content, by the host's own rule
+   * (`startsUntrusted`). The host applies its rules for such runs to every run here.
+   */
+  untrusted?: boolean;
 };
 
 const STATUSES: ReadonlySet<string> = new Set([
@@ -29,7 +34,9 @@ const STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /** A thread's work-thread state, or undefined for an ordinary thread. */
-export function workThreadOf(thread: { metadata?: unknown } | null | undefined) {
+export function workThreadOf(
+  thread: { metadata?: unknown } | null | undefined,
+): WorkThreadInfo | undefined {
   const value = (thread?.metadata as Record<string, unknown> | undefined)?.[WORK_THREAD_KEY];
   if (!value || typeof value !== 'object') return undefined;
   const v = value as Record<string, unknown>;
@@ -39,6 +46,7 @@ export function workThreadOf(thread: { metadata?: unknown } | null | undefined) 
     parentThreadId: v.parentThreadId,
     title: typeof v.title === 'string' ? v.title : '',
     status: v.status as WorkThreadStatus,
+    ...(v.untrusted === true ? { untrusted: true } : {}),
   };
 }
 

@@ -66,13 +66,22 @@ export function ProjectChat({
   // The engines' functions are stable; the objects around them are not.
   const { openThread: openInThread } = thread;
   const { openThread: openInMain } = main;
+  // Only the latest open (or going back) counts: a slow one never lands over a newer one.
+  const openSeq = useRef(0);
   const open = useCallback(
     async (id: string) => {
+      const seq = ++openSeq.current;
       setOpenId(id);
-      setThreadRunning((await openInThread(id)).running);
+      const { running, stale } = await openInThread(id);
+      if (!stale && seq === openSeq.current) setThreadRunning(running);
     },
     [openInThread],
   );
+  const back = () => {
+    openSeq.current++;
+    setOpenId(null);
+    setThreadRunning(false);
+  };
 
   // Report notes link to their thread as `#thread=<id>`; open it here instead of navigating.
   const onLinkClick = (e: MouseEvent) => {
@@ -84,14 +93,15 @@ export function ProjectChat({
     void open(id);
   };
 
-  // While a thread is working or waiting, re-read statuses. When one changes, its report has
+  // While a thread is working, re-read statuses (one waiting on the person changes only when
+  // they act, in that thread). When one changes, its report has
   // landed in the main chat (reload it unless it is mid-turn, which reloads anyway), and
   // an open thread has moved on (reload it unless it is streaming its own turn).
   const statuses = threads
     .filter((t) => t.parentThreadId)
     .map((t) => `${t.id}:${t.status}`)
     .join();
-  const active = /:(working|needs_you)(,|$)/.test(statuses) || threadRunning;
+  const active = /:working(,|$)/.test(statuses) || threadRunning;
   const threadBusy = thread.status === 'streaming';
   const lastStatuses = useRef(statuses);
   // A report that landed during a main-chat turn is shown once the turn ends.
@@ -105,7 +115,6 @@ export function ProjectChat({
     const before = lastStatuses.current;
     if (before === statuses) return;
     lastStatuses.current = statuses;
-    if (!before) return;
     mainStale.current = true;
     if (mainId && !mainBusy) {
       mainStale.current = false;
@@ -129,8 +138,7 @@ export function ProjectChat({
           <button
             type="button"
             onClick={() => {
-              setOpenId(null);
-              setThreadRunning(false);
+              back();
               void refresh();
             }}
             className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"

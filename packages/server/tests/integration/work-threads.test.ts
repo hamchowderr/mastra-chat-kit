@@ -6,7 +6,8 @@ import {
   createChatAgentController,
   getWorkThreads,
 } from '../../src/mastra/lib/agent-controller';
-import { workThreadOf } from '../../src/mastra/lib/work-thread-info';
+import { WORK_THREAD_KEY, workThreadOf } from '../../src/mastra/lib/work-thread-info';
+import { createWorkThreads } from '../../src/mastra/lib/work-threads';
 
 /**
  * Work threads end to end through AIMock (fixtures/chat.json, "WORK THREADS"): the main
@@ -49,7 +50,7 @@ async function setup(resourceId: string) {
           .map((p) => (p.type === 'text' ? (p as { text: string }).text : ''))
           .join(''),
       );
-  return { session, mainThreadId, threads, mainTexts, controller };
+  return { session, mainThreadId, threads, mainTexts, controller, storage, memory };
 }
 
 describe('work threads (AIMock)', () => {
@@ -111,5 +112,64 @@ describe('work threads (AIMock)', () => {
     const workThreads = getWorkThreads(controller);
     expect(await workThreads?.sessionForThread(mainThreadId, 'u-work-scope')).toBeUndefined();
     expect(await workThreads?.sessionForThread('no-such-thread', 'u-work-scope')).toBeUndefined();
+  });
+
+  it("keeps the host's untrusted mark, screens the report, and lets an idle thread go", async () => {
+    const resourceId = 'u-work-host';
+    const { mainThreadId, threads, mainTexts, controller, storage } = await setup(resourceId);
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      startsUntrusted: () => true,
+      screenReport: (text, thread) => (thread.untrusted ? `[screened] ${text}` : text),
+      idleMs: 20,
+    });
+
+    const { threadId } = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+    });
+    expect(workThreadOf((await threads())[0])?.untrusted).toBe(true);
+    await waitFor(async () => (await mainTexts()).some((t) => t.includes('is done')));
+    expect((await mainTexts()).find((t) => t.includes('is done'))).toContain(
+      '[screened] Subject: Spring is here.',
+    );
+
+    // Done and idle: its Session is torn down, and opening the thread makes a new one.
+    await waitFor(
+      async () =>
+        (await controller.getSessionByResource(resourceId, `work:${threadId}`)) === undefined,
+    );
+    const reopened = await workThreads.sessionForThread(threadId, resourceId);
+    expect(reopened?.thread.getId()).toBe(threadId);
+  });
+
+  it('marks threads an earlier process left working or waiting as stopped', async () => {
+    const resourceId = 'u-work-recover';
+    const { mainThreadId, threads, controller, storage, memory } = await setup(resourceId);
+    const now = new Date();
+    for (const [id, status] of [
+      ['w-working', 'working'],
+      ['w-waiting', 'needs_you'],
+      ['w-done', 'done'],
+    ] as const) {
+      await memory.saveThread({
+        thread: {
+          id,
+          resourceId,
+          title: id,
+          createdAt: now,
+          updatedAt: now,
+          metadata: { [WORK_THREAD_KEY]: { parentThreadId: mainThreadId, title: id, status } },
+        },
+      });
+    }
+    await createWorkThreads({ getController: async () => controller, storage }).recover();
+    const statuses = Object.fromEntries(
+      (await threads()).map((t) => [t.id, workThreadOf(t)?.status]),
+    );
+    expect(statuses).toEqual({ 'w-working': 'stopped', 'w-waiting': 'stopped', 'w-done': 'done' });
   });
 });
