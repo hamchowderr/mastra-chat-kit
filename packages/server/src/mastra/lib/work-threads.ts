@@ -99,6 +99,14 @@ export type WorkThreadsConfig = {
   ) => Promise<Session>;
   /** Called on every status change, after it is saved (a host's own bookkeeping). */
   onStatus?: (threadId: string, status: WorkThreadStatus) => void;
+  /**
+   * Whether a `start_thread` call waits for the user's yes, from the starting run's request
+   * context. A host whose own rules gate actions by what the run has read (a run that read
+   * untrusted text approves every change) applies them here too, since the thread's runs
+   * start from the brief alone. Gets the run's request context as the tool sees it (a
+   * `RequestContext` or a plain record). Unset: the controller's own approval rules decide.
+   */
+  requireApproval?: (requestContext: unknown) => boolean;
 };
 
 type Tracked = {
@@ -345,6 +353,12 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         .max(8000)
         .describe("The whole task, in the user's words where possible."),
     }),
+    ...(config.requireApproval
+      ? {
+          requireApproval: (_input: unknown, ctx?: { requestContext?: unknown }) =>
+            config.requireApproval?.(ctx?.requestContext) ?? false,
+        }
+      : {}),
     execute: async ({ title, brief }, ctx) => {
       const parentThreadId = ctx?.agent?.threadId;
       const resourceId = ctx?.agent?.resourceId;
