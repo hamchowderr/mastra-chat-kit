@@ -219,7 +219,7 @@ import { ProjectChat } from '@/components/chat-project/project-chat'; // main ch
 MASTRA_SERVER_URL=http://localhost:4111
 ```
 
-The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 17-endpoint contract is in [`docs/registry.md`](docs/registry.md).
 
 ### One engine, swappable skins
 
@@ -497,7 +497,7 @@ Not the *registry* — but this *repo* has one, and that's the distinction worth
 
 **Cloning the repo** gives you the whole environment, agents included: `packages/server` is a working Mastra server with six agents, the workspace sandbox, and the full route contract registered. That's the "ready-to-run" path, and it's what [Getting started](#-getting-started) sets up.
 
-**The registry** is the other path — it's **frontend-only** by design: chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it, because a project installing the engine already has its own agents. You bring a Mastra server that speaks the contract; `packages/server` is the reference implementation. A stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+**The registry** is the other path — it's **frontend-only** by design: chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it, because a project installing the engine already has its own agents. You bring a Mastra server that speaks the contract; `packages/server` is the reference implementation. A stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 17-endpoint contract is in [`docs/registry.md`](docs/registry.md).
 </details>
 
 <details>
