@@ -9,6 +9,7 @@
 import type { Session } from '@mastra/core/agent-controller';
 import { registerApiRoute } from '@mastra/core/server';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from '../lib/thread-utils';
+import { type WorkThreadStatus, workThreadOf } from '../lib/work-thread-info';
 import { resourceIdOf } from './resource';
 import type { ChatServerDeps } from './types';
 
@@ -33,6 +34,9 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
         archived: boolean;
         createdAt: string;
         updatedAt: string;
+        /** Work threads only (lib/work-threads.ts): the main chat it reports to, and how it is doing. */
+        parentThreadId?: string;
+        status?: WorkThreadStatus;
       }> = [];
       for (const t of threads) {
         const explicitTitle = typeof t.title === 'string' ? t.title.trim() : '';
@@ -56,12 +60,14 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
         if (!explicitTitle && !first) {
           continue;
         }
+        const work = workThreadOf(t);
         items.push({
           id: t.id,
           title: threadTitle(t, first),
           archived: Boolean((t.metadata as Record<string, unknown> | undefined)?.archived),
           createdAt: new Date(t.createdAt).toISOString(),
           updatedAt: new Date(t.updatedAt).toISOString(),
+          ...(work ? { parentThreadId: work.parentThreadId, status: work.status } : {}),
         });
       }
       items.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));

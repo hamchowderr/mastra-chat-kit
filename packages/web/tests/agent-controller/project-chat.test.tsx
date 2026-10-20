@@ -1,0 +1,121 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ProjectChat } from '@/components/chat-project/project-chat';
+import { threadIdFromHref } from '@/components/chat-project/thread-row';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { fakeController } from './fake-controller';
+
+/**
+ * The project skin: one main chat, the threads it started as rows with their status, and
+ * a thread opening into its own conversation, where what it waits on (an approval parked
+ * while nobody watched) can be answered on the thread's own Session.
+ */
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+const MAIN = 'main-1';
+const WORK = 'work-1';
+
+function setup() {
+  return fakeController({
+    threads: [
+      { id: WORK, title: 'Oslo weather', parentThreadId: MAIN, status: 'needs_you' },
+      { id: MAIN, title: 'Main' },
+      { id: 'older', title: 'An older chat' },
+    ],
+    messages: {
+      [MAIN]: [
+        { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'Check the Oslo weather' }] },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            { type: 'text', text: 'I started a thread for it.' },
+            { type: 'data-work-thread', data: { threadId: WORK, title: 'Oslo weather' } },
+          ],
+        },
+        {
+          id: 'a2',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              text: `[Oslo weather](#thread=${WORK}) needs you: it is waiting for your OK to run getWeather.`,
+            },
+          ],
+        },
+      ],
+      [WORK]: [
+        { id: 'w1', role: 'user', parts: [{ type: 'text', text: 'Check the weather in Oslo.' }] },
+      ],
+    },
+    pending: {
+      [WORK]: {
+        running: false,
+        events: [
+          {
+            type: 'tool_approval_required',
+            toolCallId: 'gate-1',
+            toolName: 'getWeather',
+            args: { location: 'Oslo' },
+            category: null,
+          },
+        ],
+      },
+    },
+  });
+}
+
+const renderChat = () =>
+  render(
+    <TooltipProvider>
+      <ProjectChat />
+    </TooltipProvider>,
+  );
+
+describe('ProjectChat', () => {
+  it('opens the newest main chat with a row for the thread it started', async () => {
+    setup();
+    renderChat();
+    const row = await screen.findByRole('button', { name: /Oslo weather/ });
+    expect(within(row).getByText('Needs you')).toBeInTheDocument();
+    expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
+  });
+
+  it('opens a thread and answers its approval on that thread', async () => {
+    const api = setup();
+    renderChat();
+    fireEvent.click(await screen.findByRole('button', { name: /Oslo weather/ }));
+
+    expect(await screen.findByText('Check the weather in Oslo.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Main chat/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /^Approve$/ }));
+
+    await waitFor(() => expect(api.sent('/api/agent-controller/approve')).toHaveLength(1));
+    expect(api.sent('/api/agent-controller/approve')[0]?.body).toEqual({
+      decision: 'approve',
+      toolCallId: 'gate-1',
+      threadId: WORK,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Main chat/ }));
+    expect(await screen.findByText('I started a thread for it.')).toBeInTheDocument();
+  });
+
+  it("opens a thread from the report's link", async () => {
+    setup();
+    renderChat();
+    fireEvent.click(await screen.findByRole('link', { name: 'Oslo weather' }));
+    expect(await screen.findByText('Check the weather in Oslo.')).toBeInTheDocument();
+  });
+});
+
+describe('threadIdFromHref', () => {
+  it('reads only thread links', () => {
+    expect(threadIdFromHref('#thread=a%2Fb')).toBe('a/b');
+    expect(threadIdFromHref('https://example.com')).toBeNull();
+    expect(threadIdFromHref(null)).toBeNull();
+  });
+});

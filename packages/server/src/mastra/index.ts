@@ -22,6 +22,7 @@ import {
   getChatAgentControllerInstance,
   getChatBrowser,
   getChatSession,
+  getChatThreadSession,
   WORKSPACE_ROOT,
 } from './lib/agent-controller';
 import { createServerAuth } from './lib/auth';
@@ -82,6 +83,7 @@ const storage = new MastraCompositeStore({
 const chatServerDeps: ChatServerDeps = {
   getSession: getChatSession,
   getAgentController: getChatAgentController,
+  getThreadSession: getChatThreadSession,
   agentId: 'chat',
   workspace: {
     root: WORKSPACE_ROOT,

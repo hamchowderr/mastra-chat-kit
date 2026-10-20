@@ -195,6 +195,7 @@ describe('feature switches — a narrow assistant', () => {
       generateImage: false,
       demoTools: false,
       promptCache: false,
+      workThreads: false,
     },
     { dolt: false },
   );

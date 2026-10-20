@@ -210,6 +210,11 @@
           "target": "app/api/agent-controller/threads/[id]/messages/route.ts"
         },
         {
+          "path": "app/api/agent-controller/threads/[id]/pending/route.ts",
+          "type": "registry:file",
+          "target": "app/api/agent-controller/threads/[id]/pending/route.ts"
+        },
+        {
           "path": "app/api/workspace/file/route.ts",
           "type": "registry:file",
           "target": "app/api/workspace/file/route.ts"
@@ -235,7 +240,7 @@
       "name": "chat-server",
       "type": "registry:file",
       "title": "Chat Server (AgentController route contract)",
-      "description": "The 16 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
+      "description": "The 17 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, what a work thread waits on, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
       "dependencies": [
         "@mastra/core@^1.75.0",
         "hono",
@@ -287,6 +292,21 @@
           "path": "../server/src/mastra/lib/time-zone.ts",
           "type": "registry:file",
           "target": "src/mastra/lib/time-zone.ts"
+        },
+        {
+          "path": "../server/src/mastra/routes/thread-session.ts",
+          "type": "registry:file",
+          "target": "src/mastra/routes/thread-session.ts"
+        },
+        {
+          "path": "../server/src/mastra/lib/work-threads.ts",
+          "type": "registry:file",
+          "target": "src/mastra/lib/work-threads.ts"
+        },
+        {
+          "path": "../server/src/mastra/lib/work-thread-info.ts",
+          "type": "registry:file",
+          "target": "src/mastra/lib/work-thread-info.ts"
         }
       ]
     },
@@ -439,6 +459,36 @@
           "path": "components/chat-minimal/minimal-chat.tsx",
           "type": "registry:component",
           "target": "components/chat-minimal/minimal-chat.tsx"
+        }
+      ],
+      "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit-registry.vercel.app for the full endpoint contract."
+    },
+    {
+      "name": "chat-project",
+      "type": "registry:block",
+      "title": "Mastra Chat (project)",
+      "description": "One main chat that starts threads for pieces of work. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to the main chat when it finishes or needs you. Needs the chat-server's work threads (start_thread).",
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "@mastra-chat-kit/chat-tool-views",
+        "@mastra-chat-kit/chat-engine",
+        "https://ai-sdk.dev/elements/api/registry/conversation.json",
+        "https://ai-sdk.dev/elements/api/registry/message.json",
+        "https://ai-sdk.dev/elements/api/registry/shimmer.json",
+        "@mastra-chat-kit/chat-routes"
+      ],
+      "files": [
+        {
+          "path": "components/chat-project/project-chat.tsx",
+          "type": "registry:component",
+          "target": "components/chat-project/project-chat.tsx"
+        },
+        {
+          "path": "components/chat-project/thread-row.tsx",
+          "type": "registry:component",
+          "target": "components/chat-project/thread-row.tsx"
         }
       ],
       "docs": "This kit needs TWO things in your project. Check both:\n\n  1. The RADIX base       ->  npx shadcn@latest init --base radix\n  2. The LUCIDE icon set  ->  \"iconLibrary\": \"lucide\" in components.json\n\nWith both, a fresh install typechecks with 0 errors and `next build` exits 0\n(verified on shadcn CLI 4.16.0 / Next 16.2.6).\n\nIf either is wrong:\n  • Base UI instead of Radix (a bare `init` gives you this — --defaults resolves\n    to --preset=base-nova) -> 14 type errors. This kit's own components port fine\n    either way (the CLI rewrites `asChild` to Base UI's `render`), but the upstream\n    Vercel AI Elements it depends on are Radix-authored and don't survive that.\n  • hugeicons instead of lucide -> 1 type error and a failed build, in shadcn's own\n    ui/spinner.tsx. Fix: set iconLibrary to lucide, then\n    `shadcn add spinner --overwrite`.\n\nThen set MASTRA_SERVER_URL to point at your Mastra server (default\nhttp://localhost:4111). See https://mastra-chat-kit-registry.vercel.app for the full endpoint contract."

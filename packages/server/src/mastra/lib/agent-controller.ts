@@ -38,6 +38,7 @@ import { DISCOVERY_BACKOFF_MS, disconnectFirecrawl, getFirecrawlTools } from './
 import { createDefaultMemory, getSharedStore } from './memory';
 import { AUTO_ALLOWED_TOOLS, PLAN_MODE_TOOLS, resolveToolCategory } from './tool-categories';
 import { withTurnContext } from './turn-context';
+import { createWorkThreads, openWorkSession, type WorkThreads } from './work-threads';
 import {
   createBrowser,
   createChatWorkspace,
@@ -142,7 +143,21 @@ export function createChatAgentController(opts?: {
       : (opts?.browser ?? firecrawlBrowserLib?.getFirecrawlBrowser());
   const workspace =
     opts?.workspace ?? createChatWorkspace({ features: f, ...(viewer ? { browser: viewer } : {}) });
-  const controller = new AgentController({
+  const storage = opts?.storage ?? new InMemoryStore();
+  // Built before the controller (its tool goes on it), reaching it once it exists.
+  const workThreads: WorkThreads | undefined = f.workThreads
+    ? createWorkThreads({
+        getController: async (): Promise<AgentController> => controller,
+        storage,
+        // A thread's Session runs the same tools unasked as the user's (getChatSession).
+        openSession: async (c, input) => {
+          const session = await openWorkSession(c, input);
+          for (const tool of AUTO_ALLOWED_TOOLS) session.grantTool(tool);
+          return session;
+        },
+      })
+    : undefined;
+  const controller: AgentController = new AgentController({
     id: 'chat-agent-controller',
     defaultModeId: 'chat',
     // Shared backing agent that EVERY mode forks + decorates. Modes let the one
@@ -172,7 +187,7 @@ export function createChatAgentController(opts?: {
         transitionsTo: 'chat',
       },
     ],
-    storage: opts?.storage ?? new InMemoryStore(),
+    storage,
     resourceId: opts?.resourceId ?? CHAT_RESOURCE_ID,
     // Controller-level memory (shared across modes + subagents). REQUIRED for
     // subagents: a spawned subagent has no memory of its own, and Mastra's
@@ -212,9 +227,17 @@ export function createChatAgentController(opts?: {
     //
     // With the Firecrawl browser (BROWSER_PROVIDER=firecrawl, lib/firecrawl-browser.ts) the
     // same shutdown also closes every hosted browser session, so none is left billing.
+    // Firecrawl's tools, and start_thread when work threads are on (lib/work-threads.ts).
+    ...(f.firecrawl || workThreads
+      ? {
+          tools: async () => ({
+            ...(f.firecrawl ? await getFirecrawlTools() : {}),
+            ...(workThreads ? { [workThreads.tool.id]: workThreads.tool } : {}),
+          }),
+        }
+      : {}),
     ...(f.firecrawl
       ? {
-          tools: () => getFirecrawlTools(),
           intervalHandlers: [
             {
               id: 'firecrawl',
@@ -250,7 +273,27 @@ export function createChatAgentController(opts?: {
   });
   // Each run's hosted browser sessions close when the run ends.
   if (firecrawlBrowser) firecrawlBrowserLib?.closeSessionsAtRunEnd(controller, firecrawlBrowser);
+  if (workThreads) workThreadsOf.set(controller, workThreads);
   return controller;
+}
+
+const workThreadsOf = new WeakMap<AgentController, WorkThreads>();
+
+/** A controller's work threads (lib/work-threads.ts), or undefined when they are off. */
+export function getWorkThreads(controller: AgentController): WorkThreads | undefined {
+  return workThreadsOf.get(controller);
+}
+
+/**
+ * The Session a work thread runs on, for the routes (`getThreadSession`): undefined when
+ * work threads are off or the thread is not one of this user's work threads.
+ */
+export async function getChatThreadSession(
+  threadId: string,
+  resourceId: string = CHAT_RESOURCE_ID,
+): Promise<Session | undefined> {
+  const workThreads = getWorkThreads(await getChatAgentController());
+  return workThreads?.sessionForThread(threadId, resourceId);
 }
 
 let singleton: AgentController | null = null;
