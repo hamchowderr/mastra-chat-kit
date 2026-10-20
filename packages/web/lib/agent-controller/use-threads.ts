@@ -22,7 +22,15 @@ export type ThreadItem = {
   archived: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Work threads only (a `start_thread` call made them): the main chat they report to, and
+   * how they are doing. Absent on an ordinary conversation.
+   */
+  parentThreadId?: string;
+  status?: WorkThreadStatus;
 };
+
+export type WorkThreadStatus = 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';
 
 export type SearchHit = { id: string; title: string; snippet: string; score: number };
 

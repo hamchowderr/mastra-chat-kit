@@ -43,6 +43,8 @@ export type ChatFeatures = {
   demoTools: boolean;
   /** Anthropic prompt-cache breakpoints (lib/turn-context.ts). */
   promptCache: boolean;
+  /** The start_thread tool: work handed to threads of their own (lib/work-threads.ts). */
+  workThreads: boolean;
 };
 
 export const FULL_FEATURES: ChatFeatures = {
@@ -53,6 +55,7 @@ export const FULL_FEATURES: ChatFeatures = {
   generateImage: true,
   demoTools: true,
   promptCache: true,
+  workThreads: true,
 };
 
 /**
@@ -121,4 +124,5 @@ export const features: ChatFeatures = resolveFeatures({
   generateImage: env.TOOL_GENERATE_IMAGE,
   demoTools: env.TOOL_DEMO,
   promptCache: env.PROMPT_CACHE,
+  workThreads: env.WORK_THREADS,
 });

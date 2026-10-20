@@ -107,6 +107,15 @@ export type ChatServerDeps = {
   modelAllowlist: ReadonlySet<string>;
 
   /**
+   * OPTIONAL — work threads (lib/work-threads.ts). The Session a work thread runs on, for
+   * one user (the resource id; undefined is the shared user), or undefined when the thread
+   * is not a work thread. With it, `/stream`, `/approve` and `/answer` reach a work
+   * thread's own Session when the body names that thread, and `/threads/:id/pending`
+   * reports what it waits on. Omit it and every thread runs on the user's Session.
+   */
+  getThreadSession?: (threadId: string, resourceId?: string) => Promise<Session | undefined>;
+
+  /**
    * What an approval card should show beside the tool's arguments: a preview of what the
    * call would change (a dry run, the record as it is now). OPTIONAL — omit it, or return
    * undefined for a tool, and the card shows the arguments alone. Whatever it returns is
