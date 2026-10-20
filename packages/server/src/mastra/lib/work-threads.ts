@@ -245,7 +245,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         () => undefined,
       );
     }, idleMs);
-    timer.unref?.();
+    // Never keeps the process alive (Node); a plain number elsewhere.
+    (timer as { unref?: () => void }).unref?.();
     idleTimers.set(threadId, timer);
   }
 
