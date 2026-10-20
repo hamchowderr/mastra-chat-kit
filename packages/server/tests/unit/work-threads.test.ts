@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { toUIMessage } from '../../src/mastra/lib/thread-utils';
 import { threadLink, workThreadOf } from '../../src/mastra/lib/work-thread-info';
-import { REPORT_EXCERPT_CHARS, reportText } from '../../src/mastra/lib/work-threads';
+import {
+  createWorkThreads,
+  REPORT_EXCERPT_CHARS,
+  reportText,
+} from '../../src/mastra/lib/work-threads';
 
 describe('work thread info', () => {
   it('reads a work thread from its metadata and nothing else', () => {
@@ -64,5 +68,26 @@ describe('toUIMessage', () => {
       { type: 'text', text: 'Started it.' },
       { type: 'data-work-thread', data: { threadId: 't1', title: 'Plan' } },
     ]);
+  });
+});
+
+describe('start_thread approval', () => {
+  const storage = {} as Parameters<typeof createWorkThreads>[0]['storage'];
+  const getController = () => Promise.reject(new Error('unused'));
+
+  it('leaves approval to the controller unless the host decides it', () => {
+    const { tool } = createWorkThreads({ getController, storage });
+    expect(typeof tool.requireApproval).not.toBe('function');
+  });
+
+  it("asks the host's rule with the starting run's request context", () => {
+    const { tool } = createWorkThreads({
+      getController,
+      storage,
+      requireApproval: (rc) => (rc as Map<string, unknown>).get('tainted') === true,
+    });
+    const ask = tool.requireApproval as (input: unknown, ctx: unknown) => boolean;
+    expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
+    expect(ask({}, { requestContext: new Map() })).toBe(false);
   });
 });
