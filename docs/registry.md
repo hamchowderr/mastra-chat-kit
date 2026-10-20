@@ -320,7 +320,7 @@ resolve to upstream:
 > Only the "ours" counts are pinned. Upstream counts drift as Vercel and shadcn
 > change, which is exactly why they aren't asserted here — `registry-smoke.mjs`
 > does a real install and checks the three numbers that are ours to keep correct
-> (10 chat components, 14 route handlers, 5 vendored elements), on every relevant
+> (10 chat components, 15 route handlers, 5 vendored elements), on every relevant
 > PR and nightly.
 
 ### Wire it to a Mastra server
