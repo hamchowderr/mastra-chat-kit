@@ -107,6 +107,7 @@ Every capability is **agent-driven** — no manual buttons; the agent calls the 
 | **Task tracking** | Multi-step work rendered as a live checklist. | *"Plan and build a tiny counter in tracked steps."* |
 | **Observational memory** | A background Observer distills durable facts across chats (the Memory panel). | *have a short back-and-forth* |
 | **Schedules** | Recurring, persisted cron runs that survive a restart. | *"Remind me every morning to check the changelog."* |
+| **Work threads** | The agent hands a piece of work to a thread of its own, which runs while the chat stays free and reports back when it finishes or needs you (the `chat-project` skin). | *"Start a thread to plan the spring newsletter."* |
 | **Workspace** | A real filesystem + shell sandbox + browser the agent and its subagents drive. | *"Use the code subagent to create notes.txt."* |
 | **Live tool streaming** | Tool arguments stream into an input-streaming Tool before the call settles. | *(fires on any tool call)* |
 | **Semantic search** | The sidebar searches message bodies via a local embedding index. | *type in the sidebar search* |
@@ -193,6 +194,7 @@ Add the namespace to `components.json`, then install:
 npx shadcn@latest add @mastra-chat-kit/chat           # the full shell
 npx shadcn@latest add @mastra-chat-kit/chat-minimal   # or the embeddable one
 npx shadcn@latest add @mastra-chat-kit/chat-panel     # or a docked side panel
+npx shadcn@latest add @mastra-chat-kit/chat-project   # or a main chat that starts threads
 ```
 
 `chat` lands **34 files from this registry** — 9 shell components, the shared tool
@@ -208,6 +210,8 @@ import { ChatSwitcher } from '@/components/chat/chat-switcher';    // sidebar �
 import { MinimalChat } from '@/components/chat-minimal/minimal-chat'; // just the conversation
 // or
 import { ChatPanel } from '@/components/chat-panel/chat-panel';       // a docked side panel
+// or
+import { ProjectChat } from '@/components/chat-project/project-chat'; // main chat + work threads
 ```
 
 ```bash
@@ -215,7 +219,7 @@ import { ChatPanel } from '@/components/chat-panel/chat-panel';       // a docke
 MASTRA_SERVER_URL=http://localhost:4111
 ```
 
-The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+The UI is **pure frontend** — it talks to a Mastra server over the same-origin route handlers it installed. Note that a stock `mastra dev` server does *not* expose the shape those routes expect; it serves Mastra's own `/api/agents/*`. This repo's `packages/server` registers the full contract and is the reference implementation. The 17-endpoint contract is in [`docs/registry.md`](docs/registry.md).
 
 ### One engine, swappable skins
 
@@ -380,6 +384,7 @@ packages/
    ├─ components/chat/         full skin: sidebar · workbench (Files/Terminal/Browser/Memory/Schedules) · approvals
    ├─ components/chat-minimal/ second skin: conversation + composer only
    ├─ components/chat-panel/   third skin: a docked side panel (history, new chat, composer card)
+   ├─ components/chat-project/ fourth skin: a main chat that starts work threads
    ├─ components/ai-elements/  vendored AI Elements (you own these files)
    ├─ lib/agent-controller/             the engine — SSE client, reducer, data hooks (UI-free)
    ├─ lib/agent-controller-event-map.ts the 50 events → elements + prompts (drives /events)
@@ -492,7 +497,7 @@ Not the *registry* — but this *repo* has one, and that's the distinction worth
 
 **Cloning the repo** gives you the whole environment, agents included: `packages/server` is a working Mastra server with six agents, the workspace sandbox, and the full route contract registered. That's the "ready-to-run" path, and it's what [Getting started](#-getting-started) sets up.
 
-**The registry** is the other path — it's **frontend-only** by design: chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it, because a project installing the engine already has its own agents. You bring a Mastra server that speaks the contract; `packages/server` is the reference implementation. A stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 14-endpoint contract is in [`docs/registry.md`](docs/registry.md).
+**The registry** is the other path — it's **frontend-only** by design: chat components, the transport/controller client, and same-origin Next route handlers that proxy to a Mastra server at `MASTRA_SERVER_URL`. No agent code ships with it, because a project installing the engine already has its own agents. You bring a Mastra server that speaks the contract; `packages/server` is the reference implementation. A stock `mastra dev` server won't match, since it serves Mastra's own `/api/agents/*` shape instead. The full 17-endpoint contract is in [`docs/registry.md`](docs/registry.md).
 </details>
 
 <details>

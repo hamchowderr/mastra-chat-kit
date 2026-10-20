@@ -1,3 +1,5 @@
+import { START_THREAD_TOOL } from './work-thread-info';
+
 /**
  * Helpers for the chat-history sidebar thread routes. Mastra message content is
  * heterogeneous (string | { parts } | array), so these normalize it for display.
@@ -51,18 +53,53 @@ export function threadTitle(thread: any, firstUserMessage?: string): string {
   return 'New chat';
 }
 
-/** A text-only UIMessage (AI SDK v7 parts shape) for restoring a thread into the chat UI. */
+/**
+ * A UIMessage (AI SDK v7 parts shape) for restoring a thread into the chat UI: its text,
+ * plus one `data-work-thread` part per thread a `start_thread` call made in it
+ * (lib/work-threads.ts), so a restored main chat still shows the thread it started where
+ * it started it. Other tool calls are not restored.
+ */
 // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
 export function toUIMessage(m: any): {
   id: string;
   role: 'user' | 'assistant';
-  parts: { type: 'text'; text: string }[];
+  parts: Array<
+    | { type: 'text'; text: string }
+    | { type: 'data-work-thread'; data: { threadId: string; title: string } }
+  >;
 } {
   return {
     id: String(m?.id ?? `${m?.threadId ?? 't'}-${m?.createdAt ?? Math.random()}`),
     role: m?.role === 'assistant' ? 'assistant' : 'user',
-    parts: [{ type: 'text', text: messageText(m) }],
+    parts: [{ type: 'text', text: messageText(m) }, ...startedThreads(m)],
   };
+}
+
+/** The threads a message's `start_thread` calls made, from their results. */
+function startedThreads(
+  m: { content?: { parts?: unknown } } | undefined,
+): { type: 'data-work-thread'; data: { threadId: string; title: string } }[] {
+  const parts: unknown[] = Array.isArray(m?.content?.parts) ? (m.content.parts as unknown[]) : [];
+  return parts.flatMap((p) => {
+    const call = (p as { type?: string; toolInvocation?: Record<string, unknown> }).toolInvocation;
+    if (
+      (p as { type?: string }).type !== 'tool-invocation' ||
+      call?.toolName !== START_THREAD_TOOL
+    ) {
+      return [];
+    }
+    const result = call.result as { threadId?: unknown; title?: unknown } | undefined;
+    if (typeof result?.threadId !== 'string') return [];
+    return [
+      {
+        type: 'data-work-thread' as const,
+        data: {
+          threadId: result.threadId,
+          title: typeof result.title === 'string' ? result.title : '',
+        },
+      },
+    ];
+  });
 }
 
 /** A short, query-centered excerpt for search results. */

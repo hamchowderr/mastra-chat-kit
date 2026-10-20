@@ -1,6 +1,7 @@
 import type { ToolCategory } from '@mastra/core/agent-controller';
 import { WORKSPACE_TOOLS } from '@mastra/core/workspace';
 import { FIRECRAWL_TOOLS } from './firecrawl';
+import { START_THREAD_TOOL } from './work-thread-info';
 
 const { FILESYSTEM, SANDBOX, SEARCH, LSP } = WORKSPACE_TOOLS;
 
@@ -167,6 +168,8 @@ export const AUTO_ALLOWED_TOOLS = [
   'task_complete',
   'task_check',
   'list_schedules',
+  // Starts a thread and changes nothing; the thread's own tools still ask.
+  START_THREAD_TOOL,
   ...FIRECRAWL_TOOLS,
   ...BROWSER_AUTO_ALLOWED_TOOLS,
 ] as const;

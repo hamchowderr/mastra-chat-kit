@@ -9,7 +9,7 @@ import {
   emptyTranscript,
   uiMessagesToAgentController,
 } from './events';
-import { reduceAgentControllerEvent } from './reduce';
+import { reduceAgentControllerEvent, reduceAgentControllerEvents } from './reduce';
 
 export type AgentControllerStatus = 'ready' | 'streaming' | 'error';
 
@@ -107,6 +107,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
   // when a run settles). Read-only in the UI.
   const [schedules, setSchedules] = useState<AgentControllerSchedule[]>([]);
   const threadRef = useRef<string | null>(null);
+  // Counts openThread calls (and resets), so a slow open never lands over a newer one.
+  const openSeq = useRef(0);
   // Bumps whenever a turn completes so the conversation sidebar refetches (a new
   // thread appears / an existing one re-sorts to the top).
   const [refreshSignal, setRefreshSignal] = useState(0);
@@ -318,7 +320,12 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         res = await fetch('/api/agent-controller/approve', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ decision, toolCallId }),
+          // The thread names which Session holds the gate (a work thread has its own).
+          body: JSON.stringify({
+            decision,
+            toolCallId,
+            ...(threadRef.current ? { threadId: threadRef.current } : {}),
+          }),
         });
       } catch (err) {
         setTranscript((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
@@ -362,7 +369,11 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         const res = await fetch('/api/agent-controller/answer', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...body, timeZone: browserTimeZone() }),
+          body: JSON.stringify({
+            ...body,
+            ...(threadRef.current ? { threadId: threadRef.current } : {}),
+            timeZone: browserTimeZone(),
+          }),
         });
         await readEventStream(res, onEvent);
         setStatus('ready');
@@ -412,16 +423,28 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
    * Load a past conversation into the view. Fetches its messages (text-only
    * restore) and seeds a fresh transcript; follow-up turns continue this thread
    * (threadRef) so the server switches to it and memory carries context.
+   *
+   * A work thread (one the agent started with `start_thread`) can be running or parked
+   * on an approval or a question while nobody watches it: what it waits on comes from
+   * `/threads/:id/pending` and folds in as the live events would. Resolves to whether its
+   * run is still going, so a skin can poll until it stops.
    */
   const openThread = useCallback(
-    async (threadId: string) => {
+    async (threadId: string): Promise<{ running: boolean; stale: boolean }> => {
+      const id = encodeURIComponent(threadId);
+      // Only the latest open applies: an earlier one that resolves late is dropped.
+      const seq = ++openSeq.current;
+      const stale = () => seq !== openSeq.current;
+      let running = false;
       try {
-        const res = await fetch(
-          `/api/agent-controller/threads/${encodeURIComponent(threadId)}/messages`,
-          {
-            cache: 'no-store',
-          },
-        );
+        const [res, pending] = await Promise.all([
+          fetch(`/api/agent-controller/threads/${id}/messages`, { cache: 'no-store' }),
+          fetch(`/api/agent-controller/threads/${id}/pending`, { cache: 'no-store' }).then(
+            async (r) =>
+              r.ok ? ((await r.json()) as { running?: boolean; events?: ControllerEvent[] }) : {},
+            () => ({}) as { running?: boolean; events?: ControllerEvent[] },
+          ),
+        ]);
         const data = (await res.json()) as {
           messages?: Array<{
             id: string;
@@ -429,25 +452,35 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
             parts?: Array<{ type: string; text?: string }>;
           }>;
         };
+        if (stale()) return { running: false, stale: true };
+        running = pending.running === true;
         threadRef.current = threadId;
         setStatus('ready');
-        setTranscript({
-          ...emptyTranscript(),
-          threadId,
-          messages: uiMessagesToAgentController(data.messages ?? []),
-        });
+        setTranscript(
+          reduceAgentControllerEvents(
+            {
+              ...emptyTranscript(),
+              threadId,
+              messages: uiMessagesToAgentController(data.messages ?? []),
+            },
+            pending.events ?? [],
+          ),
+        );
       } catch {
+        if (stale()) return { running: false, stale: true };
         threadRef.current = threadId;
         setTranscript({ ...emptyTranscript(), threadId });
       }
       // Re-hydrate the learned OM facts (resource-scoped) onto the fresh transcript.
       refreshMemory();
+      return { running, stale: false };
     },
     [refreshMemory],
   );
 
   /** Clear the transcript and start a brand-new conversation (server mints a thread). */
   const reset = useCallback(() => {
+    openSeq.current++;
     threadRef.current = null;
     setStatus('ready');
     setTranscript(emptyTranscript());

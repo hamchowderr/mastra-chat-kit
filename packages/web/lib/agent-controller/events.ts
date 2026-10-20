@@ -310,6 +310,7 @@ export function uiMessagesToAgentController(
       url?: string;
       mediaType?: string;
       filename?: string;
+      data?: unknown;
     }>;
   }>,
 ): AgentControllerMessage[] {
@@ -326,6 +327,23 @@ export function uiMessagesToAgentController(
             data: p.url,
             mediaType: p.mediaType ?? 'application/octet-stream',
             ...(p.filename ? { filename: p.filename } : {}),
+          },
+        ];
+      }
+      // A thread a `start_thread` call made here: restored as that call and its result, so
+      // a skin renders it the same as the live one (the chat-project skin's thread row).
+      if (p.type === 'data-work-thread') {
+        const d = p.data as { threadId?: unknown; title?: unknown } | undefined;
+        if (typeof d?.threadId !== 'string') return [];
+        const title = typeof d.title === 'string' ? d.title : '';
+        const id = `work-thread-${d.threadId}`;
+        return [
+          { type: 'tool_call', id, name: 'start_thread', args: { title } },
+          {
+            type: 'tool_result',
+            id,
+            name: 'start_thread',
+            result: { threadId: d.threadId, title },
           },
         ];
       }

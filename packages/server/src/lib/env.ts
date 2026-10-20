@@ -85,6 +85,9 @@ const envSchema = z
     // instructions, after the stable turn-context sections, and on the conversation tail.
     // Other providers ignore the markers.
     PROMPT_CACHE: boolish.default(true),
+    // Work threads (lib/work-threads.ts): the chat agent's start_thread tool, which hands a
+    // piece of work to a thread of its own that reports back to the chat.
+    WORK_THREADS: boolish.default(true),
 
     // Firecrawl web search (lib/firecrawl.ts). Setting the key turns it on: the agent
     // and the research subagent get Firecrawl's search and scrape tools from Firecrawl's
