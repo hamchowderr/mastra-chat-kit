@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest';
+import { toUIMessage } from '../../src/mastra/lib/thread-utils';
+import { threadLink, workThreadOf } from '../../src/mastra/lib/work-thread-info';
+import {
+  createWorkThreads,
+  REPORT_EXCERPT_CHARS,
+  reportText,
+} from '../../src/mastra/lib/work-threads';
+
+describe('work thread info', () => {
+  it('reads a work thread from its metadata and nothing else', () => {
+    const info = { parentThreadId: 'm1', title: 'Plan', status: 'done' };
+    expect(workThreadOf({ metadata: { workThread: info } })).toEqual(info);
+    expect(workThreadOf({ metadata: {} })).toBeUndefined();
+    expect(workThreadOf({ metadata: { workThread: { ...info, status: 'sleeping' } } })).toBe(
+      undefined,
+    );
+    expect(workThreadOf(null)).toBeUndefined();
+  });
+
+  it('links a thread by id, keeping the title from breaking the link', () => {
+    expect(threadLink('a/b', 'Plan [v2]')).toBe('[Plan v2](#thread=a%2Fb)');
+  });
+});
+
+describe('reports', () => {
+  it('says what happened, with the reply trimmed', () => {
+    expect(reportText('Plan', 't1', 'done', 'All set.')).toBe(
+      '[Plan](#thread=t1) is done.\n\nAll set.',
+    );
+    expect(reportText('Plan', 't1', 'needs_you', 'it asked "Which list?"')).toBe(
+      '[Plan](#thread=t1) needs you: it asked "Which list?"',
+    );
+    expect(reportText('Plan', 't1', 'failed')).toBe('[Plan](#thread=t1) stopped with an error.');
+    const long = reportText('Plan', 't1', 'done', 'x'.repeat(REPORT_EXCERPT_CHARS + 50));
+    expect(long.endsWith('…')).toBe(true);
+    expect(long.length).toBeLessThan(REPORT_EXCERPT_CHARS + 40);
+  });
+});
+
+describe('toUIMessage', () => {
+  it('restores the threads a start_thread call made, and no other tool call', () => {
+    const ui = toUIMessage({
+      id: 'a1',
+      role: 'assistant',
+      content: {
+        format: 2,
+        parts: [
+          { type: 'text', text: 'Started it.' },
+          {
+            type: 'tool-invocation',
+            toolInvocation: {
+              state: 'result',
+              toolCallId: 'c1',
+              toolName: 'start_thread',
+              args: { title: 'Plan', brief: '…' },
+              result: { threadId: 't1', title: 'Plan', status: 'working' },
+            },
+          },
+          {
+            type: 'tool-invocation',
+            toolInvocation: { state: 'result', toolCallId: 'c2', toolName: 'getWeather', args: {} },
+          },
+        ],
+      },
+    });
+    expect(ui.parts).toEqual([
+      { type: 'text', text: 'Started it.' },
+      { type: 'data-work-thread', data: { threadId: 't1', title: 'Plan' } },
+    ]);
+  });
+});
+
+describe('start_thread approval', () => {
+  const storage = {} as Parameters<typeof createWorkThreads>[0]['storage'];
+  const getController = () => Promise.reject(new Error('unused'));
+
+  it('leaves approval to the controller unless the host decides it', () => {
+    const { tool } = createWorkThreads({ getController, storage });
+    expect(typeof tool.requireApproval).not.toBe('function');
+  });
+
+  it("asks the host's rule with the starting run's request context", () => {
+    const { tool } = createWorkThreads({
+      getController,
+      storage,
+      requireApproval: (rc) => (rc as Map<string, unknown>).get('tainted') === true,
+    });
+    const ask = tool.requireApproval as (input: unknown, ctx: unknown) => boolean;
+    expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
+    expect(ask({}, { requestContext: new Map() })).toBe(false);
+  });
+});

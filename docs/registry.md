@@ -14,12 +14,13 @@ our own copies of only the few we had to patch.
 |---|---|---|
 | `chat` | block | **The full skin** — history sidebar │ conversation │ the 4-tab workbench (browser, files, memory, schedules). **Install this for the complete experience.** |
 | `chat-minimal` | block | **A second skin** — conversation + composer + approvals only, no sidebar or workbench. For embedding an agent in a corner of an existing app. |
+| `chat-project` | block | **A fourth skin** — one main chat that starts threads for pieces of work. Each thread is a row under the message that started it, with its status; it opens into its own conversation and reports back to the main chat when it finishes or needs you. Needs the server's work threads (`start_thread`, in `chat-server`). |
 | `chat-composer` | component | The one composer `chat` and `chat-panel` use: attachments, dictation, optional model picker and web search, and the Plan toggle (`plan-mode`). |
 | `chat-panel` | block | **A third skin** — a docked side panel: a header (title, conversation history, new chat, your own buttons), a greeting and suggestions when empty, and a rounded composer card with the Plan toggle (hide it with `plan={false}`). No model picker, no web search. |
 | `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
 | `chat-engine` | lib | The engine: Agent Controller SSE client, transcript reducer, and the data hooks that own every `/api/*` call. UI-free — imports only React. |
 | `chat-routes` | block | Same-origin Next route handlers + `mastra-proxy.ts` that forward to a Mastra server — chat, threads, the full `agent-controller/*` surface, workspace, and browser screencast. Pulled in automatically by `chat`. |
-| `chat-server` | file | **The other half.** The 16 Mastra endpoints `chat-routes` forwards *to*, for your own Mastra project. Not pulled in by `chat` — install it separately, on the server side. |
+| `chat-server` | file | **The other half.** The 17 Mastra endpoints `chat-routes` forwards *to*, for your own Mastra project. Not pulled in by `chat` — install it separately, on the server side. |
 | `code-block` | component | AI Elements code block **+ our SSR hydration fix** (mount-gated Shiki). |
 | `image` | component | AI Elements image with `uint8Array` optional (renders from base64). |
 | `context` | component | AI Elements context/usage with `Partial<LanguageModelUsage>`. |
@@ -39,6 +40,7 @@ losing the second:
 npx shadcn@latest add @mastra-chat-kit/chat           # full shell
 npx shadcn@latest add @mastra-chat-kit/chat-minimal   # embeddable
 npx shadcn@latest add @mastra-chat-kit/chat-panel     # docked side panel
+npx shadcn@latest add @mastra-chat-kit/chat-project   # main chat + work threads
 ```
 
 All three drive the **same** `AgentController` session — same threads, same tool
@@ -246,7 +248,7 @@ npx shadcn@latest add @mastra-chat-kit/chat
 
 `chat` gives you a UI that fetches `/api/agent-controller/*`. Those Next routes
 forward to a Mastra server at `MASTRA_SERVER_URL` (default
-`http://localhost:4111`) — and the 16 endpoints they call are **not** Mastra
+`http://localhost:4111`) — and the 17 endpoints they call are **not** Mastra
 built-ins. Point the UI at a stock `mastra dev` and every request 404s.
 
 So install the other half into your Mastra project:
@@ -318,7 +320,7 @@ resolve to upstream:
 > Only the "ours" counts are pinned. Upstream counts drift as Vercel and shadcn
 > change, which is exactly why they aren't asserted here — `registry-smoke.mjs`
 > does a real install and checks the three numbers that are ours to keep correct
-> (10 chat components, 14 route handlers, 5 vendored elements), on every relevant
+> (10 chat components, 15 route handlers, 5 vendored elements), on every relevant
 > PR and nightly.
 
 ### Wire it to a Mastra server
@@ -353,6 +355,7 @@ The controller surface is the rest of it — the workbench panels and
 | `GET /api/agent-controller/threads/search?q=` | `GET /agent-controller/threads/search?q=` |
 | `GET`/`DELETE /api/agent-controller/threads/:id` | `GET`/`DELETE /agent-controller/threads/:id` |
 | `GET /api/agent-controller/threads/:id/messages` | `GET /agent-controller/threads/:id/messages` |
+| `GET /api/agent-controller/threads/:id/pending` | `GET /agent-controller/threads/:id/pending` |
 | `GET /api/workspace/files` | `GET /workspace/files` |
 | `GET /api/workspace/file?path=` | `GET /workspace/file?path=` |
 | `/api/browser/screencast` | `/browser/screencast` (SSE frames) |
@@ -407,6 +410,42 @@ and says why it refused one, and when the server refuses a message the composer 
 its text and attachments and the server's reason is shown. It ships no colours of its own:
 `className` sets the root (for example `bg-sidebar` to match your sidebar), and
 `--chat-panel-header-height` lines its header up with yours.
+
+### The project chat (work threads)
+
+`chat-project` is shaped like a project: one main chat, and threads it starts for
+pieces of work. The agent starts one with the `start_thread` tool (a title and a brief);
+the thread runs the brief on a Session of its own (scope `work:<threadId>`) while the
+main chat stays free. Its row under the starting message shows how it is doing:
+working, needs you (an approval or a question), done, failed, or stopped (the server
+restarted mid-run). Clicking the row opens the thread, where its approvals and
+questions can be answered and the conversation continued; "Main chat" goes back.
+
+```tsx
+import { ProjectChat } from '@/components/chat-project/project-chat';
+
+<ProjectChat modes={[{ id: 'chat', name: 'Chat' }, { id: 'plan', name: 'Plan' }]} />
+```
+
+When a thread started by `start_thread` finishes, fails, or stops for you, the server
+saves a short note into the main chat: a link to the thread and its last reply, trimmed.
+Saving it runs no model, so reporting back costs nothing, and the main chat's agent reads
+it with its history on its next turn. Threads you talk to directly are not reported.
+
+The server half is in `chat-server`: `lib/work-threads.ts` (`createWorkThreads`, which
+gives the tool and the per-thread Sessions) and `routes/thread-session.ts`. Give the
+tool to your controller (`tools`), and `getThreadSession` to the routes, so `/stream`,
+`/approve` and `/answer` reach a work thread's own Session when the request names it:
+
+```ts
+const workThreads = createWorkThreads({ getController, storage });
+// controller: tools: { [workThreads.tool.id]: workThreads.tool }
+// ChatServerDeps: getThreadSession: (threadId, resourceId = USER) =>
+//   workThreads.sessionForThread(threadId, resourceId),
+```
+
+The main chat is the newest conversation that is not a work thread. Thread statuses are
+re-read every few seconds while one is working or waiting; nothing polls otherwise.
 
 `onToolEnd` (on `ChatPanel`, `ChatSwitcher`, or `useAgentControllerChat({ onToolEnd })`)
 is called each time the agent finishes a tool call, with the tool's name, its call id

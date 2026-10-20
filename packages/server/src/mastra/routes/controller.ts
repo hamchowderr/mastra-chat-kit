@@ -16,6 +16,7 @@ import { TIME_ZONE_KEY } from '../lib/time-zone';
 import { resourceIdOf } from './resource';
 import { sessionEventStream } from './session-sse';
 import { streamBodyLimit, streamBodySchema, timeZone } from './stream-body';
+import { sessionForThread } from './thread-session';
 import type { ChatServerDeps } from './types';
 
 /** A turn's request context: the composer's Search toggle and the browser's time zone. */
@@ -108,11 +109,23 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           }))
         : undefined;
 
-      const session = await deps.getSession(resourceIdOf(c));
+      // A work thread runs on its own Session (./thread-session.ts); any other thread on the
+      // user's.
+      const target = await sessionForThread(deps, resourceIdOf(c), threadId);
+      if (!target) return c.json({ error: 'thread not found' }, 404);
+      const { session } = target;
       // Resume the given thread, or start a fresh thread when none is sent. No
       // placeholder title — the sidebar derives the display title from the first
       // user message (chat-app convention) until AI titling lands (see 698.11).
-      if (threadId) {
+      if (target.work) {
+        // Its run belongs to the thread; a second message would cut in on it.
+        if (session.displayState.get().isRunning) {
+          return c.json({ error: 'this thread is still working' }, 409);
+        }
+        if (session.thread.getId() !== threadId && threadId) {
+          await session.thread.switch({ threadId });
+        }
+      } else if (threadId) {
         // Only this user's own threads can be resumed.
         if (!(await session.thread.list()).some((t) => t.id === threadId)) {
           return c.json({ error: 'thread not found' }, 404);
@@ -167,7 +180,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
     method: 'POST',
     handler: async (c) => {
       const body = await c.req
-        .json<{ decision?: unknown; toolCallId?: unknown }>()
+        .json<{ decision?: unknown; toolCallId?: unknown; threadId?: unknown }>()
         .catch(() => undefined);
       const decision = body?.decision;
       if (
@@ -181,8 +194,10 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       if (typeof toolCallId !== 'string' || !toolCallId) {
         return c.json({ error: 'toolCallId is required: the id of the pending approval' }, 400);
       }
-      const session = await deps.getSession(resourceIdOf(c));
-      const result = session.respondToToolApproval({ decision, toolCallId });
+      // A gate parked in a work thread is answered on that thread's Session.
+      const target = await sessionForThread(deps, resourceIdOf(c), body?.threadId);
+      if (!target) return c.json({ error: 'thread not found' }, 404);
+      const result = target.session.respondToToolApproval({ decision, toolCallId });
       if (!result.accepted) {
         return c.json(
           { error: `approval not accepted: ${result.reason}`, reason: result.reason },
@@ -212,6 +227,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         plan?: { action?: string; feedback?: string };
         toolCallId?: string;
         timeZone?: string;
+        threadId?: string;
       }>();
       const { answer, plan, toolCallId } = body;
       let resumeData: string | string[] | { action: 'approved' | 'rejected'; feedback?: string };
@@ -230,7 +246,10 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       } else {
         return c.json({ error: 'answer must be a string or string[], or plan an object' }, 400);
       }
-      const session = await deps.getSession(resourceIdOf(c));
+      // A question asked in a work thread is answered on that thread's Session.
+      const target = await sessionForThread(deps, resourceIdOf(c), body.threadId);
+      if (!target) return c.json({ error: 'thread not found' }, 404);
+      const { session } = target;
       return sessionEventStream({
         session,
         signal: c.req.raw.signal,
@@ -244,6 +263,43 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
             requestContext: turnRequestContext({ timeZone: timeZone.parse(body.timeZone) }),
           }),
       });
+    },
+  }),
+
+  // What a work thread waits on, for a skin opening it: whether its run is going, and the
+  // approvals and questions it is parked on, as the same events the stream would have sent
+  // (so the engine folds them like live ones). An ordinary thread waits on nothing here.
+  registerApiRoute('/agent-controller/threads/:id/pending', {
+    method: 'GET',
+    handler: async (c) => {
+      const threadId = c.req.param('id');
+      const target = await sessionForThread(deps, resourceIdOf(c), threadId);
+      if (!target) return c.json({ error: 'not found' }, 404);
+      if (!target.work) return c.json({ running: false, events: [] });
+      const state = target.session.displayState.get();
+      const decorate = approvalDecorator(deps, deps.getAgentController, resourceIdOf(c));
+      const events: unknown[] = [];
+      for (const a of state.pendingApprovals.values()) {
+        if (a.threadId && a.threadId !== threadId) continue;
+        events.push(
+          await decorate({
+            type: 'tool_approval_required',
+            toolCallId: a.toolCallId,
+            toolName: a.toolName,
+            args: a.args,
+          }),
+        );
+      }
+      for (const s of state.pendingSuspensions.values()) {
+        events.push({
+          type: 'tool_suspended',
+          toolCallId: s.toolCallId,
+          toolName: s.toolName,
+          args: s.args,
+          suspendPayload: s.suspendPayload,
+        });
+      }
+      return c.json({ running: state.isRunning, events });
     },
   }),
 

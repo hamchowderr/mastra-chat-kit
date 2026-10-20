@@ -18,7 +18,7 @@ import { ctx, deps, find } from '../helpers/route-harness';
 describe('the route contract', () => {
   // The web layer fetches these exact paths. Adding or renaming one is a breaking
   // change for every installed consumer, so pin the whole surface.
-  it('registers all 16 endpoints the web layer calls', () => {
+  it('registers all 17 endpoints the web layer calls', () => {
     const d = deps();
     const all = [
       ...createThreadRoutes(d),
@@ -31,6 +31,7 @@ describe('the route contract', () => {
         'GET /agent-controller/threads',
         'GET /agent-controller/threads/search',
         'GET /agent-controller/threads/:id/messages',
+        'GET /agent-controller/threads/:id/pending',
         'DELETE /agent-controller/threads/:id',
         'PATCH /agent-controller/threads/:id',
         'POST /agent-controller/stream',
@@ -46,7 +47,7 @@ describe('the route contract', () => {
         'GET /browser/screencast',
       ]),
     );
-    expect(all).toHaveLength(16);
+    expect(all).toHaveLength(17);
   });
 });
 
