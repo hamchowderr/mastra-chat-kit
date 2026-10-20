@@ -153,6 +153,16 @@ The chat layer is also published as a shadcn registry — see `docs/registry.md`
 
 ## Conventions & Patterns
 
+- **Projects on the kit run the full workspace:** browser, web search, and the
+  research, review and writer helpers. Never add a slimmed-down workspace mode or
+  switch a feature off as a recommendation. If one truly has to go, name each
+  capability lost ("browser off = no web search, no research helper") and get an
+  explicit yes for that loss. A `plans` workspace mode that silently removed browser
+  and research was taken out of the kit for this reason. Plan mode (the harness's
+  plan-then-approve) is unrelated to workspace settings. The one standing exception
+  is the sandbox, which stays off until a cloud sandbox provider (E2B or Vercel) is
+  added, because LocalSandbox runs commands on the host.
+
 - **Keep source files under ~500 lines.** Not a lint gate — a review
   expectation. Past the line a file is usually doing several jobs and should be
   split along those seams, one concern per file: `events.ts` at 891 lines became
