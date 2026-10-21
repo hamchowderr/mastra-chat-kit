@@ -45,11 +45,13 @@ const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
  * something a consumer already has (say `ai`) would fight their own resolution
  * for no benefit. Add an entry only when a version SKEW breaks the install.
  */
-// `@mastra/core`: the chat-server routes call core 1.75's Session API (model.switch(id),
-// respondToToolApproval({ toolCallId })); an older core installs but fails to compile.
+// `@mastra/core`: the exact version the server package pins and CI tests. The chat-server
+// routes call its Session API (model.switch(id), respondToToolApproval({ toolCallId }), sessions
+// keyed by resource and scope); an older core fails to compile, and so did 1.79, which keys
+// sessions by `sessionId`. Bump it with packages/server's own pin.
 const PINNED_DEPS = new Map([
   ['shiki', '^3.23.0'],
-  ['@mastra/core', '^1.75.0'],
+  ['@mastra/core', '1.75.0'],
 ]);
 const withVersion = (pkg) => (PINNED_DEPS.has(pkg) ? `${pkg}@${PINNED_DEPS.get(pkg)}` : pkg);
 
@@ -418,11 +420,13 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
   });
 }
 
-// 6a) chat-project: a skin shaped like a project — one main chat, and threads it starts
-// for pieces of work (start_thread, lib/work-threads.ts on the server), each a row under
-// the message that started it, opening into its own conversation.
+// 6a) chat-project: a skin shaped like a project — chats in a list, and threads each one
+// starts for pieces of work (start_thread, lib/work-threads.ts on the server), each a row
+// under the message that started it and under its chat in the list, opening into its own
+// conversation.
 const PROJECT_FILES = [
   'components/chat-project/project-chat.tsx',
+  'components/chat-project/project-sidebar.tsx',
   'components/chat-project/thread-row.tsx',
 ];
 {
@@ -432,7 +436,7 @@ const PROJECT_FILES = [
     type: 'registry:block',
     title: 'Mastra Chat (project)',
     description:
-      "One main chat that starts threads for pieces of work. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to the main chat when it finishes or needs you. Needs the chat-server's work threads (start_thread).",
+      "Chats that start threads for pieces of work, in a list with New chat, rename and delete. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to its chat when it finishes or needs you. Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
     dependencies: c.npm,
     registryDependencies: [...regDeps(c, 'chat-project'), NS('chat-routes')],
     files: PROJECT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),

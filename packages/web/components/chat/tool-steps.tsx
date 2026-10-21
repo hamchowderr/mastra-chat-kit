@@ -34,7 +34,52 @@ export type ToolStep = { label: string; detail?: string; failed?: boolean };
 export type ToolViews = {
   step?: (call: ToolCall, result: ToolResult | undefined) => ToolStep | null;
   card?: (call: ToolCall, result: ToolResult | undefined, turn: ToolTurn) => ReactNode;
+  /** Calls to show in full anyway, such as one whose result offers the person a button. */
+  plain?: (call: ToolCall, result: ToolResult | undefined) => boolean;
 };
+
+/** Tools the chat draws in their own way (a question, a plan, a thread, an image). */
+const OWN_VIEW = new Set(['ask_user', 'setGoal', 'submit_plan', 'start_thread', 'generateImage']);
+
+/** A tool's name in words: `query_data` → "Query data", `generateImage` → "Generate image". */
+export function toolWords(name: string): string {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return words ? words[0]?.toUpperCase() + words.slice(1) : 'A tool';
+}
+
+/** What a tool's result says went wrong, when it returned an `error` rather than threw one. */
+function returnedError(result: ToolResult | undefined): string | undefined {
+  const r = result?.result as { error?: unknown; message?: unknown } | null | undefined;
+  if (typeof r !== 'object' || r === null || r.error == null || r.error === false) {
+    return undefined;
+  }
+  const said = typeof r.error === 'string' ? r.error : r.message;
+  return typeof said === 'string' && said.trim() ? said.trim().slice(0, 200) : 'This step failed.';
+}
+
+/**
+ * The host's views, with every other tool as a step row too, so a turn's tool calls fold into
+ * one quiet "N steps" line instead of a card each. Tools the chat draws in its own way, and
+ * calls the host's `plain` names, stay as they are.
+ */
+export function withPlainSteps(views: ToolViews | undefined): ToolViews {
+  return {
+    ...views,
+    step: (call, result) => {
+      const own = views?.step?.(call, result);
+      if (own) return own;
+      if (OWN_VIEW.has(call.name) || views?.plain?.(call, result)) return null;
+      const failed = returnedError(result);
+      return failed
+        ? { label: toolWords(call.name), detail: failed, failed: true }
+        : { label: toolWords(call.name) };
+    },
+  };
+}
 
 /**
  * A step row as drawn: its words, and how its call went. `stopped` is a call that never got a
@@ -135,6 +180,11 @@ export function messagePieces<P extends { type: string }>(
     if (part.type === 'tool_call' && views) {
       const call = part as unknown as ToolCall;
       const result = results.get(call.id);
+      if (views.plain?.(call, result)) {
+        run = null;
+        pieces.push({ kind: 'part', key, part, index });
+        return;
+      }
       const card = views.card?.(call, result, turn);
       if (card) {
         run = null;
