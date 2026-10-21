@@ -348,6 +348,11 @@
           "target": "components/chat/transcript.tsx"
         },
         {
+          "path": "components/chat/tool-steps.tsx",
+          "type": "registry:component",
+          "target": "components/chat/tool-steps.tsx"
+        },
+        {
           "path": "components/chat/chat-markdown.tsx",
           "type": "registry:component",
           "target": "components/chat/chat-markdown.tsx"

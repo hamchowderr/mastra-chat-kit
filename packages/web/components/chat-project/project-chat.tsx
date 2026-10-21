@@ -1,11 +1,20 @@
 'use client';
 
 import { ArrowLeftIcon, SendIcon, SquareIcon } from 'lucide-react';
-import { type FormEvent, type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  Fragment,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import type { ApprovalViews } from '@/components/chat/approval-view';
+import { messagePieces, ToolStepList, type ToolViews } from '@/components/chat/tool-steps';
 import { AskUserPrompt } from '@/components/chat/tool-views';
 import { ApprovalCards, partKey, TranscriptPart } from '@/components/chat/transcript';
 import {
@@ -37,6 +46,7 @@ const POLL_MS = 3000;
 export function ProjectChat({
   className,
   approvalViews,
+  toolViews,
   modes,
   placeholder = 'Ask anything…',
   emptyText = 'Ask for anything. Bigger pieces of work get a thread of their own.',
@@ -44,6 +54,8 @@ export function ProjectChat({
   className?: string;
   /** What approval cards say, per tool name (components/chat/approval-view.tsx). */
   approvalViews?: ApprovalViews | undefined;
+  /** How the host's own tools show in both views (chat/tool-steps.tsx). */
+  toolViews?: ToolViews | undefined;
   /**
    * Controller modes the person can pick in the main chat, first one selected. Fewer than
    * two shows no picker.
@@ -154,6 +166,7 @@ export function ProjectChat({
         <ChatView
           controller={thread}
           approvalViews={approvalViews}
+          toolViews={toolViews}
           emptyText="This thread has no messages yet."
           working={threadRunning}
           onOpenThread={open}
@@ -175,6 +188,7 @@ export function ProjectChat({
       <ChatView
         controller={main}
         approvalViews={approvalViews}
+        toolViews={toolViews}
         emptyText={emptyText}
         working={false}
         onOpenThread={open}
@@ -223,7 +237,7 @@ function useMainThread(main: UseAgentControllerChat): string | null {
 }
 
 /** One conversation: its messages (with thread rows), and what it waits on. */
-function ChatView({
+export function ChatView({
   controller,
   approvalViews,
   emptyText,
@@ -231,9 +245,12 @@ function ChatView({
   onOpenThread,
   onLinkClick,
   work,
+  toolViews,
 }: {
   controller: UseAgentControllerChat;
   approvalViews?: ApprovalViews | undefined;
+  /** How the host's own tools show: as short step rows, or as cards (chat/tool-steps.tsx). */
+  toolViews?: ToolViews | undefined;
   emptyText: string;
   /** A run going on the server that this view is not streaming (a thread's own). */
   working: boolean;
@@ -243,6 +260,7 @@ function ChatView({
 }) {
   const { transcript, status, answerQuestion, pendingSuspension } = controller;
   const busy = status === 'streaming';
+  const lastAssistant = transcript.messages.findLastIndex((m) => m.role !== 'user');
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
     <div className="min-h-0 flex-1" onClick={onLinkClick}>
@@ -251,7 +269,7 @@ function ChatView({
           {transcript.messages.length === 0 && (
             <p className="py-12 text-center text-muted-foreground text-sm">{emptyText}</p>
           )}
-          {transcript.messages.map((m) => {
+          {transcript.messages.map((m, at) => {
             // tool_result parts arrive apart from their tool_call; pair them by id.
             const resultsById = new Map(
               m.content
@@ -261,10 +279,19 @@ function ChatView({
                   p as { result?: unknown; isError?: boolean },
                 ]),
             );
+            // The turn streaming now is the last assistant message (a follow-up may sit below it).
+            const live = busy && at === lastAssistant;
             return (
               <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
                 <MessageContent>
-                  {m.content.map((part, i) => {
+                  {messagePieces(m.id, m.content, toolViews, live).map((piece) => {
+                    if (piece.kind === 'steps') {
+                      return <ToolStepList key={piece.key} steps={piece.steps} />;
+                    }
+                    if (piece.kind === 'card') {
+                      return <Fragment key={piece.key}>{piece.node}</Fragment>;
+                    }
+                    const { part, index: i } = piece;
                     const call = part as {
                       type: string;
                       id?: string;
@@ -329,7 +356,8 @@ function ChatView({
   );
 }
 
-function Composer({
+/** The message box, with a mode picker when there is more than one mode. */
+export function Composer({
   placeholder,
   busy,
   disabled = false,
