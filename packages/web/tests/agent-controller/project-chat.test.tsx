@@ -91,13 +91,16 @@ describe('ProjectChat', () => {
     expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
   });
 
-  it('opens a thread and answers its approval on that thread', async () => {
+  it('opens a thread beside its chat and answers its approval on that thread', async () => {
     const api = setup();
     renderChat();
     fireEvent.click(await inChat(/Oslo weather/));
 
     expect(await screen.findByText('Check the weather in Oslo.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Back to Main/ })).toBeInTheDocument();
+    // The chat stays in view beside the thread.
+    expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
+    expect(await inChat(/Oslo weather/)).toHaveAttribute('aria-current', 'true');
     fireEvent.click(await screen.findByRole('button', { name: /^Approve$/ }));
 
     await waitFor(() => expect(api.sent('/api/agent-controller/approve')).toHaveLength(1));
@@ -107,8 +110,9 @@ describe('ProjectChat', () => {
       threadId: WORK,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Back to Main/ }));
-    expect(await screen.findByText('I started a thread for it.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close thread' }));
+    await waitFor(() => expect(screen.queryByText('Check the weather in Oslo.')).toBeNull());
+    expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
   });
 
   it("lists the chats, with each one's threads under it", async () => {
