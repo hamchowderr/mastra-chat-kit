@@ -248,7 +248,7 @@ npx shadcn@latest add @mastra-chat-kit/chat
 
 `chat` gives you a UI that fetches `/api/agent-controller/*`. Those Next routes
 forward to a Mastra server at `MASTRA_SERVER_URL` (default
-`http://localhost:4111`) — and the 17 endpoints they call are **not** Mastra
+`http://localhost:4111`) — and the 18 endpoints they call are **not** Mastra
 built-ins. Point the UI at a stock `mastra dev` and every request 404s.
 
 So install the other half into your Mastra project:

@@ -61,9 +61,12 @@ async function readEventStream(res: Response, onEvent: (event: ControllerEvent) 
   }
 }
 
-/** Starts tracking a new turn in `running`, cutting off any turn still tracked there. */
+/**
+ * Starts tracking a new turn in `running`. A turn it replaces is left to finish on its own
+ * (its stream is not cut: that would abort the run the new turn may be resuming), and only
+ * the turn tracked now updates the chat.
+ */
 function startRun(running: { current: AbortController | null }): AbortController {
-  running.current?.abort();
   const run = new AbortController();
   running.current = run;
   return run;
@@ -245,8 +248,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
       const run = startRun(running);
 
       const fail = (err: unknown) => {
-        // Stopped on purpose: `stop` has already settled the transcript.
-        if (run.signal.aborted) return;
+        // Stopped, or replaced by a newer turn: that one owns the chat now.
+        if (running.current !== run) return;
         setTranscript((s) => ({
           ...s,
           error: err instanceof Error ? err.message : String(err),
@@ -274,6 +277,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
           }),
         });
       } catch (err) {
+        // Stopped before the server answered: nothing was refused, so the text isn't handed back.
+        if (run.signal.aborted) return true;
         fail(err);
         return false;
       }
@@ -291,7 +296,7 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         }
         onEvent(event);
       }).then(() => {
-        if (run.signal.aborted) return;
+        if (running.current !== run) return;
         setStatus('ready');
         // A completed turn may have created a new thread (or bumped an existing
         // one) — nudge the sidebar to refetch.
@@ -393,12 +398,12 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
           }),
         });
         await readEventStream(res, onEvent);
-        if (run.signal.aborted) return;
+        if (running.current !== run) return;
         setStatus('ready');
         setRefreshSignal((n) => n + 1);
         refreshSchedules();
       } catch (err) {
-        if (run.signal.aborted) return;
+        if (running.current !== run) return;
         setTranscript((s) => ({
           ...s,
           error: err instanceof Error ? err.message : String(err),
@@ -508,16 +513,23 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
   }, [refreshMemory]);
 
   /**
-   * Stops the turn streaming now. Closing its stream aborts the run on the server, which keeps
-   * what the run had already said and done. A no-op when nothing is streaming here.
+   * Stops the turn streaming now. The server is told to abort the run (its `/abort` route, as a
+   * host's proxy may not pass a closed stream on), and the stream is closed; what the run had
+   * already said and done stays. The chat settles as at a turn's normal end: approval cards and
+   * running tools go. A no-op when nothing is streaming here.
    */
   const stop = useCallback(() => {
     const run = running.current;
-    if (!run || run.signal.aborted) return;
-    run.abort();
+    if (!run) return;
     running.current = null;
+    void fetch('/api/agent-controller/abort', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(threadRef.current ? { threadId: threadRef.current } : {}),
+    }).catch(() => undefined);
+    run.abort();
     setStatus('ready');
-    setTranscript((s) => ({ ...s, done: true }));
+    setTranscript((s) => reduceAgentControllerEvent(s, { type: '__done__' }));
     setRefreshSignal((n) => n + 1);
   }, []);
 
