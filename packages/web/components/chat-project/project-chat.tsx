@@ -32,6 +32,9 @@ import { cn } from '@/lib/utils';
 import { ProjectSidebar } from './project-sidebar';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
 
+/** How wide the chat area must be for an open thread to sit beside the chat, not over it. */
+const SIDE_BY_SIDE_PX = 900;
+
 /** How often thread statuses are re-read while one is working. */
 const POLL_MS = 3000;
 
@@ -153,6 +156,7 @@ export function ProjectChat({
     const ok = await remove(chat);
     void refresh();
     if (ok && chat.id === mainId) newChat();
+    else if (ok && opened?.parentThreadId === chat.id) back();
     return ok;
   };
 
@@ -163,7 +167,7 @@ export function ProjectChat({
     );
     if (!id) return;
     e.preventDefault();
-    void open(id);
+    openPanel(id);
   };
 
   // While a thread is working, re-read statuses (one waiting on the person changes only when
@@ -214,34 +218,84 @@ export function ProjectChat({
     return () => document.removeEventListener('keydown', onKey);
   }, [listOpen]);
 
+  // Beside the chat when the space allows it (measured, since the host may put this in a
+  // narrow column); otherwise the thread covers the chat, which is then out of reach.
+  const [area, setArea] = useState<HTMLDivElement | null>(null);
+  const [roomy, setRoomy] = useState(true);
+  useEffect(() => {
+    if (!area || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry) setRoomy(entry.contentRect.width >= SIDE_BY_SIDE_PX);
+    });
+    watch.observe(area);
+    return () => watch.disconnect();
+  }, [area]);
+  const covered = Boolean(openId) && !roomy;
+
+  // The thread's breadcrumb names the chat it belongs to, which may not be the one on show.
+  const parentTitle =
+    chats.find((c) => c.id === (opened?.parentThreadId ?? mainId))?.title || 'Chat';
   const chatTitle = chats.find((c) => c.id === mainId)?.title || 'Chat';
+  // Focus moves into a thread when it opens, and back to what opened it when it closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const panelClose = useRef<HTMLButtonElement>(null);
+  const openPanel = (id: string) => {
+    if (!openId) opener.current = document.activeElement as HTMLElement | null;
+    void open(id);
+  };
+  useEffect(() => {
+    if (openId) panelClose.current?.focus();
+  }, [openId]);
   const closeThread = () => {
     back();
     void refresh();
+    const to = opener.current;
+    opener.current = null;
+    // After the panel is gone; the opener may have gone too (a row in a list that changed).
+    requestAnimationFrame(() => {
+      if (to?.isConnected) to.focus();
+      else area?.querySelector<HTMLElement>('[aria-label="Message"]')?.focus();
+    });
   };
+  // Escape closes a thread that covers the chat, as it closes the list.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: closeThread changes every render.
+  useEffect(() => {
+    if (!covered || listOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeThread();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [covered, listOpen]);
 
   // An open thread sits beside its chat, as a panel on the right, so both stay in view. On a
   // narrow screen it covers the chat instead.
   const threadPanel = openId && (
     <section
-      aria-label={opened?.title ?? 'Thread'}
-      className="flex min-h-0 min-w-0 flex-col border-border bg-background max-lg:absolute max-lg:inset-0 max-lg:z-10 lg:w-[min(36rem,50%)] lg:shrink-0 lg:border-l"
+      // A new thread starts with its own empty box, not what was typed for the last one.
+      key={openId}
+      aria-label={`Thread: ${opened?.title ?? 'Thread'}`}
+      className={cn(
+        'flex min-h-0 min-w-0 flex-col border-border bg-background',
+        roomy ? 'w-[min(36rem,50%)] shrink-0 border-l' : 'absolute inset-0 z-10',
+      )}
     >
       <div className="flex items-center gap-2 border-border border-b px-3 py-2">
         <nav aria-label="Thread" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
           <button
             type="button"
             onClick={closeThread}
-            aria-label={`Back to ${chatTitle}`}
+            aria-label={`Back to ${parentTitle}`}
             className="min-w-0 max-w-[45%] shrink-0 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            {chatTitle}
+            {parentTitle}
           </button>
           <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0 truncate font-medium">{opened?.title ?? 'Thread'}</span>
         </nav>
         <ThreadStatus status={opened?.status} />
         <button
+          ref={panelClose}
           type="button"
           onClick={closeThread}
           aria-label="Close thread"
@@ -261,6 +315,7 @@ export function ProjectChat({
         work={work}
       />
       <Composer
+        label="Message this thread"
         placeholder={threadRunning ? 'This thread is working…' : 'Steer this thread…'}
         disabled={threadRunning}
         busy={thread.status === 'streaming'}
@@ -279,7 +334,10 @@ export function ProjectChat({
         // A chat that is answering keeps its place until the answer ends.
         busy={mainBusy}
         onSelectChat={selectChat}
-        onOpenThread={openFromList}
+        onOpenThread={(id) => {
+          if (!openId) opener.current = document.activeElement as HTMLElement | null;
+          openFromList(id);
+        }}
         onNew={newChat}
         onRename={rename}
         onDelete={deleteChat}
@@ -288,36 +346,43 @@ export function ProjectChat({
           listOpen ? 'absolute inset-y-0 left-0 z-20 shadow-lg' : 'max-md:hidden',
         )}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <button
-          type="button"
-          onClick={() => setListOpen((v) => !v)}
-          aria-label={listOpen ? 'Hide chats' : 'Show chats'}
-          aria-expanded={listOpen}
-          aria-controls="project-chats"
-          className="m-1 flex size-9 items-center justify-center self-start rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+      {/* The chat and an open thread share this area; the list keeps its own column. */}
+      <div ref={setArea} className="relative flex min-h-0 min-w-0 flex-1">
+        <section
+          aria-label={`Chat: ${chatTitle}`}
+          inert={covered}
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
-          <PanelLeftIcon className="size-4" />
-        </button>
-        <ChatView
-          controller={main}
-          approvalViews={approvalViews}
-          toolViews={toolViews}
-          emptyText={emptyText}
-          working={false}
-          onOpenThread={open}
-          onLinkClick={onLinkClick}
-          work={work}
-          openThreadId={openId}
-        />
-        <Composer
-          placeholder={placeholder}
-          busy={mainBusy}
-          modes={modes}
-          onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
-        />
+          <button
+            type="button"
+            onClick={() => setListOpen((v) => !v)}
+            aria-label={listOpen ? 'Hide chats' : 'Show chats'}
+            aria-expanded={listOpen}
+            aria-controls="project-chats"
+            className="m-1 flex size-9 items-center justify-center self-start rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+          >
+            <PanelLeftIcon className="size-4" />
+          </button>
+          <ChatView
+            controller={main}
+            approvalViews={approvalViews}
+            toolViews={toolViews}
+            emptyText={emptyText}
+            working={false}
+            onOpenThread={openPanel}
+            onLinkClick={onLinkClick}
+            work={work}
+            openThreadId={openId}
+          />
+          <Composer
+            placeholder={placeholder}
+            busy={mainBusy}
+            modes={modes}
+            onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
+          />
+        </section>
+        {threadPanel}
       </div>
-      {threadPanel}
     </div>
   );
 }
@@ -492,12 +557,15 @@ export function ChatView({
 
 /** The message box, with a mode picker when there is more than one mode. */
 export function Composer({
+  label = 'Message',
   placeholder,
   busy,
   disabled = false,
   modes,
   onSend,
 }: {
+  /** The box's accessible name, which tells two boxes on screen apart. */
+  label?: string;
   placeholder: string;
   busy: boolean;
   disabled?: boolean;
@@ -523,7 +591,7 @@ export function Composer({
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder={placeholder}
-        aria-label="Message"
+        aria-label={label}
         disabled={disabled}
         className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring disabled:opacity-60"
       />
