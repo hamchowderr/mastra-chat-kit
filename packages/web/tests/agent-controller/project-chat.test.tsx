@@ -75,11 +75,18 @@ const renderChat = () =>
     </TooltipProvider>,
   );
 
+/** A button in the conversation, not in the list of chats beside it. */
+const inChat = async (name: RegExp) => {
+  const found = (await screen.findAllByRole('button', { name })).find((b) => !b.closest('nav'));
+  if (!found) throw new Error(`no ${name} button in the conversation`);
+  return found;
+};
+
 describe('ProjectChat', () => {
   it('opens the newest main chat with a row for the thread it started', async () => {
     setup();
     renderChat();
-    const row = await screen.findByRole('button', { name: /Oslo weather/ });
+    const row = await inChat(/Oslo weather/);
     expect(within(row).getByText('Needs you')).toBeInTheDocument();
     expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
   });
@@ -87,10 +94,10 @@ describe('ProjectChat', () => {
   it('opens a thread and answers its approval on that thread', async () => {
     const api = setup();
     renderChat();
-    fireEvent.click(await screen.findByRole('button', { name: /Oslo weather/ }));
+    fireEvent.click(await inChat(/Oslo weather/));
 
     expect(await screen.findByText('Check the weather in Oslo.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Main chat/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to Main/ })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: /^Approve$/ }));
 
     await waitFor(() => expect(api.sent('/api/agent-controller/approve')).toHaveLength(1));
@@ -100,8 +107,29 @@ describe('ProjectChat', () => {
       threadId: WORK,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Main chat/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Back to Main/ }));
     expect(await screen.findByText('I started a thread for it.')).toBeInTheDocument();
+  });
+
+  it("lists the chats, with each one's threads under it", async () => {
+    setup();
+    renderChat();
+    const list = await screen.findByRole('navigation', { name: 'Chats' });
+    expect(await within(list).findByRole('button', { name: /^Main$/ })).toBeInTheDocument();
+    expect(within(list).getByRole('button', { name: /^An older chat$/ })).toBeInTheDocument();
+    // A work thread is listed under its chat, not as a chat of its own.
+    expect(within(list).getByRole('button', { name: /Oslo weather/ })).toBeInTheDocument();
+    expect(within(list).queryByRole('button', { name: /Actions for Oslo weather/ })).toBeNull();
+  });
+
+  it('opens another chat from the list, and starts a new one', async () => {
+    setup();
+    renderChat();
+    const list = await screen.findByRole('navigation', { name: 'Chats' });
+    fireEvent.click(await within(list).findByRole('button', { name: /^An older chat$/ }));
+    await waitFor(() => expect(screen.queryByText('I started a thread for it.')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: /New chat/ }));
+    expect(await screen.findByText(/Ask for anything/)).toBeInTheDocument();
   });
 
   it("opens a thread from the report's link", async () => {

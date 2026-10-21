@@ -453,6 +453,28 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     }
   }
 
+  /** Whether a work thread's run is going, or waits on a person, in this process. */
+  async function busy(threadId: string): Promise<boolean> {
+    const tracked = await live.get(threadId)?.catch(() => undefined);
+    if (!tracked) return false;
+    const state = tracked.session.displayState.get();
+    return state.isRunning || state.pendingApprovals.size > 0 || state.pendingSuspensions.size > 0;
+  }
+
+  /** Stops following a work thread that is being deleted, and closes its Session. */
+  async function forget(threadId: string, resourceId: string): Promise<void> {
+    clearTimeout(idleTimers.get(threadId));
+    idleTimers.delete(threadId);
+    const tracked = await live.get(threadId)?.catch(() => undefined);
+    live.delete(threadId);
+    if (!tracked) return;
+    tracked.background = false;
+    tracked.unsubscribe();
+    await closeSession(await config.getController(), { resourceId, threadId }).catch(
+      () => undefined,
+    );
+  }
+
   /** A work thread's state, or undefined for any other thread. */
   async function threadInfo(threadId: string): Promise<WorkThreadInfo | undefined> {
     const store = await memory();
@@ -462,7 +484,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   const tool = createTool({
     id: START_THREAD_TOOL,
     description:
-      'Start a separate thread for one piece of work, so it runs on its own while this chat stays free. Use it when the user asks for a task that takes several steps or that they will want to follow up on separately. Give the thread a short title and a brief with everything it needs: the thread does not see this chat. The thread reports back here when it finishes or needs the user. Do not use it for a quick question you can answer yourself.',
+      "Start a separate thread for one piece of work, so it runs on its own while this chat stays free for the user. Hand off every task that takes more than a couple of tool calls: a change to many records, a cleanup, research across several sources, anything the user will want to follow up on. Answer a quick question, or make one small change, yourself. Give the thread a short title and a brief with everything it needs, in the user's words where possible: the thread does not see this chat. Then tell the user in a sentence what the thread will do, and do not do the work here as well. The thread reports back here when it finishes or needs the user. Only the main chat starts threads: inside a thread, do the work yourself.",
     inputSchema: z.object({
       title: z.string().min(1).max(80).describe('A few words naming the work.'),
       brief: z
@@ -505,5 +527,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     sessionForThread,
     threadInfo,
     recover,
+    busy,
+    forget,
   };
 }
