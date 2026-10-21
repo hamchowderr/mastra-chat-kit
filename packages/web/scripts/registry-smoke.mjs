@@ -78,7 +78,7 @@ const INIT_BASE_ARGS =
 const EXPECT = {
   'components/chat': 15, // + tool-steps.tsx (chat-tool-views)
   'components/ai-elements': 5, // OUR vendored ones; upstream adds more on top
-  'app/api': 15, // route.ts files
+  'app/api': 16, // route.ts files
 };
 
 let server;
