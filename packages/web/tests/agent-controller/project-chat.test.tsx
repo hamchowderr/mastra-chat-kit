@@ -101,6 +101,10 @@ describe('ProjectChat', () => {
     // The chat stays in view beside the thread.
     expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
     expect(await inChat(/Oslo weather/)).toHaveAttribute('aria-current', 'true');
+    // Each conversation has its own box, named apart, and focus moves into the thread.
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Message this thread' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close thread' })).toHaveFocus();
     fireEvent.click(await screen.findByRole('button', { name: /^Approve$/ }));
 
     await waitFor(() => expect(api.sent('/api/agent-controller/approve')).toHaveLength(1));
