@@ -43,19 +43,26 @@ export function ThreadRow({
   title,
   threadId,
   status,
+  open = false,
   onOpen,
 }: {
   title: string;
   threadId?: string | undefined;
   status?: WorkThreadStatus | undefined;
+  /** The thread is open beside the chat. */
+  open?: boolean;
   onOpen: (threadId: string) => void;
 }) {
   return (
     <button
       type="button"
       disabled={!threadId}
+      aria-current={open ? 'true' : undefined}
       onClick={() => threadId && onOpen(threadId)}
-      className="group my-1 flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors enabled:hover:bg-muted disabled:opacity-60"
+      className={cn(
+        'group my-1 flex w-full max-w-sm items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors enabled:hover:bg-muted disabled:opacity-60',
+        open ? 'border-foreground/20 bg-muted' : 'border-border bg-background',
+      )}
     >
       <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       <span className="min-w-0 flex-1">

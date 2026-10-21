@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeftIcon, PanelLeftIcon, SendIcon, SquareIcon } from 'lucide-react';
+import { ChevronRightIcon, PanelLeftIcon, SendIcon, SquareIcon, XIcon } from 'lucide-react';
 import {
   type FormEvent,
   Fragment,
@@ -47,8 +47,9 @@ const isConversation = (t: ThreadItem) => !t.parentThreadId;
  *
  * The agent starts a thread with its `start_thread` tool (server: lib/work-threads.ts). The
  * thread shows up as a row under the message that started it, with its status (working,
- * needs you, done). Clicking the row opens the thread's own conversation, where you can
- * answer its approvals and questions and keep talking to it; "Main chat" goes back. When
+ * needs you, done). Clicking the row opens the thread's own conversation in a panel beside
+ * the chat, where you can answer its approvals and questions and steer it; closing the panel
+ * leaves the chat as it was. When
  * a thread finishes or stops for you, a short note with a link to it lands in the main
  * chat (saved by the server, no model call).
  *
@@ -213,25 +214,41 @@ export function ProjectChat({
     return () => document.removeEventListener('keydown', onKey);
   }, [listOpen]);
 
-  const view = openId ? (
-    <>
-      <div className="mx-auto flex w-full max-w-2xl items-center gap-3 border-border border-b px-3 py-2">
+  const chatTitle = chats.find((c) => c.id === mainId)?.title || 'Chat';
+  const closeThread = () => {
+    back();
+    void refresh();
+  };
+
+  // An open thread sits beside its chat, as a panel on the right, so both stay in view. On a
+  // narrow screen it covers the chat instead.
+  const threadPanel = openId && (
+    <section
+      aria-label={opened?.title ?? 'Thread'}
+      className="flex min-h-0 min-w-0 flex-col border-border bg-background max-lg:absolute max-lg:inset-0 max-lg:z-10 lg:w-[min(36rem,50%)] lg:shrink-0 lg:border-l"
+    >
+      <div className="flex items-center gap-2 border-border border-b px-3 py-2">
+        <nav aria-label="Thread" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+          <button
+            type="button"
+            onClick={closeThread}
+            aria-label={`Back to ${chatTitle}`}
+            className="min-w-0 max-w-[45%] shrink-0 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {chatTitle}
+          </button>
+          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 truncate font-medium">{opened?.title ?? 'Thread'}</span>
+        </nav>
+        <ThreadStatus status={opened?.status} />
         <button
           type="button"
-          onClick={() => {
-            back();
-            void refresh();
-          }}
-          aria-label={`Back to ${chats.find((c) => c.id === mainId)?.title || 'the chat'}`}
-          className="inline-flex min-w-0 max-w-[45%] items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+          onClick={closeThread}
+          aria-label="Close thread"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <ArrowLeftIcon className="size-4 shrink-0" aria-hidden />
-          <span className="truncate">{chats.find((c) => c.id === mainId)?.title || 'Chat'}</span>
+          <XIcon className="size-4" aria-hidden />
         </button>
-        <span className="min-w-0 flex-1 truncate font-medium text-sm">
-          {opened?.title ?? 'Thread'}
-        </span>
-        <ThreadStatus status={opened?.status} />
       </div>
       <ChatView
         controller={thread}
@@ -244,31 +261,12 @@ export function ProjectChat({
         work={work}
       />
       <Composer
-        placeholder={threadRunning ? 'This thread is working…' : 'Reply in this thread…'}
+        placeholder={threadRunning ? 'This thread is working…' : 'Steer this thread…'}
         disabled={threadRunning}
         busy={thread.status === 'streaming'}
         onSend={(text) => thread.sendMessage(text)}
       />
-    </>
-  ) : (
-    <>
-      <ChatView
-        controller={main}
-        approvalViews={approvalViews}
-        toolViews={toolViews}
-        emptyText={emptyText}
-        working={false}
-        onOpenThread={open}
-        onLinkClick={onLinkClick}
-        work={work}
-      />
-      <Composer
-        placeholder={placeholder}
-        busy={mainBusy}
-        modes={modes}
-        onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
-      />
-    </>
+    </section>
   );
 
   return (
@@ -301,8 +299,25 @@ export function ProjectChat({
         >
           <PanelLeftIcon className="size-4" />
         </button>
-        {view}
+        <ChatView
+          controller={main}
+          approvalViews={approvalViews}
+          toolViews={toolViews}
+          emptyText={emptyText}
+          working={false}
+          onOpenThread={open}
+          onLinkClick={onLinkClick}
+          work={work}
+          openThreadId={openId}
+        />
+        <Composer
+          placeholder={placeholder}
+          busy={mainBusy}
+          modes={modes}
+          onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
+        />
       </div>
+      {threadPanel}
     </div>
   );
 }
@@ -360,6 +375,7 @@ export function ChatView({
   onLinkClick,
   work,
   toolViews,
+  openThreadId = null,
 }: {
   controller: UseAgentControllerChat;
   approvalViews?: ApprovalViews | undefined;
@@ -371,6 +387,8 @@ export function ChatView({
   onOpenThread: (threadId: string) => void;
   onLinkClick: (e: MouseEvent) => void;
   work: Map<string, ThreadItem>;
+  /** The thread open beside this chat, whose row shows as selected. */
+  openThreadId?: string | null;
 }) {
   const { transcript, status, answerQuestion, pendingSuspension } = controller;
   const busy = status === 'streaming';
@@ -425,6 +443,7 @@ export function ChatView({
                           title={title}
                           threadId={result?.threadId}
                           status={result?.threadId ? work.get(result.threadId)?.status : undefined}
+                          open={Boolean(result?.threadId) && result?.threadId === openThreadId}
                           onOpen={onOpenThread}
                         />
                       );
