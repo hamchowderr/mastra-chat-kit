@@ -162,15 +162,32 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
     },
   }),
 
-  // Delete a controller conversation (hard delete; clears the binding if active).
+  // Delete a controller conversation (hard delete; clears the binding if active), with the
+  // work threads it started. Refused while any of them is working or waiting for the user, so
+  // no run is left writing into, or parked on, a thread that is gone.
   registerApiRoute('/agent-controller/threads/:id', {
     method: 'DELETE',
     handler: async (c) => {
+      const id = c.req.param('id');
       const session = await deps.getSession(resourceIdOf(c));
-      if (!(await ownsThread(session, c.req.param('id')))) {
+      const threads = await session.thread.list();
+      const own = threads.find((t) => t.id === id);
+      if (!own) {
         return c.json({ error: 'not found' }, 404);
       }
-      await session.thread.delete({ threadId: c.req.param('id') });
+      // A work thread is deleted with the chat that started it, never on its own.
+      if (workThreadOf(own)) {
+        return c.json({ error: 'delete the chat that started this thread' }, 409);
+      }
+      const started = threads.filter((t) => workThreadOf(t)?.parentThreadId === id);
+      const status = (t: (typeof threads)[number]) => workThreadOf(t)?.status;
+      if (started.some((t) => status(t) === 'working' || status(t) === 'needs_you')) {
+        return c.json({ error: 'a thread in this chat is still working or waiting for you' }, 409);
+      }
+      for (const t of started) {
+        await session.thread.delete({ threadId: t.id });
+      }
+      await session.thread.delete({ threadId: id });
       return c.json({ ok: true });
     },
   }),

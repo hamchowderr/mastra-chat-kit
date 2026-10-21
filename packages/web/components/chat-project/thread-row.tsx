@@ -13,14 +13,23 @@ const STATUS: Record<WorkThreadStatus, { label: string; dot: string }> = {
   stopped: { label: 'Stopped', dot: 'bg-muted-foreground' },
 };
 
-/** A thread's status as a dot and a word. */
-export function ThreadStatus({ status }: { status: WorkThreadStatus | undefined }) {
+/** A thread's status as a dot and a word; `compact` shows the dot alone (named for readers). */
+export function ThreadStatus({
+  status,
+  compact = false,
+}: {
+  status: WorkThreadStatus | undefined;
+  compact?: boolean;
+}) {
   if (!status) return null;
   const s = STATUS[status];
   return (
-    <span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
+    <span
+      className="inline-flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs"
+      title={compact ? s.label : undefined}
+    >
       <span className={cn('size-1.5 rounded-full', s.dot)} aria-hidden />
-      {s.label}
+      {compact ? <span className="sr-only">{s.label}</span> : s.label}
     </span>
   );
 }
@@ -46,7 +55,7 @@ export function ThreadRow({
       type="button"
       disabled={!threadId}
       onClick={() => threadId && onOpen(threadId)}
-      className="group flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors enabled:hover:bg-muted disabled:opacity-60"
+      className="group my-1 flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors enabled:hover:bg-muted disabled:opacity-60"
     >
       <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       <span className="min-w-0 flex-1">

@@ -472,11 +472,12 @@
       "name": "chat-project",
       "type": "registry:block",
       "title": "Mastra Chat (project)",
-      "description": "One main chat that starts threads for pieces of work. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to the main chat when it finishes or needs you. Needs the chat-server's work threads (start_thread).",
+      "description": "Chats that start threads for pieces of work, in a list with New chat, rename and delete. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to its chat when it finishes or needs you. Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
       "dependencies": [
         "lucide-react"
       ],
       "registryDependencies": [
+        "dropdown-menu",
         "@mastra-chat-kit/chat-tool-views",
         "@mastra-chat-kit/chat-engine",
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
@@ -489,6 +490,11 @@
           "path": "components/chat-project/project-chat.tsx",
           "type": "registry:component",
           "target": "components/chat-project/project-chat.tsx"
+        },
+        {
+          "path": "components/chat-project/project-sidebar.tsx",
+          "type": "registry:component",
+          "target": "components/chat-project/project-sidebar.tsx"
         },
         {
           "path": "components/chat-project/thread-row.tsx",

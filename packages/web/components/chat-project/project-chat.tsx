@@ -1,12 +1,13 @@
 'use client';
 
-import { ArrowLeftIcon, SendIcon, SquareIcon } from 'lucide-react';
+import { ArrowLeftIcon, PanelLeftIcon, SendIcon, SquareIcon } from 'lucide-react';
 import {
   type FormEvent,
   Fragment,
   type MouseEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -14,7 +15,12 @@ import { Conversation, ConversationContent } from '@/components/ai-elements/conv
 import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import type { ApprovalViews } from '@/components/chat/approval-view';
-import { messagePieces, ToolStepList, type ToolViews } from '@/components/chat/tool-steps';
+import {
+  messagePieces,
+  ToolStepList,
+  type ToolViews,
+  withPlainSteps,
+} from '@/components/chat/tool-steps';
 import { AskUserPrompt } from '@/components/chat/tool-views';
 import { ApprovalCards, partKey, TranscriptPart } from '@/components/chat/transcript';
 import {
@@ -23,13 +29,21 @@ import {
 } from '@/lib/agent-controller/use-agent-controller-chat';
 import { type ThreadItem, useThreads } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
+import { ProjectSidebar } from './project-sidebar';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
 
 /** How often thread statuses are re-read while one is working. */
 const POLL_MS = 3000;
 
+/** An ordinary conversation, as opposed to a work thread. */
+const isConversation = (t: ThreadItem) => !t.parentThreadId;
+
 /**
- * A chat shaped like a project: ONE main chat, and threads it starts for pieces of work.
+ * A chat shaped like a project: chats, and threads each chat starts for pieces of work.
+ *
+ * The list on the left holds every chat, newest first, with its threads under it: New chat
+ * starts another, and each can be renamed or deleted (its threads go with it). The page
+ * opens on the newest chat.
  *
  * The agent starts a thread with its `start_thread` tool (server: lib/work-threads.ts). The
  * thread shows up as a row under the message that started it, with its status (working,
@@ -38,8 +52,9 @@ const POLL_MS = 3000;
  * a thread finishes or stops for you, a short note with a link to it lands in the main
  * chat (saved by the server, no model call).
  *
- * The main chat is the newest conversation that is not a thread. Two engines run side by
- * side, one per view, so the main chat keeps streaming while a thread is open.
+ * Two engines run side by side, one per view, so a chat keeps streaming while a thread is
+ * open. Every tool call shows as a step row, folded into one line per run, unless the host's
+ * `toolViews` draws it some other way.
  *
  *   <ProjectChat />
  */
@@ -48,6 +63,7 @@ export function ProjectChat({
   approvalViews,
   toolViews,
   modes,
+  isChat = isConversation,
   placeholder = 'Ask anything…',
   emptyText = 'Ask for anything. Bigger pieces of work get a thread of their own.',
 }: {
@@ -61,19 +77,32 @@ export function ProjectChat({
    * two shows no picker.
    */
   modes?: ReadonlyArray<{ id: string; name: string }> | undefined;
+  /**
+   * Which conversations are chats in the list. Defaults to every one that is not a work
+   * thread; a host with conversations of its own (a site's, say) leaves those out.
+   */
+  isChat?: ((t: ThreadItem) => boolean) | undefined;
   placeholder?: string;
   emptyText?: string;
 }) {
   const main = useAgentControllerChat();
   const thread = useAgentControllerChat();
-  const { threads, refresh } = useThreads({ refreshSignal: main.refreshSignal });
+  const { threads, refresh, rename, remove } = useThreads({ refreshSignal: main.refreshSignal });
   const [openId, setOpenId] = useState<string | null>(null);
   const [threadRunning, setThreadRunning] = useState(false);
-  const mainId = useMainThread(main);
+  const [listOpen, setListOpen] = useState(false);
+  const [mainId, setMainId] = useMainThread(main, isChat);
 
   const work = new Map(threads.filter((t) => t.parentThreadId).map((t) => [t.id, t]));
   const opened = openId ? work.get(openId) : undefined;
   const mainBusy = main.status === 'streaming';
+  const chats = threads.filter((t) => isChat(t) && !t.archived);
+  // Each chat's threads, oldest first (the list comes newest first).
+  const threadsOf = new Map<string, ThreadItem[]>();
+  for (const t of [...work.values()].reverse()) {
+    const parent = t.parentThreadId as string;
+    threadsOf.set(parent, [...(threadsOf.get(parent) ?? []), t]);
+  }
 
   // The engines' functions are stable; the objects around them are not.
   const { openThread: openInThread } = thread;
@@ -93,6 +122,37 @@ export function ProjectChat({
     openSeq.current++;
     setOpenId(null);
     setThreadRunning(false);
+  };
+
+  const { reset: resetMain } = main;
+  const newChat = () => {
+    back();
+    setListOpen(false);
+    resetMain();
+    setMainId(null);
+  };
+  const selectChat = (id: string) => {
+    back();
+    setListOpen(false);
+    if (id === mainId) return;
+    setMainId(id);
+    void openInMain(id);
+  };
+  // A thread opens over its own chat, so going back lands on the chat that started it.
+  const openFromList = (id: string) => {
+    setListOpen(false);
+    const parent = work.get(id)?.parentThreadId;
+    if (parent && parent !== mainId && !mainBusy) {
+      setMainId(parent);
+      void openInMain(parent);
+    }
+    void open(id);
+  };
+  const deleteChat = async (chat: ThreadItem) => {
+    const ok = await remove(chat);
+    void refresh();
+    if (ok && chat.id === mainId) newChat();
+    return ok;
   };
 
   // Report notes link to their thread as `#thread=<id>`; open it here instead of navigating.
@@ -143,48 +203,55 @@ export function ProjectChat({
     return () => clearInterval(timer);
   }, [active, refresh, openId, threadRunning, threadBusy, open]);
 
-  if (openId) {
-    return (
-      <div className={cn('flex h-full min-h-0 flex-col', className)}>
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3 border-border border-b px-3 py-2">
-          <button
-            type="button"
-            onClick={() => {
-              back();
-              void refresh();
-            }}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <ArrowLeftIcon className="size-4" aria-hidden />
-            Main chat
-          </button>
-          <span className="min-w-0 flex-1 truncate font-medium text-sm">
-            {opened?.title ?? 'Thread'}
-          </span>
-          <ThreadStatus status={opened?.status} />
-        </div>
-        <ChatView
-          controller={thread}
-          approvalViews={approvalViews}
-          toolViews={toolViews}
-          emptyText="This thread has no messages yet."
-          working={threadRunning}
-          onOpenThread={open}
-          onLinkClick={onLinkClick}
-          work={work}
-        />
-        <Composer
-          placeholder={threadRunning ? 'This thread is working…' : 'Reply in this thread…'}
-          disabled={threadRunning}
-          busy={thread.status === 'streaming'}
-          onSend={(text) => thread.sendMessage(text)}
-        />
-      </div>
-    );
-  }
+  // Escape closes the list where it opens over the chat (a phone).
+  useEffect(() => {
+    if (!listOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setListOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [listOpen]);
 
-  return (
-    <div className={cn('flex h-full min-h-0 flex-col', className)}>
+  const view = openId ? (
+    <>
+      <div className="mx-auto flex w-full max-w-2xl items-center gap-3 border-border border-b px-3 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            back();
+            void refresh();
+          }}
+          aria-label={`Back to ${chats.find((c) => c.id === mainId)?.title || 'the chat'}`}
+          className="inline-flex min-w-0 max-w-[45%] items-center gap-1 rounded-md px-2 py-1 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <ArrowLeftIcon className="size-4 shrink-0" aria-hidden />
+          <span className="truncate">{chats.find((c) => c.id === mainId)?.title || 'Chat'}</span>
+        </button>
+        <span className="min-w-0 flex-1 truncate font-medium text-sm">
+          {opened?.title ?? 'Thread'}
+        </span>
+        <ThreadStatus status={opened?.status} />
+      </div>
+      <ChatView
+        controller={thread}
+        approvalViews={approvalViews}
+        toolViews={toolViews}
+        emptyText="This thread has no messages yet."
+        working={threadRunning}
+        onOpenThread={open}
+        onLinkClick={onLinkClick}
+        work={work}
+      />
+      <Composer
+        placeholder={threadRunning ? 'This thread is working…' : 'Reply in this thread…'}
+        disabled={threadRunning}
+        busy={thread.status === 'streaming'}
+        onSend={(text) => thread.sendMessage(text)}
+      />
+    </>
+  ) : (
+    <>
       <ChatView
         controller={main}
         approvalViews={approvalViews}
@@ -201,16 +268,62 @@ export function ProjectChat({
         modes={modes}
         onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
       />
+    </>
+  );
+
+  return (
+    <div className={cn('relative flex h-full min-h-0', className)}>
+      <ProjectSidebar
+        chats={chats}
+        threadsOf={threadsOf}
+        activeChatId={mainId}
+        openThreadId={openId}
+        // A chat that is answering keeps its place until the answer ends.
+        busy={mainBusy}
+        onSelectChat={selectChat}
+        onOpenThread={openFromList}
+        onNew={newChat}
+        onRename={rename}
+        onDelete={deleteChat}
+        className={cn(
+          'w-60 shrink-0 border-border border-r bg-background',
+          listOpen ? 'absolute inset-y-0 left-0 z-20 shadow-lg' : 'max-md:hidden',
+        )}
+      />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <button
+          type="button"
+          onClick={() => setListOpen((v) => !v)}
+          aria-label={listOpen ? 'Hide chats' : 'Show chats'}
+          aria-expanded={listOpen}
+          aria-controls="project-chats"
+          className="m-1 flex size-9 items-center justify-center self-start rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+        >
+          <PanelLeftIcon className="size-4" />
+        </button>
+        {view}
+      </div>
     </div>
   );
 }
 
 /**
- * Picks the main chat once: the newest conversation that is not a work thread, opened
- * into `main`. With none, the first message makes one, and that becomes the main chat.
+ * The chat on show. It starts as the newest chat (`isChat`, read once), opened into `main`;
+ * with none, the first message makes one. A new chat's id is picked up once its first message
+ * makes it.
  */
-function useMainThread(main: UseAgentControllerChat): string | null {
-  const [mainId, setMainId] = useState<string | null>(null);
+function useMainThread(
+  main: UseAgentControllerChat,
+  isChat: (t: ThreadItem) => boolean,
+): [string | null, (id: string | null) => void] {
+  const [mainId, setPicked] = useState<string | null>(null);
+  const firstIsChat = useRef(isChat);
+  // Once the person picks a chat (or a new one), the first pick, if still loading, gives way.
+  const chosen = useRef(false);
+  const setMainId = useCallback((id: string | null) => {
+    chosen.current = true;
+    setPicked(id);
+  }, []);
   const picked = useRef(false);
   const { openThread, activeThreadId } = main;
   useEffect(() => {
@@ -220,9 +333,9 @@ function useMainThread(main: UseAgentControllerChat): string | null {
       try {
         const res = await fetch('/api/agent-controller/threads', { cache: 'no-store' });
         const data = (await res.json()) as { threads?: ThreadItem[] };
-        const first = (data.threads ?? []).find((t) => !t.parentThreadId && !t.archived);
-        if (first) {
-          setMainId(first.id);
+        const first = (data.threads ?? []).find((t) => firstIsChat.current(t) && !t.archived);
+        if (first && !chosen.current) {
+          setPicked(first.id);
           await openThread(first.id);
         }
       } catch {
@@ -230,10 +343,11 @@ function useMainThread(main: UseAgentControllerChat): string | null {
       }
     })();
   }, [openThread]);
+  // A first message with no chat open makes one: that is the chat now.
   useEffect(() => {
     if (!mainId && activeThreadId) setMainId(activeThreadId);
-  }, [mainId, activeThreadId]);
-  return mainId;
+  }, [mainId, activeThreadId, setMainId]);
+  return [mainId, setMainId];
 }
 
 /** One conversation: its messages (with thread rows), and what it waits on. */
@@ -260,6 +374,7 @@ export function ChatView({
 }) {
   const { transcript, status, answerQuestion, pendingSuspension } = controller;
   const busy = status === 'streaming';
+  const views = useMemo(() => withPlainSteps(toolViews), [toolViews]);
   const lastAssistant = transcript.messages.findLastIndex((m) => m.role !== 'user');
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
@@ -284,7 +399,7 @@ export function ChatView({
             return (
               <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
                 <MessageContent>
-                  {messagePieces(m.id, m.content, toolViews, live).map((piece) => {
+                  {messagePieces(m.id, m.content, views, live).map((piece) => {
                     if (piece.kind === 'steps') {
                       return <ToolStepList key={piece.key} steps={piece.steps} />;
                     }
