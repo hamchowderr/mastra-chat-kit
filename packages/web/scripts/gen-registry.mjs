@@ -63,6 +63,7 @@ const elPath = (n) => `components/ai-elements/${n}.tsx`;
 const SHARED_ITEM_OF = {
   'components/chat/tool-views': 'chat-tool-views',
   'components/chat/transcript': 'chat-tool-views',
+  'components/chat/tool-steps': 'chat-tool-views',
   'components/chat/composer': 'chat-composer',
 };
 
@@ -343,9 +344,11 @@ items.push({
 // every skin needs (approvals and plans park the run until answered). chat-markdown.tsx:
 // replies as Markdown, with links that navigate in the app or open a new tab. approval-view.tsx:
 // what an approval card says (the host's per-tool renderers, or the tool in words).
+// tool-steps.tsx: a host's own tools as short step rows that fold into one list, or as cards.
 const TOOL_VIEW_FILES = [
   'components/chat/tool-views.tsx',
   'components/chat/transcript.tsx',
+  'components/chat/tool-steps.tsx',
   'components/chat/chat-markdown.tsx',
   'components/chat/approval-view.tsx',
 ];
