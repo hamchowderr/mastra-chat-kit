@@ -3,6 +3,8 @@
 import { ChevronRightIcon, MessagesSquareIcon } from 'lucide-react';
 import type { WorkThreadStatus } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
+import type { ThreadOutput } from './thread-groups';
+import { OutputIcon } from './thread-list';
 
 /** What each status reads as, and its dot's colour. */
 const STATUS: Record<WorkThreadStatus, { label: string; dot: string }> = {
@@ -36,8 +38,8 @@ export function ThreadStatus({
 
 /**
  * The row under a main-chat message that started a thread: its title and how it is
- * doing. Clicking it opens the thread. `threadId` is absent while the thread is still
- * being made.
+ * doing, and beside it what the thread made. Clicking it opens the thread. `threadId` is
+ * absent while the thread is still being made.
  */
 export function ThreadRow({
   title,
@@ -45,6 +47,7 @@ export function ThreadRow({
   status,
   open = false,
   onOpen,
+  outputs = [],
 }: {
   title: string;
   threadId?: string | undefined;
@@ -52,15 +55,17 @@ export function ThreadRow({
   /** The thread is open beside the chat. */
   open?: boolean;
   onOpen: (threadId: string) => void;
+  /** What the thread made (a site, say): each opens on its own page. */
+  outputs?: ThreadOutput[] | undefined;
 }) {
-  return (
+  const row = (
     <button
       type="button"
       disabled={!threadId}
       aria-current={open ? 'true' : undefined}
       onClick={() => threadId && onOpen(threadId)}
       className={cn(
-        'group my-1 flex w-full max-w-sm items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors enabled:hover:bg-muted disabled:opacity-60',
+        'group flex w-full max-w-sm items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors enabled:hover:bg-muted disabled:opacity-60',
         open ? 'border-foreground/20 bg-muted' : 'border-border bg-background',
       )}
     >
@@ -78,6 +83,22 @@ export function ThreadRow({
         aria-hidden
       />
     </button>
+  );
+  return (
+    <div className="my-1 flex max-w-md items-center gap-1">
+      {row}
+      {outputs.map((o) => (
+        <a
+          key={o.href}
+          href={o.href}
+          aria-label={`${o.label}: ${title || 'thread'}`}
+          title={o.label}
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <OutputIcon kind={o.kind} className="size-4" />
+        </a>
+      ))}
+    </div>
   );
 }
 
