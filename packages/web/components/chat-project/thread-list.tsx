@@ -5,7 +5,9 @@ import {
   CheckIcon,
   ChevronDownIcon,
   CircleDashedIcon,
+  FunnelIcon,
   GlobeIcon,
+  MailIcon,
   RotateCcwIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -13,9 +15,15 @@ import type { ThreadItem } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
 import { ago, GROUPS, type Group, groupOf, progressOf, type ThreadOutput } from './thread-groups';
 
-/** A thread output's icon: a globe for a site, a window for anything else. */
+/** A thread output's icon by its kind (site, funnel, email); a window for any other kind. */
+const OUTPUT_ICONS: Record<string, typeof GlobeIcon> = {
+  site: GlobeIcon,
+  funnel: FunnelIcon,
+  email: MailIcon,
+};
+
 export function OutputIcon({ kind, className }: { kind: string; className?: string }) {
-  const Icon = kind === 'site' ? GlobeIcon : AppWindowIcon;
+  const Icon = OUTPUT_ICONS[kind] ?? AppWindowIcon;
   return <Icon className={cn('size-3.5', className)} aria-hidden />;
 }
 

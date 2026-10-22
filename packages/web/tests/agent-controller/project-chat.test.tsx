@@ -204,6 +204,12 @@ describe('ProjectChat', () => {
       '/sites/s1',
     );
     expect(within(list).queryAllByRole('link')).toHaveLength(1);
+    // And beside the row in the chat that started it.
+    const chat = screen.getByRole('region', { name: 'Chat: Main' });
+    expect(within(chat).getByRole('link', { name: 'Open site: Oslo weather' })).toHaveAttribute(
+      'href',
+      '/sites/s1',
+    );
     fireEvent.click(await inChat(/Oslo weather/));
     const panel = await screen.findByRole('region', { name: 'Thread: Oslo weather' });
     expect(within(panel).getByRole('link', { name: 'Open site' })).toHaveAttribute(
@@ -224,6 +230,15 @@ describe('ProjectChat', () => {
     await waitFor(() => expect(screen.queryByText('I started a thread for it.')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: /New chat/ }));
     expect(await screen.findByText(/Ask for anything/)).toBeInTheDocument();
+  });
+
+  it('opens the thread a link to this page names, then drops the link', async () => {
+    setup();
+    window.history.replaceState(null, '', `/chat#thread=${WORK}`);
+    renderChat();
+    expect(await screen.findByText('Check the weather in Oslo.')).toBeInTheDocument();
+    expect(window.location.hash).toBe('');
+    expect(window.location.pathname).toBe('/chat');
   });
 
   it("opens a thread from the report's link", async () => {
