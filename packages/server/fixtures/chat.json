@@ -37,6 +37,16 @@
       }
     },
     {
+      "_comment": "The main chat steers a thread it started (message_thread, lib/work-thread-steering.ts).",
+      "match": {
+        "userMessage": "From the main chat: Add a section on spring recipes.",
+        "hasToolResult": false
+      },
+      "response": {
+        "content": "Added a fourth section: spring recipes."
+      }
+    },
+    {
       "_comment": "A work thread that stops for an approval: getWeather is gated, so the thread reports that it needs the user, and finishes once approved.",
       "match": {
         "userMessage": "Start a thread to check the weather in Oslo.",

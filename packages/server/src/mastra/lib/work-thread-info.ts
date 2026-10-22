@@ -7,11 +7,12 @@
 export const WORK_THREAD_KEY = 'workThread';
 
 /**
+ * queued: it waits for a free slot (the host's `maxWorking`) before its first run.
  * working: a run is going. needs_you: it stopped for an approval or a question.
  * done: the last run finished. failed: it ended with an error. stopped: it was working
- * when the server restarted, so nothing is running now.
+ * (or queued) when the server restarted, so nothing is running now.
  */
-export type WorkThreadStatus = 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';
+export type WorkThreadStatus = 'queued' | 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';
 
 /** One step of a thread's progress checklist, as the agent's task tools last left it. */
 export type WorkThreadTask = {
@@ -40,6 +41,7 @@ export type WorkThreadInfo = {
 };
 
 const STATUSES: ReadonlySet<string> = new Set([
+  'queued',
   'working',
   'needs_you',
   'done',

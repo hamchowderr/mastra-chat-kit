@@ -325,6 +325,10 @@ const SERVER_FILES = [
   ['../server/src/mastra/lib/work-threads.ts', 'src/mastra/lib/work-threads.ts'],
   // What a work thread is, as its metadata says. No imports.
   ['../server/src/mastra/lib/work-thread-info.ts', 'src/mastra/lib/work-thread-info.ts'],
+  // The main chat's list_threads, read_thread and message_thread. Imports @mastra/core and zod.
+  ['../server/src/mastra/lib/work-thread-steering.ts', 'src/mastra/lib/work-thread-steering.ts'],
+  // The words a work thread's brief, reports and excerpts are made of. No imports.
+  ['../server/src/mastra/lib/work-thread-text.ts', 'src/mastra/lib/work-thread-text.ts'],
 ];
 items.push({
   name: 'chat-server',
@@ -433,6 +437,7 @@ const PROJECT_FILES = [
   'components/chat-project/thread-list.tsx',
   'components/chat-project/thread-groups.ts',
   'components/chat-project/thread-checklist.tsx',
+  'components/chat-project/thread-suggestions.tsx',
 ];
 {
   const c = classify(PROJECT_FILES);

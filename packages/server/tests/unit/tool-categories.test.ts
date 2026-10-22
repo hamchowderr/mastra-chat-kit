@@ -91,7 +91,8 @@ function exposedToolNames(): Set<string> {
 }
 
 // The controller's own tools, which no agent or workspace registers: Mastra's built-ins,
-// and start_thread, which the controller gets from lib/work-threads.ts.
+// and start_thread with the tools that suggest and steer threads, which the controller gets from
+// lib/work-threads.ts.
 const CONTROLLER_TOOLS = [
   'ask_user',
   'submit_plan',
@@ -100,6 +101,10 @@ const CONTROLLER_TOOLS = [
   'task_complete',
   'task_check',
   'start_thread',
+  'list_threads',
+  'read_thread',
+  'message_thread',
+  'suggest_threads',
 ];
 
 describe('tool names match what the agent is offered', () => {
