@@ -360,6 +360,30 @@ describe('work threads (AIMock)', () => {
     ).rejects.toThrow(/Only the main chat/);
   });
 
+  it('refuses suggestions from a run that read untrusted content', async () => {
+    const resourceId = 'u-work-suggest-untrusted';
+    const { mainThreadId, controller, storage } = await setup(resourceId);
+    const { RequestContext } = await import('@mastra/core/request-context');
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      startsUntrusted: (rc) => (rc as InstanceType<typeof RequestContext>)?.get('tainted') === true,
+    });
+    const tainted = new RequestContext();
+    tainted.set('tainted', true);
+    // biome-ignore lint/suspicious/noExplicitAny: the tool's result is read loosely here
+    type Execute = (input: unknown, c: unknown) => Promise<Record<string, any>>;
+    const suggest = workThreads.steering[SUGGEST_THREADS_TOOL].execute as unknown as Execute;
+    const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
+    const agent = { threadId: mainThreadId, resourceId };
+    await expect(suggest(offer, { agent, requestContext: tainted })).rejects.toThrow(
+      /read outside content/,
+    );
+    expect(await suggest(offer, { agent, requestContext: new RequestContext() })).toEqual({
+      suggested: ['Summer plan'],
+    });
+  });
+
   it("runs a message sent mid-run as a run of its own, with the host's context, and reports both", async () => {
     const resourceId = 'u-work-mid-run';
     const { mainThreadId, controller, storage, memory } = await setup(resourceId);

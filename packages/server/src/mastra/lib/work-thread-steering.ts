@@ -44,6 +44,12 @@ export type SteeringDeps = {
   requireApproval?: ((requestContext: unknown) => boolean) | undefined;
   /** The host's screen for a thread's words before an agent reads them (`screenReport`). */
   screen?: ((text: string, thread: WorkThreadInfo) => string) | undefined;
+  /**
+   * Whether the calling run read untrusted content (`startsUntrusted` on the work threads).
+   * Such a run can't suggest threads: the person sees a suggestion's title, not its brief, so
+   * a brief written after reading outside text goes through `start_thread` and its rules.
+   */
+  untrusted?: ((requestContext: unknown) => boolean) | undefined;
   /** The specialists a thread can run as (`agents` on the work threads), for suggestions. */
   agents?: ReadonlyArray<{ id: string; description: string }> | undefined;
 };
@@ -212,6 +218,11 @@ export function createSteeringTools(deps: SteeringDeps) {
     requireApproval: neverAsks,
     execute: async ({ threads }, ctx) => {
       await caller(ctx as ToolContext);
+      if (deps.untrusted?.((ctx as ToolContext | undefined)?.requestContext)) {
+        throw new Error(
+          'This turn read outside content, so it cannot suggest threads. Start the ones that are needed with start_thread instead.',
+        );
+      }
       return { suggested: threads.map((t) => t.title) };
     },
   });
