@@ -93,8 +93,8 @@ export type WorkThreadsConfig = {
   startsUntrusted?: (requestContext: unknown) => boolean;
   /**
    * Fields added to the result of a `suggest_threads` call refused because its run read
-   * untrusted content: a host's marker, say, telling its memory to drop the call's briefs, so
-   * no later run can reuse one.
+   * untrusted content. Its briefs stay in the chat's history, so a host marks the result to
+   * hold later runs that read it to its rules (asking before a thread starts, say).
    */
   refusedSuggestion?: Record<string, unknown>;
   /**

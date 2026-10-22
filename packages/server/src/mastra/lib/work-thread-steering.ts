@@ -51,9 +51,9 @@ export type SteeringDeps = {
    */
   untrusted?: ((requestContext: unknown) => boolean) | undefined;
   /**
-   * Fields added to a refused suggestion's result: a host's marker, say, telling its memory to
-   * drop the call's briefs, so no later run can reuse a brief written after reading outside
-   * text.
+   * Fields added to a refused suggestion's result. The call's briefs stay in the chat's history
+   * (Mastra keeps a call's arguments), so a host marks the result to hold the runs that read it
+   * to its rules: say, asking before any thread starts or change is made.
    */
   refusal?: Record<string, unknown> | undefined;
   /** The specialists a thread can run as (`agents` on the work threads), for suggestions. */
@@ -233,8 +233,8 @@ export function createSteeringTools(deps: SteeringDeps) {
     requireApproval: neverAsks,
     execute: async ({ threads }, ctx) => {
       await caller(ctx as ToolContext);
-      // Refused as a result, not thrown, so the host's fields reach whatever stores it (its
-      // memory, which can drop the briefs the call carried).
+      // Refused as a result, not thrown, so the host's fields stay in the chat's history beside
+      // the briefs the call carried, for the host's rules to find in later runs.
       if (deps.untrusted?.((ctx as ToolContext | undefined)?.requestContext)) {
         return {
           refused:
