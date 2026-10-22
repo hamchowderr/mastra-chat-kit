@@ -92,6 +92,12 @@ export type WorkThreadsConfig = {
    */
   startsUntrusted?: (requestContext: unknown) => boolean;
   /**
+   * Fields added to the result of a `suggest_threads` call refused because its run read
+   * untrusted content (a host's taint mark), so the runs after it that read it in the chat's
+   * history follow the host's rules too.
+   */
+  refusedSuggestion?: Record<string, unknown>;
+  /**
    * Screens a report's text before it is saved into the main chat, where the agent reads
    * it as its own words (a host withholding what reads like instructions, say).
    */
@@ -809,6 +815,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     requireApproval: config.requireApproval,
     screen: config.screenReport,
     untrusted: config.startsUntrusted,
+    refusal: config.refusedSuggestion,
     agents: config.agents,
   });
 

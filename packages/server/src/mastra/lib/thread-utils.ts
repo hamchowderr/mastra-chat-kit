@@ -92,7 +92,11 @@ function threadParts(
   return parts.flatMap((p): Array<WorkThreadPart | SuggestionsPart> => {
     const call = (p as { type?: string; toolInvocation?: Record<string, unknown> }).toolInvocation;
     if ((p as { type?: string }).type !== 'tool-invocation' || !call) return [];
-    if (call.toolName === SUGGEST_THREADS) return suggestionsOf(call.args);
+    if (call.toolName === SUGGEST_THREADS) {
+      // Only a card the tool accepted: a refused or unfinished call offered nothing.
+      const offered = (call.result as { suggested?: unknown } | undefined)?.suggested;
+      return call.state === 'result' && Array.isArray(offered) ? suggestionsOf(call.args) : [];
+    }
     if (call.toolName !== START_THREAD_TOOL) return [];
     const result = call.result as { threadId?: unknown; title?: unknown } | undefined;
     if (typeof result?.threadId !== 'string') return [];

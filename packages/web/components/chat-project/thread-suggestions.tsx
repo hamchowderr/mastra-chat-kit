@@ -15,30 +15,45 @@ export function titleKey(title: string): string {
   return title.trim().toLowerCase();
 }
 
-/**
- * The threads a chat's `start_thread` calls made, by title, from its messages (the last one
- * wins when two share a title).
- */
+/** A thread a chat's `start_thread` call made: which message made it, and its title. */
+export type StartedThread = { at: number; title: string; threadId: string };
+
+/** The threads a chat's `start_thread` calls made, in order, from its messages. */
 export function startedThreads(
   messages: ReadonlyArray<{ content: ReadonlyArray<{ type: string }> }>,
-): Map<string, string> {
-  const byTitle = new Map<string, string>();
-  for (const m of messages) {
+): StartedThread[] {
+  return messages.flatMap((m, at) => {
     const results = new Map(
       m.content
         .filter((p) => p.type === 'tool_result')
         .map((p) => [(p as { id?: string }).id, (p as { result?: unknown }).result]),
     );
-    for (const p of m.content) {
+    return m.content.flatMap((p) => {
       const call = p as { type: string; id?: string; name?: string };
-      if (call.type !== 'tool_call' || call.name !== 'start_thread') continue;
+      if (call.type !== 'tool_call' || call.name !== 'start_thread') return [];
       const r = results.get(call.id) as { threadId?: unknown; title?: unknown } | undefined;
-      if (typeof r?.threadId === 'string' && typeof r.title === 'string') {
-        byTitle.set(titleKey(r.title), r.threadId);
-      }
-    }
-  }
-  return byTitle;
+      return typeof r?.threadId === 'string' && typeof r.title === 'string'
+        ? [{ at, title: r.title, threadId: r.threadId }]
+        : [];
+    });
+  });
+}
+
+/**
+ * The thread started from a card's suggestion: the first with its title started after the
+ * card's message, so an older thread of the same name is never taken for it.
+ */
+export function startedAfter(
+  started: readonly StartedThread[],
+  cardAt: number,
+  title: string,
+): StartedThread | undefined {
+  return started.find((t) => t.at > cardAt && titleKey(t.title) === titleKey(title));
+}
+
+/** Whether a `suggest_threads` result offered its card (a refused call offered nothing). */
+export function offered(result: unknown): boolean {
+  return Array.isArray((result as { suggested?: unknown } | null | undefined)?.suggested);
 }
 
 /** The words a Start button sends: the agent then starts the thread with its brief unchanged. */
@@ -104,10 +119,11 @@ export function ThreadSuggestions({
         )}
       </header>
       <ul className="divide-y divide-border">
-        {suggestions.map((s) => {
+        {suggestions.map((s, i) => {
           const started = startedOf(s.title);
           return (
-            <li key={s.title} className="flex items-center gap-3 px-3 py-2">
+            // biome-ignore lint/suspicious/noArrayIndexKey: a card's suggestions never change order.
+            <li key={i} className="flex items-center gap-3 px-3 py-2">
               <span className="min-w-0 flex-1">
                 <span className="block text-pretty font-medium text-sm">{s.title}</span>
                 {s.why && (
