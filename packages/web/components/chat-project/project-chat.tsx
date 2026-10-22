@@ -213,6 +213,28 @@ export function ProjectChat({
     return () => clearInterval(timer);
   }, [active, refresh, openId, threadRunning, threadBusy, open]);
 
+  // A page that links here as `/chat#thread=<id>` (a host's list of what threads made, say)
+  // opens that thread once the list has it, then drops the hash so a reload starts clean.
+  // After the status effect above, so its reload of the main chat can't land over the
+  // linked thread's chat. An id the list never has (a deleted thread) is dropped too.
+  const [linked, setLinked] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => setLinked(threadIdFromHref(window.location.hash));
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
+  const linkedReady = linked !== null && work.has(linked);
+  const linkedGone = linked !== null && threads.length > 0 && !linkedReady;
+  const openLinked = useRef(openFromList);
+  openLinked.current = openFromList;
+  useEffect(() => {
+    if (!linked || (!linkedReady && !linkedGone)) return;
+    setLinked(null);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    if (linkedReady) openLinked.current(linked);
+  }, [linkedReady, linkedGone, linked]);
+
   // Escape closes the list where it opens over the chat (a phone).
   useEffect(() => {
     if (!listOpen) return;
@@ -341,6 +363,7 @@ export function ProjectChat({
         onOpenThread={open}
         onLinkClick={onLinkClick}
         work={work}
+        outputsOf={outputsOf}
       />
       <Composer
         label="Message this thread"
@@ -405,6 +428,7 @@ export function ProjectChat({
             onLinkClick={onLinkClick}
             work={work}
             openThreadId={openId}
+            outputsOf={outputsOf}
           />
           <Composer
             placeholder={placeholder}
@@ -474,6 +498,7 @@ export function ChatView({
   work,
   toolViews,
   openThreadId = null,
+  outputsOf,
 }: {
   controller: UseAgentControllerChat;
   approvalViews?: ApprovalViews | undefined;
@@ -487,6 +512,8 @@ export function ChatView({
   work: Map<string, ThreadItem>;
   /** The thread open beside this chat, whose row shows as selected. */
   openThreadId?: string | null;
+  /** What each thread made, shown beside its row (see `ProjectChat`). */
+  outputsOf?: ((t: ThreadItem) => ThreadOutput[]) | undefined;
 }) {
   const { transcript, status, answerQuestion, pendingSuspension } = controller;
   const busy = status === 'streaming';
@@ -535,6 +562,7 @@ export function ChatView({
                         | undefined;
                       const title =
                         result?.title ?? (call.args as { title?: string } | undefined)?.title ?? '';
+                      const started = result?.threadId ? work.get(result.threadId) : undefined;
                       return (
                         <ThreadRow
                           key={partKey(m.id, i)}
@@ -543,6 +571,7 @@ export function ChatView({
                           status={result?.threadId ? work.get(result.threadId)?.status : undefined}
                           open={Boolean(result?.threadId) && result?.threadId === openThreadId}
                           onOpen={onOpenThread}
+                          outputs={started ? outputsOf?.(started) : undefined}
                         />
                       );
                     }
