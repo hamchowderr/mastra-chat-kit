@@ -320,6 +320,7 @@ export function ProjectChat({
         disabled={threadRunning}
         busy={thread.status === 'streaming'}
         onSend={(text) => thread.sendMessage(text)}
+        onStop={thread.stop}
       />
     </section>
   );
@@ -379,6 +380,7 @@ export function ProjectChat({
             busy={mainBusy}
             modes={modes}
             onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
+            onStop={main.stop}
           />
         </section>
         {threadPanel}
@@ -563,6 +565,7 @@ export function Composer({
   disabled = false,
   modes,
   onSend,
+  onStop,
 }: {
   /** The box's accessible name, which tells two boxes on screen apart. */
   label?: string;
@@ -571,6 +574,8 @@ export function Composer({
   disabled?: boolean;
   modes?: ReadonlyArray<{ id: string; name: string }> | undefined;
   onSend: (text: string, mode?: string) => Promise<boolean>;
+  /** Stops the answer streaming now; while one streams, the send button becomes Stop. */
+  onStop?: (() => void) | undefined;
 }) {
   const [input, setInput] = useState('');
   const [mode, setMode] = useState(modes?.[0]?.id);
@@ -609,14 +614,26 @@ export function Composer({
           ))}
         </select>
       )}
-      <button
-        type="submit"
-        disabled={blocked || !input.trim()}
-        aria-label={busy ? 'Working' : 'Send'}
-        className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[scale,opacity] enabled:active:scale-95 disabled:opacity-40"
-      >
-        {busy ? <SquareIcon className="size-4" /> : <SendIcon className="size-4" />}
-      </button>
+      {busy && onStop ? (
+        <button
+          type="button"
+          onClick={onStop}
+          aria-label="Stop"
+          title="Stop"
+          className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[scale] active:scale-95"
+        >
+          <SquareIcon className="size-3.5 fill-current" />
+        </button>
+      ) : (
+        <button
+          type="submit"
+          disabled={blocked || !input.trim()}
+          aria-label={busy ? 'Working' : 'Send'}
+          className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[scale,opacity] enabled:active:scale-95 disabled:opacity-40"
+        >
+          {busy ? <SquareIcon className="size-4" /> : <SendIcon className="size-4" />}
+        </button>
+      )}
     </form>
   );
 }
