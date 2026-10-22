@@ -266,6 +266,21 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
     },
   }),
 
+  // Stops the run going on a thread (the chat's Stop button). Closing the stream aborts it too,
+  // but a proxy in between may not pass that on. A run that already ended is left alone.
+  registerApiRoute('/agent-controller/abort', {
+    method: 'POST',
+    handler: async (c) => {
+      const body = await c.req
+        .json<{ threadId?: string }>()
+        .catch(() => ({}) as { threadId?: string });
+      const target = await sessionForThread(deps, resourceIdOf(c), body.threadId);
+      if (!target) return c.json({ error: 'thread not found' }, 404);
+      target.session.abort();
+      return c.json({ ok: true });
+    },
+  }),
+
   // What a work thread waits on, for a skin opening it: whether its run is going, and the
   // approvals and questions it is parked on, as the same events the stream would have sent
   // (so the engine folds them like live ones). An ordinary thread waits on nothing here.

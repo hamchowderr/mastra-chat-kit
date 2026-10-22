@@ -18,7 +18,7 @@ import { ctx, deps, find } from '../helpers/route-harness';
 describe('the route contract', () => {
   // The web layer fetches these exact paths. Adding or renaming one is a breaking
   // change for every installed consumer, so pin the whole surface.
-  it('registers all 17 endpoints the web layer calls', () => {
+  it('registers all 18 endpoints the web layer calls', () => {
     const d = deps();
     const all = [
       ...createThreadRoutes(d),
@@ -37,6 +37,7 @@ describe('the route contract', () => {
         'POST /agent-controller/stream',
         'POST /agent-controller/approve',
         'POST /agent-controller/answer',
+        'POST /agent-controller/abort',
         'GET /agent-controller/goal',
         'DELETE /agent-controller/goal',
         'GET /agent-controller/om',
@@ -47,7 +48,7 @@ describe('the route contract', () => {
         'GET /browser/screencast',
       ]),
     );
-    expect(all).toHaveLength(17);
+    expect(all).toHaveLength(18);
   });
 });
 
@@ -226,6 +227,22 @@ describe('controller routes validate input before touching the session', () => {
       decision: 'decline',
       toolCallId: 'call-7',
     });
+    expect(captured.status).toBe(200);
+    expect(captured.body).toEqual({ ok: true });
+  });
+
+  it('/agent-controller/abort stops the run on the session (the Stop button)', async () => {
+    const abort = vi.fn();
+    const route = find(
+      createControllerRoutes(deps({ getSession: async () => ({ abort }) as never })),
+      '/agent-controller/abort',
+      'POST',
+    );
+    const { c, captured } = ctx({ body: {} });
+
+    await route.handler(c);
+
+    expect(abort).toHaveBeenCalledOnce();
     expect(captured.status).toBe(200);
     expect(captured.body).toEqual({ ok: true });
   });

@@ -257,6 +257,7 @@ const ROUTE_FILES = [
   'app/api/agent-controller/stream/route.ts',
   'app/api/agent-controller/approve/route.ts',
   'app/api/agent-controller/answer/route.ts',
+  'app/api/agent-controller/abort/route.ts',
   'app/api/agent-controller/goal/route.ts',
   'app/api/agent-controller/om/route.ts',
   'app/api/agent-controller/schedules/route.ts',

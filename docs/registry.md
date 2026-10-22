@@ -248,7 +248,7 @@ npx shadcn@latest add @mastra-chat-kit/chat
 
 `chat` gives you a UI that fetches `/api/agent-controller/*`. Those Next routes
 forward to a Mastra server at `MASTRA_SERVER_URL` (default
-`http://localhost:4111`) — and the 17 endpoints they call are **not** Mastra
+`http://localhost:4111`) — and the 18 endpoints they call are **not** Mastra
 built-ins. Point the UI at a stock `mastra dev` and every request 404s.
 
 So install the other half into your Mastra project:
@@ -320,7 +320,7 @@ resolve to upstream:
 > Only the "ours" counts are pinned. Upstream counts drift as Vercel and shadcn
 > change, which is exactly why they aren't asserted here — `registry-smoke.mjs`
 > does a real install and checks the three numbers that are ours to keep correct
-> (10 chat components, 15 route handlers, 5 vendored elements), on every relevant
+> (10 chat components, 16 route handlers, 5 vendored elements), on every relevant
 > PR and nightly.
 
 ### Wire it to a Mastra server
