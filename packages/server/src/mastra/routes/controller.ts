@@ -151,12 +151,11 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           if (model && deps.modelAllowlist.has(model)) {
             await session.model.switch(model);
           }
-          // Same for the mode: switching inside the stream sends `mode_changed` too.
-          if (
-            mode &&
-            mode !== session.mode.get() &&
-            agentController.listModes().some((m) => m.id === mode)
-          ) {
+          // Same for the mode: switching inside the stream sends `mode_changed` too. Switched
+          // (and so saved on the thread) even when the Session is already in it, so a chat
+          // opened later in another mode comes back in this one. A work thread keeps the
+          // mode it was started in (lib/work-threads.ts), whatever the request names.
+          if (mode && !target.work && agentController.listModes().some((m) => m.id === mode)) {
             await session.mode.switch({ modeId: mode });
           }
           await session.sendMessage({

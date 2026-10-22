@@ -237,6 +237,18 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   const openSession = config.openSession ?? openWorkSession;
 
   /**
+   * Puts a work thread's Session in its agent's mode: the agent it was started as, or the first
+   * one offered for a thread from before it had one (or whose agent is gone).
+   */
+  async function holdMode(session: Session, info: WorkThreadInfo) {
+    const offered = config.agents ?? [];
+    const agent = offered.find((a) => a.id === info.agent?.id) ?? offered[0];
+    if (agent && session.mode.get() !== agent.modeId) {
+      await session.mode.switch({ modeId: agent.modeId });
+    }
+  }
+
+  /**
    * Saves a change to a work thread's state: its status, and what goes with it (its checklist,
    * its latest line, whether it is resolved). A key set to undefined is removed.
    */
@@ -485,6 +497,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     opening.catch(() => live.delete(threadId));
     const tracked = await opening;
     const { session } = tracked;
+    await holdMode(session, info);
     tracked.background = true;
     // Not awaited: the main chat carries on while the thread works.
     void session
@@ -514,11 +527,9 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     if (!opening) {
       const fresh = (async () => {
         const controller = await config.getController();
-        const tracked = track(
-          threadId,
-          resourceId,
-          await openSession(controller, { resourceId, threadId }),
-        );
+        const session = await openSession(controller, { resourceId, threadId });
+        await holdMode(session, info);
+        const tracked = track(threadId, resourceId, session);
         // Nothing runs on a Session just opened: a thread left working or waiting by a
         // run in an earlier process is stopped (its approval gates went with that process).
         if (info.status === 'working' || info.status === 'needs_you') {

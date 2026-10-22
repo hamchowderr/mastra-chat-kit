@@ -89,14 +89,15 @@ describe('/agent-controller/stream', () => {
     expect(blocked.model.switch).not.toHaveBeenCalled();
   });
 
-  it("switches to the composer's mode when it differs, and ignores an unknown one", async () => {
+  it("switches to the composer's mode, saving it even when unchanged, and ignores an unknown one", async () => {
     const plan = fakeSession();
     await run(plan, { text: 'plan this', mode: 'plan' });
     expect(plan.mode.switch).toHaveBeenCalledWith({ modeId: 'plan' });
 
+    // Saved on the thread, so a chat opened later in another mode comes back in this one.
     const same = fakeSession();
     await run(same, { text: 'hi', mode: 'chat' });
-    expect(same.mode.switch).not.toHaveBeenCalled();
+    expect(same.mode.switch).toHaveBeenCalledWith({ modeId: 'chat' });
 
     const unknown = fakeSession();
     await run(unknown, { text: 'hi', mode: 'yolo' });
