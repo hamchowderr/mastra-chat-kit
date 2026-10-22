@@ -35,9 +35,9 @@ import type { ThreadOutput } from './thread-groups';
 import { OutputIcon } from './thread-list';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
 import {
+  chatThreads,
   offered,
   startedAfter,
-  startedThreads,
   suggestionsOf,
   ThreadSuggestions,
 } from './thread-suggestions';
@@ -527,7 +527,7 @@ export function ChatView({
   const views = useMemo(() => withPlainSteps(toolViews), [toolViews]);
   const lastAssistant = transcript.messages.findLastIndex((m) => m.role !== 'user');
   // The threads this chat started, by title: a suggestion with one shows it, not Start.
-  const started = useMemo(() => startedThreads(transcript.messages), [transcript.messages]);
+  const madeHere = useMemo(() => chatThreads(transcript.messages), [transcript.messages]);
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
     <div className="min-h-0 flex-1" onClick={onLinkClick}>
@@ -574,7 +574,7 @@ export function ChatView({
                           key={partKey(m.id, i)}
                           suggestions={suggestionsOf(call.args)}
                           startedOf={(title) => {
-                            const thread = startedAfter(started, at, title);
+                            const thread = startedAfter(madeHere, at, title);
                             return thread
                               ? {
                                   threadId: thread.threadId,

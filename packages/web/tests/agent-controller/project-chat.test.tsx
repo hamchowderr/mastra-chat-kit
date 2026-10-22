@@ -2,7 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProjectChat } from '@/components/chat-project/project-chat';
 import { threadIdFromHref } from '@/components/chat-project/thread-row';
-import { offered, startWords } from '@/components/chat-project/thread-suggestions';
+import {
+  chatThreads,
+  offered,
+  startedAfter,
+  startWords,
+} from '@/components/chat-project/thread-suggestions';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { fakeController } from './fake-controller';
 
@@ -312,6 +317,35 @@ describe('threadIdFromHref', () => {
     expect(offered({ refused: 'This turn read outside content.' })).toBe(false);
     expect(offered(undefined)).toBe(false);
     expect(startWords(['A'])).toBe('Start the suggested thread "A".');
+  });
+
+  it("takes a thread for a card's suggestion only between that card and the next to offer it", () => {
+    const card = (id: string, titles: string[]) => ({
+      content: [
+        {
+          type: 'tool_call',
+          id,
+          name: 'suggest_threads',
+          args: { threads: titles.map((title) => ({ title, why: '' })) },
+        },
+        { type: 'tool_result', id, result: { suggested: titles } },
+      ],
+    });
+    const start = (id: string, title: string) => ({
+      content: [
+        { type: 'tool_call', id, name: 'start_thread', args: { title } },
+        { type: 'tool_result', id, result: { threadId: `t-${id}`, title } },
+      ],
+    });
+    const made = chatThreads([
+      start('s0', 'Tags'),
+      card('c1', ['Tags', 'Notes']),
+      card('c2', ['Tags']),
+      start('s3', 'tags '),
+    ]);
+    expect(startedAfter(made, 1, 'Tags')).toBeUndefined();
+    expect(startedAfter(made, 2, 'Tags')?.threadId).toBe('t-s3');
+    expect(startedAfter(made, 1, 'Notes')).toBeUndefined();
   });
 
   it('reads only thread links', () => {

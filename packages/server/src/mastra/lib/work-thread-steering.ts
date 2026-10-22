@@ -51,8 +51,9 @@ export type SteeringDeps = {
    */
   untrusted?: ((requestContext: unknown) => boolean) | undefined;
   /**
-   * Fields added to a refused suggestion's result (a host's taint mark), so a later run that
-   * reads the refusal, and the brief it carried, is held to the host's rules too.
+   * Fields added to a refused suggestion's result: a host's marker, say, telling its memory to
+   * drop the call's briefs, so no later run can reuse a brief written after reading outside
+   * text.
    */
   refusal?: Record<string, unknown> | undefined;
   /** The specialists a thread can run as (`agents` on the work threads), for suggestions. */
@@ -232,8 +233,8 @@ export function createSteeringTools(deps: SteeringDeps) {
     requireApproval: neverAsks,
     execute: async ({ threads }, ctx) => {
       await caller(ctx as ToolContext);
-      // Refused as a result, not thrown, so the host's mark on it stays in the chat's history:
-      // the brief stays there too, and a later run that reuses it is held to the same rules.
+      // Refused as a result, not thrown, so the host's fields reach whatever stores it (its
+      // memory, which can drop the briefs the call carried).
       if (deps.untrusted?.((ctx as ToolContext | undefined)?.requestContext)) {
         return {
           refused:

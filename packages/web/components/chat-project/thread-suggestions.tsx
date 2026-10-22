@@ -18,37 +18,59 @@ export function titleKey(title: string): string {
 /** A thread a chat's `start_thread` call made: which message made it, and its title. */
 export type StartedThread = { at: number; title: string; threadId: string };
 
-/** The threads a chat's `start_thread` calls made, in order, from its messages. */
-export function startedThreads(
+/** What a chat's threads and suggestion cards were, by message, for matching the two. */
+export type ChatThreads = {
+  started: StartedThread[];
+  /** Each accepted suggestion card: its message, and the titles it offered. */
+  cards: Array<{ at: number; titles: string[] }>;
+};
+
+/** A chat's started threads and suggestion cards, in order, from its messages. */
+export function chatThreads(
   messages: ReadonlyArray<{ content: ReadonlyArray<{ type: string }> }>,
-): StartedThread[] {
-  return messages.flatMap((m, at) => {
+): ChatThreads {
+  const started: StartedThread[] = [];
+  const cards: ChatThreads['cards'] = [];
+  messages.forEach((m, at) => {
     const results = new Map(
       m.content
         .filter((p) => p.type === 'tool_result')
         .map((p) => [(p as { id?: string }).id, (p as { result?: unknown }).result]),
     );
-    return m.content.flatMap((p) => {
-      const call = p as { type: string; id?: string; name?: string };
-      if (call.type !== 'tool_call' || call.name !== 'start_thread') return [];
-      const r = results.get(call.id) as { threadId?: unknown; title?: unknown } | undefined;
-      return typeof r?.threadId === 'string' && typeof r.title === 'string'
-        ? [{ at, title: r.title, threadId: r.threadId }]
-        : [];
-    });
+    for (const p of m.content) {
+      const call = p as { type: string; id?: string; name?: string; args?: unknown };
+      if (call.type !== 'tool_call') continue;
+      const r = results.get(call.id);
+      if (call.name === 'suggest_threads' && offered(r)) {
+        cards.push({ at, titles: suggestionsOf(call.args).map((t) => titleKey(t.title)) });
+      }
+      const made = r as { threadId?: unknown; title?: unknown } | undefined;
+      if (
+        call.name === 'start_thread' &&
+        typeof made?.threadId === 'string' &&
+        typeof made.title === 'string'
+      ) {
+        started.push({ at, title: made.title, threadId: made.threadId });
+      }
+    }
   });
+  return { started, cards };
 }
 
 /**
  * The thread started from a card's suggestion: the first with its title started after the
- * card's message, so an older thread of the same name is never taken for it.
+ * card's message and before a later card offering the same title, so neither an older thread
+ * of that name nor one started from another card is taken for it.
  */
 export function startedAfter(
-  started: readonly StartedThread[],
+  { started, cards }: ChatThreads,
   cardAt: number,
   title: string,
 ): StartedThread | undefined {
-  return started.find((t) => t.at > cardAt && titleKey(t.title) === titleKey(title));
+  const key = titleKey(title);
+  const until =
+    cards.find((c) => c.at > cardAt && c.titles.includes(key))?.at ?? Number.POSITIVE_INFINITY;
+  return started.find((t) => t.at > cardAt && t.at < until && titleKey(t.title) === key);
 }
 
 /** Whether a `suggest_threads` result offered its card (a refused call offered nothing). */
