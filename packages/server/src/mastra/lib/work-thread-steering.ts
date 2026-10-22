@@ -31,6 +31,11 @@ export type SteeringDeps = {
     text: string;
     requestContext?: RequestContext;
   }) => Promise<{ running: boolean }>;
+  /**
+   * Whether a `message_thread` call waits for the user's yes, by the host's rule for the
+   * calling run (`requireApproval` on the work threads, as for `start_thread`).
+   */
+  requireApproval?: ((requestContext: unknown) => boolean) | undefined;
   /** The host's screen for a thread's words before an agent reads them (`screenReport`). */
   screen?: ((text: string, thread: WorkThreadInfo) => string) | undefined;
 };
@@ -141,6 +146,12 @@ export function createSteeringTools(deps: SteeringDeps) {
         .max(4000)
         .describe("What to tell it, in the user's words where possible."),
     }),
+    ...(deps.requireApproval
+      ? {
+          requireApproval: (_input: unknown, ctx?: { requestContext?: unknown }) =>
+            deps.requireApproval?.(ctx?.requestContext) ?? false,
+        }
+      : {}),
     execute: async ({ threadId, message }, ctx) => {
       const { resourceId, info } = await ownThread(ctx as ToolContext, threadId);
       if (info.status === 'queued') {

@@ -114,6 +114,19 @@ describe('start_thread approval', () => {
     expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
     expect(ask({}, { requestContext: new Map() })).toBe(false);
   });
+
+  it('asks the same rule before message_thread, and nothing before reading', () => {
+    const { steering } = createWorkThreads({
+      getController,
+      storage,
+      requireApproval: (rc) => (rc as Map<string, unknown>).get('tainted') === true,
+    });
+    const ask = steering.message_thread.requireApproval as (i: unknown, c: unknown) => boolean;
+    expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
+    expect(ask({}, { requestContext: new Map() })).toBe(false);
+    expect(steering.list_threads.requireApproval).toBeFalsy();
+    expect(steering.read_thread.requireApproval).toBeFalsy();
+  });
 });
 
 describe('start_thread agents', () => {

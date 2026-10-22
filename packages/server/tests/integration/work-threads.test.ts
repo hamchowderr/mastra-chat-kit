@@ -299,9 +299,11 @@ describe('work threads (AIMock)', () => {
     await waitFor(async () => workThreadOf((await threads())[0])?.status === 'done');
     const tools = workThreads.steering;
     const ctx = { agent: { threadId: mainThreadId, resourceId } };
-    // biome-ignore lint/suspicious/noExplicitAny: calling the tools as the controller does
-    const call = (id: string, input: unknown, c: unknown = ctx) =>
-      (tools as any)[id].execute(input, c);
+    // Called as the controller calls them: the input, then the run's context.
+    // biome-ignore lint/suspicious/noExplicitAny: each tool's result is read loosely here
+    type Execute = (input: unknown, c: unknown) => Promise<Record<string, any>>;
+    const call = (id: keyof typeof tools, input: unknown, c: unknown = ctx) =>
+      (tools[id].execute as unknown as Execute)(input, c);
 
     const { threads: listed } = await call(LIST_THREADS_TOOL, {});
     expect(listed).toEqual([
