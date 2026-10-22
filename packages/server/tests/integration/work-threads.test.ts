@@ -153,6 +153,59 @@ describe('work threads (AIMock)', () => {
     expect(reopened?.thread.getId()).toBe(threadId);
   });
 
+  it("runs a thread as the agent it was given, in that agent's mode", async () => {
+    const resourceId = 'u-work-agent';
+    const { mainThreadId, threads, controller, storage } = await setup(resourceId);
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      agents: [
+        { id: 'helper', name: 'Helper', description: 'Does general work.', modeId: 'chat' },
+        { id: 'planner', name: 'Planner', description: 'Plans before acting.', modeId: 'plan' },
+      ],
+    });
+    const planner = { id: 'planner', name: 'Planner', description: '', modeId: 'plan' };
+    const started = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+      agent: planner,
+    });
+    expect(started.agent).toBe('Planner');
+    expect(workThreadOf((await threads())[0])?.agent).toEqual({ id: 'planner', name: 'Planner' });
+    const session = await controller.getSessionByResource(resourceId, `work:${started.threadId}`);
+    expect(session?.mode.get()).toBe('plan');
+    await waitFor(async () => workThreadOf((await threads())[0])?.status !== 'working');
+    // The main chat's own Session keeps its mode.
+    expect((await controller.getSessionByResource(resourceId))?.mode.get()).toBe('chat');
+  });
+
+  it('opens a thread from before agents in the first agent offered', async () => {
+    const resourceId = 'u-work-legacy';
+    const { mainThreadId, controller, storage, memory } = await setup(resourceId);
+    const now = new Date();
+    await memory.saveThread({
+      thread: {
+        id: 'legacy',
+        resourceId,
+        title: 'Old work',
+        createdAt: now,
+        updatedAt: now,
+        metadata: {
+          [WORK_THREAD_KEY]: { parentThreadId: mainThreadId, title: 'Old work', status: 'done' },
+        },
+      },
+    });
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      agents: [{ id: 'planner', name: 'Planner', description: 'Plans.', modeId: 'plan' }],
+    });
+    const session = await workThreads.sessionForThread('legacy', resourceId);
+    expect(session?.mode.get()).toBe('plan');
+  });
+
   it('marks threads an earlier process left working or waiting as stopped', async () => {
     const resourceId = 'u-work-recover';
     const { mainThreadId, threads, controller, storage, memory } = await setup(resourceId);

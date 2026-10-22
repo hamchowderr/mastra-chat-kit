@@ -119,6 +119,19 @@ function messageText(message: unknown): string {
     .trim();
 }
 
+/**
+ * A specialist a work thread can run as: one of the controller's modes, which carries its own
+ * instructions and tools. The main chat's agent picks one per thread from their descriptions.
+ */
+export type ThreadAgent = {
+  id: string;
+  name: string;
+  /** What it does and when to pick it, for the main chat's agent. */
+  description: string;
+  /** The controller mode its threads run in. */
+  modeId: string;
+};
+
 export type WorkThreadsConfig = {
   getController: () => Promise<AgentController>;
   /** The controller's own store: threads' metadata and the reports are written to it. */
@@ -162,6 +175,12 @@ export type WorkThreadsConfig = {
   ) => Promise<unknown>;
   /** How long an idle work thread keeps its Session before it is torn down. Default 60 s. */
   idleMs?: number;
+  /**
+   * The specialists threads can run as. With them, `start_thread` takes an `agent` (the first
+   * one when left out) and the thread runs in that agent's mode, whatever mode the main chat
+   * is in. Without them, a thread runs in the controller's default mode.
+   */
+  agents?: readonly ThreadAgent[];
 };
 
 type Tracked = {
@@ -216,6 +235,18 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   };
 
   const openSession = config.openSession ?? openWorkSession;
+
+  /**
+   * Puts a work thread's Session in its agent's mode: the agent it was started as, or the first
+   * one offered for a thread from before it had one (or whose agent is gone).
+   */
+  async function holdMode(session: Session, info: WorkThreadInfo) {
+    const offered = config.agents ?? [];
+    const agent = offered.find((a) => a.id === info.agent?.id) ?? offered[0];
+    if (agent && session.mode.get() !== agent.modeId) {
+      await session.mode.switch({ modeId: agent.modeId });
+    }
+  }
 
   /**
    * Saves a change to a work thread's state: its status, and what goes with it (its checklist,
@@ -421,22 +452,27 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     parentThreadId,
     title,
     brief,
+    agent,
     requestContext,
   }: {
     resourceId: string;
     parentThreadId: string;
     title: string;
     brief: string;
+    /** The specialist to run; the first of `agents` when left out. */
+    agent?: ThreadAgent;
     requestContext?: RequestContext;
-  }): Promise<{ threadId: string; title: string; status: WorkThreadStatus }> {
+  }): Promise<{ threadId: string; title: string; status: WorkThreadStatus; agent?: string }> {
     const controller = await config.getController();
     const threadId = globalThis.crypto.randomUUID();
     const untrusted = config.startsUntrusted?.(requestContext) ?? false;
+    const runs = agent ?? config.agents?.[0];
     const info: WorkThreadInfo = {
       parentThreadId,
       title,
       status: 'working',
       ...(untrusted ? { untrusted } : {}),
+      ...(runs ? { agent: { id: runs.id, name: runs.name } } : {}),
     };
     const store = await memory();
     const now = new Date();
@@ -450,7 +486,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         title,
         createdAt: now,
         updatedAt: now,
-        metadata: { [WORK_THREAD_KEY]: info },
+        // The Session restores the thread's mode from `currentModeId` when it opens it.
+        metadata: { [WORK_THREAD_KEY]: info, ...(runs ? { currentModeId: runs.modeId } : {}) },
       },
     });
     const opening = openSession(controller, { resourceId, threadId }).then((session) =>
@@ -460,6 +497,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     opening.catch(() => live.delete(threadId));
     const tracked = await opening;
     const { session } = tracked;
+    await holdMode(session, info);
     tracked.background = true;
     // Not awaited: the main chat carries on while the thread works.
     void session
@@ -472,7 +510,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           () => undefined,
         );
       });
-    return { threadId, title, status: 'working' };
+    return { threadId, title, status: 'working', ...(runs ? { agent: runs.name } : {}) };
   }
 
   /**
@@ -489,11 +527,9 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     if (!opening) {
       const fresh = (async () => {
         const controller = await config.getController();
-        const tracked = track(
-          threadId,
-          resourceId,
-          await openSession(controller, { resourceId, threadId }),
-        );
+        const session = await openSession(controller, { resourceId, threadId });
+        await holdMode(session, info);
+        const tracked = track(threadId, resourceId, session);
         // Nothing runs on a Session just opened: a thread left working or waiting by a
         // run in an earlier process is stopped (its approval gates went with that process).
         if (info.status === 'working' || info.status === 'needs_you') {
@@ -554,6 +590,20 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     return workThreadOf(await store.getThreadById({ threadId }));
   }
 
+  const agents = config.agents ?? [];
+  const agentIds = agents.map((a) => a.id) as [string, ...string[]];
+  const agentField =
+    agents.length > 0
+      ? {
+          agent: z
+            .enum(agentIds)
+            .optional()
+            .describe(
+              `Who does the work. ${agents.map((a) => `${a.id}: ${a.description}`).join(' ')} Default ${agents[0]?.id}.`,
+            ),
+        }
+      : {};
+
   const tool = createTool({
     id: START_THREAD_TOOL,
     description:
@@ -565,6 +615,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         .min(1)
         .max(8000)
         .describe("The whole task, in the user's words where possible."),
+      ...agentField,
     }),
     ...(config.requireApproval
       ? {
@@ -572,7 +623,9 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             config.requireApproval?.(ctx?.requestContext) ?? false,
         }
       : {}),
-    execute: async ({ title, brief }, ctx) => {
+    execute: async (input, ctx) => {
+      const { title, brief } = input;
+      const chosen = agents.find((a) => a.id === (input as { agent?: string }).agent);
       const parentThreadId = ctx?.agent?.threadId;
       const resourceId = ctx?.agent?.resourceId;
       if (!parentThreadId || !resourceId) {
@@ -588,6 +641,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         parentThreadId,
         title: title.trim(),
         brief,
+        ...(chosen ? { agent: chosen } : {}),
         ...(ctx?.requestContext ? { requestContext: ctx.requestContext } : {}),
       });
     },
