@@ -34,6 +34,8 @@ export type ThreadItem = {
   latest?: string;
   /** The person marked it resolved; a new run in it reopens it. */
   resolved?: boolean;
+  /** The specialist agent doing the work, when the server offers several. */
+  agent?: { id: string; name: string };
 };
 
 export type WorkThreadStatus = 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';

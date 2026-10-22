@@ -150,6 +150,12 @@ function ThreadListRow({
           </span>
         </span>
         <span className="w-full truncate text-xs">
+          {thread.agent && (
+            <span className="text-muted-foreground">
+              {thread.agent.name}
+              {word || thread.latest ? ' · ' : ''}
+            </span>
+          )}
           {word && <span className={word.tone}>{word.label}</span>}
           {word && thread.latest && <span className="text-muted-foreground"> · </span>}
           {thread.latest && <span className="text-muted-foreground">{thread.latest}</span>}

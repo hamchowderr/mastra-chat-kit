@@ -30,6 +30,8 @@ export type WorkThreadInfo = {
   latest?: string;
   /** The person marked it resolved: listed apart until a new run starts in it. */
   resolved?: boolean;
+  /** The specialist agent doing the work, when the host offers several (`agents`). */
+  agent?: { id: string; name: string };
   /**
    * The run that started it had read untrusted content, by the host's own rule
    * (`startsUntrusted`). The host applies its rules for such runs to every run here.
@@ -63,7 +65,13 @@ export function workThreadOf(
     ...(tasks?.length ? { tasks } : {}),
     ...(typeof v.latest === 'string' && v.latest ? { latest: v.latest } : {}),
     ...(v.resolved === true ? { resolved: true } : {}),
+    ...(isAgent(v.agent) ? { agent: { id: v.agent.id, name: v.agent.name } } : {}),
   };
+}
+
+function isAgent(value: unknown): value is { id: string; name: string } {
+  const a = value as Record<string, unknown> | null;
+  return typeof a?.id === 'string' && typeof a.name === 'string';
 }
 
 const TASK_STATUSES: ReadonlySet<string> = new Set(['pending', 'in_progress', 'completed']);
