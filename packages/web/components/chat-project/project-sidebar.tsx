@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { ThreadItem } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
+import type { ThreadOutput } from './thread-groups';
 import { ThreadList } from './thread-list';
 
 /**
@@ -31,6 +32,7 @@ export function ProjectSidebar({
   onRename,
   onDelete,
   busy = false,
+  outputsOf,
   className,
 }: {
   chats: ThreadItem[];
@@ -47,6 +49,8 @@ export function ProjectSidebar({
   onDelete: (chat: ThreadItem) => Promise<boolean>;
   /** The chat on show is answering: switching chats waits until it is done. */
   busy?: boolean;
+  /** What each thread made that opens on its own page (see `ProjectChat`). */
+  outputsOf?: ((t: ThreadItem) => ThreadOutput[]) | undefined;
   className?: string;
 }) {
   const [problem, setProblem] = useState<string | null>(null);
@@ -124,6 +128,7 @@ export function ProjectSidebar({
           onResolve={onResolveThread}
           // A thread opens over its own chat, which waits while another chat answers.
           disabled={(t) => busy && t.parentThreadId !== activeChatId}
+          outputsOf={outputsOf}
         />
       </nav>
       <nav

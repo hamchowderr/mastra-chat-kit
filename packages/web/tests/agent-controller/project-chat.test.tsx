@@ -81,10 +81,10 @@ function setup() {
   });
 }
 
-const renderChat = () =>
+const renderChat = (props: Parameters<typeof ProjectChat>[0] = {}) =>
   render(
     <TooltipProvider>
-      <ProjectChat />
+      <ProjectChat {...props} />
     </TooltipProvider>,
   );
 
@@ -190,6 +190,26 @@ describe('ProjectChat', () => {
     // The thread's header names the agent doing the work.
     const panel = screen.getByRole('region', { name: 'Thread: Oslo weather' });
     expect(within(panel).getByText('Researcher')).toBeInTheDocument();
+  });
+
+  it('links what a thread made from its row and its header', async () => {
+    setup();
+    renderChat({
+      outputsOf: (t) =>
+        t.id === WORK ? [{ kind: 'site', label: 'Open site', href: '/sites/s1' }] : [],
+    });
+    const list = await screen.findByRole('tabpanel', { name: /^Threads/ });
+    expect(within(list).getByRole('link', { name: 'Open site: Oslo weather' })).toHaveAttribute(
+      'href',
+      '/sites/s1',
+    );
+    expect(within(list).queryAllByRole('link')).toHaveLength(1);
+    fireEvent.click(await inChat(/Oslo weather/));
+    const panel = await screen.findByRole('region', { name: 'Thread: Oslo weather' });
+    expect(within(panel).getByRole('link', { name: 'Open site' })).toHaveAttribute(
+      'href',
+      '/sites/s1',
+    );
   });
 
   it('opens another chat from the Chats tab, and starts a new one', async () => {
