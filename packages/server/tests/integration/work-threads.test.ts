@@ -11,6 +11,7 @@ import {
   LIST_THREADS_TOOL,
   MESSAGE_THREAD_TOOL,
   READ_THREAD_TOOL,
+  SUGGEST_THREADS_TOOL,
 } from '../../src/mastra/lib/work-thread-steering';
 import { createWorkThreads } from '../../src/mastra/lib/work-threads';
 
@@ -349,6 +350,41 @@ describe('work threads (AIMock)', () => {
     await expect(call(LIST_THREADS_TOOL, {}, { agent: { threadId, resourceId } })).rejects.toThrow(
       /Only the main chat/,
     );
+
+    // Suggesting starts nothing: it names what it offered, and only the main chat offers.
+    const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
+    expect(await call(SUGGEST_THREADS_TOOL, offer)).toEqual({ suggested: ['Summer plan'] });
+    expect(await threads()).toHaveLength(1);
+    await expect(
+      call(SUGGEST_THREADS_TOOL, offer, { agent: { threadId, resourceId } }),
+    ).rejects.toThrow(/Only the main chat/);
+  });
+
+  it('refuses suggestions from a run that read untrusted content, with the host mark', async () => {
+    const resourceId = 'u-work-suggest-untrusted';
+    const { mainThreadId, controller, storage } = await setup(resourceId);
+    const { RequestContext } = await import('@mastra/core/request-context');
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      startsUntrusted: (rc) => (rc as InstanceType<typeof RequestContext>)?.get('tainted') === true,
+      refusedSuggestion: { dropArgs: 'host-mark' },
+    });
+    const tainted = new RequestContext();
+    tainted.set('tainted', true);
+    // biome-ignore lint/suspicious/noExplicitAny: the tool's result is read loosely here
+    type Execute = (input: unknown, c: unknown) => Promise<Record<string, any>>;
+    const suggest = workThreads.steering[SUGGEST_THREADS_TOOL].execute as unknown as Execute;
+    const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
+    const agent = { threadId: mainThreadId, resourceId };
+    // Refused as a result carrying the host's fields, for its memory to act on.
+    expect(await suggest(offer, { agent, requestContext: tainted })).toEqual({
+      refused: expect.stringMatching(/read outside content/),
+      dropArgs: 'host-mark',
+    });
+    expect(await suggest(offer, { agent, requestContext: new RequestContext() })).toEqual({
+      suggested: ['Summer plan'],
+    });
   });
 
   it("runs a message sent mid-run as a run of its own, with the host's context, and reports both", async () => {
