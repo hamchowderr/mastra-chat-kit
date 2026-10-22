@@ -127,17 +127,18 @@ export type WorkThreadsConfig = {
    */
   runContext?: (requestContext: RequestContext, thread: WorkThreadInfo) => void;
   /**
-   * Extra metadata for a report saved into the main chat, from the thread's state and the
-   * reported run's messages (as the Session showed them, tool results as the host's
-   * processors left them): a host whose rules follow what a run has read marks the report of
-   * a run that read untrusted content, so the main chat's next run treats it as such.
+   * Whether a report may carry the run's own words (its last reply, its question, its error),
+   * from the thread's state and the reported run's messages (as the Session showed them, tool
+   * results as the host's processors left them). A host whose rules follow what a run has
+   * read says no for a run that read untrusted content: the report then says only how the
+   * run ended, and the main chat reads the thread with `read_thread`, under the host's rules
+   * for what that returns. Unset: reports carry the words.
    */
-  reportMetadata?: (input: {
+  reportsWords?: (input: {
     threadId: string;
-    resourceId: string;
     thread: WorkThreadInfo;
     runMessages: unknown[];
-  }) => Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined;
+  }) => boolean;
 };
 
 type Tracked = {
@@ -303,14 +304,10 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     const thread = await store.getThreadById({ threadId });
     const info = workThreadOf(thread);
     if (!thread || !info) return;
-    const said = detail && config.screenReport ? config.screenReport(detail, info) : detail;
+    const words = config.reportsWords?.({ threadId, thread: info, runMessages }) ?? true;
+    const kept = words ? detail : undefined;
+    const said = kept && config.screenReport ? config.screenReport(kept, info) : kept;
     const text = reportText(info.title || 'A thread', threadId, status, said);
-    const extra = await config.reportMetadata?.({
-      threadId,
-      resourceId: thread.resourceId,
-      thread: info,
-      runMessages,
-    });
     await store.saveMessages({
       messages: [
         {
@@ -323,7 +320,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             format: 2,
             parts: [{ type: 'text', text }],
             content: text,
-            metadata: { ...extra, [WORK_THREAD_KEY]: { threadId, status } },
+            metadata: { [WORK_THREAD_KEY]: { threadId, status } },
           },
         },
       ],
@@ -471,6 +468,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             const seen = [...tracked.runMessages];
             const reply = tracked.lastReply;
             tracked.background = false;
+            // A Stop stops what the kit queued behind the run too.
+            if (reason === 'aborted') tracked.pending = [];
             later(async () => {
               if (reason === 'aborted') await setStatus(threadId, 'stopped', 'Stopped');
               else await setStatus(threadId, 'done', reply ? line(reply) : 'Done');
@@ -502,10 +501,11 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   ) {
     tracked.pending.push(requestContext);
     void tracked.session.queueMessage({ content, requestContext }).catch(async (err: unknown) => {
-      // It never started, or failed as it did.
+      // A run that started and failed was reported at its end; only one that never started
+      // is reported here.
       const waiting = tracked.pending.indexOf(requestContext);
-      if (waiting >= 0) tracked.pending.splice(waiting, 1);
-      tracked.background = false;
+      if (waiting < 0) return;
+      tracked.pending.splice(waiting, 1);
       await failed(threadId, resourceId, err);
     });
   }
@@ -521,7 +521,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
 
   /**
    * Opens a work thread's Session and runs its agent on the brief, in the background. A
-   * thread whose Session could not be opened is marked failed, so it holds no slot.
+   * thread whose Session could not be opened is marked failed, so it holds no slot. Resolves
+   * to whether the run was queued.
    */
   async function run(
     threadId: string,
@@ -546,8 +547,10 @@ export function createWorkThreads(config: WorkThreadsConfig) {
       clearTimeout(idleTimers.get(threadId));
       await holdMode(tracked.session, info);
       send(threadId, resourceId, tracked, brief, contextFor(requestContext, info));
+      return true;
     } catch (err) {
       await failed(threadId, resourceId, err);
+      return false;
     }
   }
 
@@ -621,9 +624,10 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           metadata: { [WORK_THREAD_KEY]: info, ...(runs ? { currentModeId: runs.modeId } : {}) },
         },
       });
+      let result: WorkThreadStatus = status;
       if (status === 'queued') queued.set(threadId, { info, brief, requestContext });
-      else await run(threadId, resourceId, info, brief, requestContext);
-      return { threadId, title, status, ...(runs ? { agent: runs.name } : {}) };
+      else if (!(await run(threadId, resourceId, info, brief, requestContext))) result = 'failed';
+      return { threadId, title, status: result, ...(runs ? { agent: runs.name } : {}) };
     });
   }
 
