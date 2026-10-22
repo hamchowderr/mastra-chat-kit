@@ -14,6 +14,10 @@ export type Thread = {
   /** A work thread's main chat and status (`start_thread`). */
   parentThreadId?: string;
   status?: string;
+  /** Its checklist, latest line and whether it is resolved, as the list returns them. */
+  tasks?: Array<{ content: string; status: string }>;
+  latest?: string;
+  resolved?: boolean;
 };
 
 const sse = (events: Event[]) =>

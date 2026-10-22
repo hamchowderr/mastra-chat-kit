@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 /** What each status reads as, and its dot's colour. */
 const STATUS: Record<WorkThreadStatus, { label: string; dot: string }> = {
   working: { label: 'Working', dot: 'bg-blue-500 animate-pulse' },
-  needs_you: { label: 'Needs you', dot: 'bg-amber-500' },
+  needs_you: { label: 'Waiting on you', dot: 'bg-amber-500' },
   done: { label: 'Done', dot: 'bg-emerald-500' },
   failed: { label: 'Failed', dot: 'bg-red-500' },
   stopped: { label: 'Stopped', dot: 'bg-muted-foreground' },
