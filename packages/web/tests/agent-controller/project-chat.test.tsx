@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ProjectChat } from '@/components/chat-project/project-chat';
 import { threadIdFromHref } from '@/components/chat-project/thread-row';
+import { offered, startWords } from '@/components/chat-project/thread-suggestions';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { fakeController } from './fake-controller';
 
@@ -259,6 +260,14 @@ describe('threadIdFromHref', () => {
       messages: {
         [MAIN]: [
           {
+            id: 'a0',
+            role: 'assistant',
+            // An older thread of the same name as a suggestion is not the suggestion's.
+            parts: [
+              { type: 'data-work-thread', data: { threadId: 'old-1', title: 'Spring plan' } },
+            ],
+          },
+          {
             id: 'a1',
             role: 'assistant',
             parts: [
@@ -296,6 +305,13 @@ describe('threadIdFromHref', () => {
     expect(api.sent('/api/agent-controller/stream')[0]?.body).toMatchObject({
       text: 'Start the suggested threads "Spring plan", "Summer plan".',
     });
+  });
+
+  it('draws a card only for suggestions the tool accepted', () => {
+    expect(offered({ suggested: ['A'] })).toBe(true);
+    expect(offered({ refused: 'This turn read outside content.' })).toBe(false);
+    expect(offered(undefined)).toBe(false);
+    expect(startWords(['A'])).toBe('Start the suggested thread "A".');
   });
 
   it('reads only thread links', () => {

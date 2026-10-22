@@ -347,7 +347,7 @@ export function uiMessagesToAgentController(
           },
         ];
       }
-      // Threads a `suggest_threads` call offered: restored as that call, so the card shows
+      // Threads a `suggest_threads` call offered: restored as that call and its result, so the card shows
       // again with its Start buttons (threads started from it show as started).
       if (p.type === 'data-thread-suggestions') {
         const d = p.data as { suggestions?: unknown } | undefined;
@@ -355,7 +355,14 @@ export function uiMessagesToAgentController(
         const id = `thread-suggestions-${m.id}-${at}`;
         return [
           { type: 'tool_call', id, name: 'suggest_threads', args: { threads: d.suggestions } },
-          { type: 'tool_result', id, name: 'suggest_threads', result: {} },
+          {
+            type: 'tool_result',
+            id,
+            name: 'suggest_threads',
+            result: {
+              suggested: d.suggestions.map((t) => (t as { title?: unknown } | null)?.title),
+            },
+          },
         ];
       }
       return [];

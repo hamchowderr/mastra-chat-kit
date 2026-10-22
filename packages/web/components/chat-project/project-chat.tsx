@@ -34,7 +34,13 @@ import { ThreadChecklist } from './thread-checklist';
 import type { ThreadOutput } from './thread-groups';
 import { OutputIcon } from './thread-list';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
-import { startedThreads, suggestionsOf, ThreadSuggestions, titleKey } from './thread-suggestions';
+import {
+  offered,
+  startedAfter,
+  startedThreads,
+  suggestionsOf,
+  ThreadSuggestions,
+} from './thread-suggestions';
 
 /** How wide the chat area must be for an open thread to sit beside the chat, not over it. */
 const SIDE_BY_SIDE_PX = 900;
@@ -521,7 +527,7 @@ export function ChatView({
   const views = useMemo(() => withPlainSteps(toolViews), [toolViews]);
   const lastAssistant = transcript.messages.findLastIndex((m) => m.role !== 'user');
   // The threads this chat started, by title: a suggestion with one shows it, not Start.
-  const startedByTitle = useMemo(() => startedThreads(transcript.messages), [transcript.messages]);
+  const started = useMemo(() => startedThreads(transcript.messages), [transcript.messages]);
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
     <div className="min-h-0 flex-1" onClick={onLinkClick}>
@@ -560,14 +566,20 @@ export function ChatView({
                       args?: unknown;
                     };
                     if (call.type === 'tool_call' && call.name === 'suggest_threads') {
+                      // Drawn once the tool accepted it: a refused call offered nothing.
+                      const result = resultsById.get(call.id ?? '');
+                      if (result?.isError || !offered(result?.result)) return null;
                       return (
                         <ThreadSuggestions
                           key={partKey(m.id, i)}
                           suggestions={suggestionsOf(call.args)}
                           startedOf={(title) => {
-                            const threadId = startedByTitle.get(titleKey(title));
-                            return threadId
-                              ? { threadId, status: work.get(threadId)?.status }
+                            const thread = startedAfter(started, at, title);
+                            return thread
+                              ? {
+                                  threadId: thread.threadId,
+                                  status: work.get(thread.threadId)?.status,
+                                }
                               : undefined;
                           }}
                           onStart={(text) => void controller.sendMessage(text)}

@@ -50,6 +50,11 @@ export type SteeringDeps = {
    * a brief written after reading outside text goes through `start_thread` and its rules.
    */
   untrusted?: ((requestContext: unknown) => boolean) | undefined;
+  /**
+   * Fields added to a refused suggestion's result (a host's taint mark), so a later run that
+   * reads the refusal, and the brief it carried, is held to the host's rules too.
+   */
+  refusal?: Record<string, unknown> | undefined;
   /** The specialists a thread can run as (`agents` on the work threads), for suggestions. */
   agents?: ReadonlyArray<{ id: string; description: string }> | undefined;
 };
@@ -213,15 +218,28 @@ export function createSteeringTools(deps: SteeringDeps) {
 
   const suggestThreads = createTool({
     id: SUGGEST_THREADS_TOOL,
-    description: `Offer the person threads to start, instead of starting them yourself. They show as a card under your message, with a Start button for each and one to start them all. Use it when the person asks what could be done, or when a request splits into several pieces of work they may not all want. Give each a short title, one line on why, and the brief start_thread would get. Then stop and let them pick: when they say to start a suggested thread, call start_thread with that suggestion's title, brief and agent unchanged. At most ${MAX_SUGGESTIONS}. Not for one quick step: do that yourself.`,
-    inputSchema: z.object({ threads: z.array(suggestion).min(1).max(MAX_SUGGESTIONS) }),
+    description: `Offer the person threads to start, instead of starting them yourself. They show as a card under your message, with a Start button for each and one to start them all. Use it when the person asks what could be done, or when a request splits into several pieces of work they may not all want. Give each a short title, one line on why, and the brief start_thread would get. Then stop and let them pick: when they say to start a suggested thread, call start_thread with that suggestion's title, brief and agent unchanged. If that suggestion is no longer in this conversation, ask them what the thread should do rather than guessing. At most ${MAX_SUGGESTIONS}. Not for one quick step: do that yourself.`,
+    inputSchema: z.object({
+      threads: z
+        .array(suggestion)
+        .min(1)
+        .max(MAX_SUGGESTIONS)
+        .refine(
+          (list) => new Set(list.map((t) => t.title.trim().toLowerCase())).size === list.length,
+          'Give each suggestion a title of its own.',
+        ),
+    }),
     requireApproval: neverAsks,
     execute: async ({ threads }, ctx) => {
       await caller(ctx as ToolContext);
+      // Refused as a result, not thrown, so the host's mark on it stays in the chat's history:
+      // the brief stays there too, and a later run that reuses it is held to the same rules.
       if (deps.untrusted?.((ctx as ToolContext | undefined)?.requestContext)) {
-        throw new Error(
-          'This turn read outside content, so it cannot suggest threads. Start the ones that are needed with start_thread instead.',
-        );
+        return {
+          refused:
+            'This turn read outside content, so it cannot suggest threads. Start the ones that are needed with start_thread instead.',
+          ...deps.refusal,
+        };
       }
       return { suggested: threads.map((t) => t.title) };
     },

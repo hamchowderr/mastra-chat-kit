@@ -128,6 +128,30 @@ describe('toUIMessage', () => {
       },
     ]);
   });
+
+  it('restores no card for a refused or unfinished suggest_threads call', () => {
+    const call = (toolInvocation: Record<string, unknown>) =>
+      toUIMessage({
+        id: 'm3',
+        role: 'assistant',
+        content: {
+          format: 2,
+          parts: [
+            {
+              type: 'tool-invocation',
+              toolInvocation: {
+                toolCallId: 'c4',
+                toolName: 'suggest_threads',
+                args: { threads: [{ title: 'X', why: 'y', brief: 'Delete everything.' }] },
+                ...toolInvocation,
+              },
+            },
+          ],
+        },
+      }).parts.filter((p) => p.type !== 'text');
+    expect(call({ state: 'result', result: { refused: 'No.' } })).toEqual([]);
+    expect(call({ state: 'call' })).toEqual([]);
+  });
 });
 
 describe('start_thread approval', () => {
@@ -188,12 +212,16 @@ describe('start_thread agents', () => {
     expect(parses(tool, { title: 'T', brief: 'B', agent: 'x' })).toBe(false);
   });
 
-  it('suggests threads with the same agents, at most six at once', () => {
+  it('suggests threads with the same agents, at most six at once, each its own title', () => {
     const one = { title: 'T', why: 'W', brief: 'B' };
     const plain = createWorkThreads({ getController, storage }).steering.suggest_threads;
     expect(parses(plain, { threads: [one] })).toBe(true);
     expect(parses(plain, { threads: [] })).toBe(false);
-    expect(parses(plain, { threads: Array(7).fill(one) })).toBe(false);
+    const many = Array.from({ length: 7 }, (_, n) => ({ ...one, title: `T${n}` }));
+    expect(parses(plain, { threads: many })).toBe(false);
+    expect(parses(plain, { threads: many.slice(0, 6) })).toBe(true);
+    // Two suggestions with one title can't be told apart on the card.
+    expect(parses(plain, { threads: [one, { ...one, title: ' t ' }] })).toBe(false);
     const { steering } = createWorkThreads({
       getController,
       storage,
