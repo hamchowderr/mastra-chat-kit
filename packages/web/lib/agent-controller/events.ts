@@ -318,7 +318,7 @@ export function uiMessagesToAgentController(
     id: m.id,
     role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
     // Text, and the files a user attached (stored as file parts with a data URL).
-    content: (m.parts ?? []).flatMap((p): AgentControllerContentPart[] => {
+    content: (m.parts ?? []).flatMap((p, at): AgentControllerContentPart[] => {
       if (p.type === 'text' && typeof p.text === 'string') return [{ type: 'text', text: p.text }];
       if (p.type === 'file' && typeof p.url === 'string' && p.url.startsWith('data:')) {
         return [
@@ -344,6 +344,24 @@ export function uiMessagesToAgentController(
             id,
             name: 'start_thread',
             result: { threadId: d.threadId, title },
+          },
+        ];
+      }
+      // Threads a `suggest_threads` call offered: restored as that call and its result, so the card shows
+      // again with its Start buttons (threads started from it show as started).
+      if (p.type === 'data-thread-suggestions') {
+        const d = p.data as { suggestions?: unknown } | undefined;
+        if (!Array.isArray(d?.suggestions)) return [];
+        const id = `thread-suggestions-${m.id}-${at}`;
+        return [
+          { type: 'tool_call', id, name: 'suggest_threads', args: { threads: d.suggestions } },
+          {
+            type: 'tool_result',
+            id,
+            name: 'suggest_threads',
+            result: {
+              suggested: d.suggestions.map((t) => (t as { title?: unknown } | null)?.title),
+            },
           },
         ];
       }

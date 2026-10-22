@@ -437,6 +437,7 @@ const PROJECT_FILES = [
   'components/chat-project/thread-list.tsx',
   'components/chat-project/thread-groups.ts',
   'components/chat-project/thread-checklist.tsx',
+  'components/chat-project/thread-suggestions.tsx',
 ];
 {
   const c = classify(PROJECT_FILES);
