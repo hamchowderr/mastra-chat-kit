@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import { toUIMessage } from '../../src/mastra/lib/thread-utils';
 import { threadLink, workThreadOf } from '../../src/mastra/lib/work-thread-info';
 import {
@@ -18,13 +19,14 @@ describe('work thread info', () => {
     expect(workThreadOf(null)).toBeUndefined();
   });
 
-  it('keeps its checklist, latest line and resolved flag, dropping malformed steps', () => {
+  it('keeps its checklist, latest line, resolved flag and agent, dropping malformed ones', () => {
     const info = {
       parentThreadId: 'm1',
       title: 'Plan',
       status: 'done',
       latest: 'All set.',
       resolved: true,
+      agent: { id: 'writer', name: 'Writer' },
       tasks: [
         { content: 'Draft it', status: 'completed' },
         { content: 'Bad', status: 'sleeping' },
@@ -36,7 +38,9 @@ describe('work thread info', () => {
       tasks: [{ content: 'Draft it', status: 'completed' }],
     });
     const plain = workThreadOf({
-      metadata: { workThread: { ...info, tasks: [], latest: '', resolved: 'yes' } },
+      metadata: {
+        workThread: { ...info, tasks: [], latest: '', resolved: 'yes', agent: { id: 'writer' } },
+      },
     });
     expect(plain).toEqual({ parentThreadId: 'm1', title: 'Plan', status: 'done' });
   });
@@ -112,5 +116,28 @@ describe('start_thread approval', () => {
     const ask = tool.requireApproval as (input: unknown, ctx: unknown) => boolean;
     expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
     expect(ask({}, { requestContext: new Map() })).toBe(false);
+  });
+});
+
+describe('start_thread agents', () => {
+  const storage = {} as Parameters<typeof createWorkThreads>[0]['storage'];
+  const getController = () => Promise.reject(new Error('unused'));
+  const parses = (tool: { inputSchema?: unknown }, input: unknown) =>
+    (tool.inputSchema as z.ZodType).safeParse(input).success;
+
+  it("offers the host's agents by id, and none without them", () => {
+    const plain = createWorkThreads({ getController, storage }).tool;
+    expect(parses(plain, { title: 'T', brief: 'B', agent: 'x' })).toBe(true);
+    const { tool } = createWorkThreads({
+      getController,
+      storage,
+      agents: [
+        { id: 'site', name: 'Site builder', description: 'Builds sites.', modeId: 'site' },
+        { id: 'email', name: 'Email marketer', description: 'Writes emails.', modeId: 'email' },
+      ],
+    });
+    expect(parses(tool, { title: 'T', brief: 'B', agent: 'email' })).toBe(true);
+    expect(parses(tool, { title: 'T', brief: 'B' })).toBe(true);
+    expect(parses(tool, { title: 'T', brief: 'B', agent: 'x' })).toBe(false);
   });
 });
