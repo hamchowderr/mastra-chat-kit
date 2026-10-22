@@ -368,7 +368,7 @@ describe('work threads (AIMock)', () => {
       getController: async () => controller,
       storage,
       startsUntrusted: (rc) => (rc as InstanceType<typeof RequestContext>)?.get('tainted') === true,
-      refusedSuggestion: { taint: 'host-mark' },
+      refusedSuggestion: { dropArgs: 'host-mark' },
     });
     const tainted = new RequestContext();
     tainted.set('tainted', true);
@@ -377,10 +377,10 @@ describe('work threads (AIMock)', () => {
     const suggest = workThreads.steering[SUGGEST_THREADS_TOOL].execute as unknown as Execute;
     const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
     const agent = { threadId: mainThreadId, resourceId };
-    // Refused as a result carrying the host's mark, so the chat's next runs see it.
+    // Refused as a result carrying the host's fields, for its memory to act on.
     expect(await suggest(offer, { agent, requestContext: tainted })).toEqual({
       refused: expect.stringMatching(/read outside content/),
-      taint: 'host-mark',
+      dropArgs: 'host-mark',
     });
     expect(await suggest(offer, { agent, requestContext: new RequestContext() })).toEqual({
       suggested: ['Summer plan'],
