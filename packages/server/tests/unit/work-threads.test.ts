@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { toUIMessage } from '../../src/mastra/lib/thread-utils';
 import { threadLink, workThreadOf } from '../../src/mastra/lib/work-thread-info';
-import {
-  createWorkThreads,
-  REPORT_EXCERPT_CHARS,
-  reportText,
-} from '../../src/mastra/lib/work-threads';
+import { REPORT_EXCERPT_CHARS, reportText } from '../../src/mastra/lib/work-thread-text';
+import { createWorkThreads } from '../../src/mastra/lib/work-threads';
 
 describe('work thread info', () => {
   it('reads a work thread from its metadata and nothing else', () => {
