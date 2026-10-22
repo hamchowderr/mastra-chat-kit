@@ -30,6 +30,7 @@ import {
 import { type ThreadItem, useThreads } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
 import { ProjectSidebar } from './project-sidebar';
+import { ThreadChecklist } from './thread-checklist';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
 
 /** How wide the chat area must be for an open thread to sit beside the chat, not over it. */
@@ -91,7 +92,9 @@ export function ProjectChat({
 }) {
   const main = useAgentControllerChat();
   const thread = useAgentControllerChat();
-  const { threads, refresh, rename, remove } = useThreads({ refreshSignal: main.refreshSignal });
+  const { threads, refresh, rename, remove, resolve } = useThreads({
+    refreshSignal: main.refreshSignal,
+  });
   const [openId, setOpenId] = useState<string | null>(null);
   const [threadRunning, setThreadRunning] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -101,12 +104,6 @@ export function ProjectChat({
   const opened = openId ? work.get(openId) : undefined;
   const mainBusy = main.status === 'streaming';
   const chats = threads.filter((t) => isChat(t) && !t.archived);
-  // Each chat's threads, oldest first (the list comes newest first).
-  const threadsOf = new Map<string, ThreadItem[]>();
-  for (const t of [...work.values()].reverse()) {
-    const parent = t.parentThreadId as string;
-    threadsOf.set(parent, [...(threadsOf.get(parent) ?? []), t]);
-  }
 
   // The engines' functions are stable; the objects around them are not.
   const { openThread: openInThread } = thread;
@@ -304,6 +301,10 @@ export function ProjectChat({
           <XIcon className="size-4" aria-hidden />
         </button>
       </div>
+      <ThreadChecklist
+        // Live while this view streams the thread's turn; otherwise as the list last read it.
+        tasks={thread.transcript.tasks.length > 0 ? thread.transcript.tasks : opened?.tasks}
+      />
       <ChatView
         controller={thread}
         approvalViews={approvalViews}
@@ -329,7 +330,7 @@ export function ProjectChat({
     <div className={cn('relative flex h-full min-h-0', className)}>
       <ProjectSidebar
         chats={chats}
-        threadsOf={threadsOf}
+        threads={[...work.values()]}
         activeChatId={mainId}
         openThreadId={openId}
         // A chat that is answering keeps its place until the answer ends.
@@ -339,11 +340,12 @@ export function ProjectChat({
           if (!openId) opener.current = document.activeElement as HTMLElement | null;
           openFromList(id);
         }}
+        onResolveThread={(t, resolved) => void resolve(t, resolved)}
         onNew={newChat}
         onRename={rename}
         onDelete={deleteChat}
         className={cn(
-          'w-60 shrink-0 border-border border-r bg-background',
+          'w-72 shrink-0 border-border border-r bg-background',
           listOpen ? 'absolute inset-y-0 left-0 z-20 shadow-lg' : 'max-md:hidden',
         )}
       />

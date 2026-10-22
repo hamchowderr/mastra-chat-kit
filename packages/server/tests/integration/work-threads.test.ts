@@ -78,6 +78,10 @@ describe('work threads (AIMock)', () => {
     expect(report).toContain(`(#thread=${work?.id})`);
     // The thread's own last reply, copied without a model call.
     expect(report).toContain('Subject: Spring is here.');
+    // Its row in the list leads with the start of that reply.
+    const latest = workThreadOf((await threads())[0])?.latest ?? '';
+    expect(latest.length).toBeGreaterThan(0);
+    expect(report).toContain(latest.replace(/…$/, ''));
   });
 
   it('reports a thread that stops for an approval, then finishes once approved', async () => {
@@ -87,6 +91,9 @@ describe('work threads (AIMock)', () => {
     await waitFor(async () => workThreadOf((await threads())[0])?.status === 'needs_you');
     await waitFor(async () => (await mainTexts()).some((t) => t.includes('needs you')));
     expect((await mainTexts()).find((t) => t.includes('needs you'))).toContain('getWeather');
+    expect(workThreadOf((await threads())[0])?.latest).toBe(
+      'Waiting for your OK to run getWeather',
+    );
 
     // The gate is answered on the thread's own Session, as /approve does with a threadId.
     const [work] = await threads();
