@@ -175,7 +175,7 @@ export function ProjectChat({
     openPanel(id);
   };
 
-  // While a thread is working, re-read statuses (one waiting on the person changes only when
+  // While a thread is working or queued, re-read statuses (one waiting on the person changes only when
   // they act, in that thread). When one changes, its report has
   // landed in the main chat (reload it unless it is mid-turn, which reloads anyway), and
   // an open thread has moved on (reload it unless it is streaming its own turn).
@@ -183,7 +183,7 @@ export function ProjectChat({
     .filter((t) => t.parentThreadId)
     .map((t) => `${t.id}:${t.status}`)
     .join();
-  const active = /:working(,|$)/.test(statuses) || threadRunning;
+  const active = /:(working|queued)(,|$)/.test(statuses) || threadRunning;
   const threadBusy = thread.status === 'streaming';
   const lastStatuses = useRef(statuses);
   // A report that landed during a main-chat turn is shown once the turn ends.

@@ -7,6 +7,11 @@ import {
   getWorkThreads,
 } from '../../src/mastra/lib/agent-controller';
 import { WORK_THREAD_KEY, workThreadOf } from '../../src/mastra/lib/work-thread-info';
+import {
+  LIST_THREADS_TOOL,
+  MESSAGE_THREAD_TOOL,
+  READ_THREAD_TOOL,
+} from '../../src/mastra/lib/work-thread-steering';
 import { createWorkThreads } from '../../src/mastra/lib/work-threads';
 
 /**
@@ -231,5 +236,116 @@ describe('work threads (AIMock)', () => {
       (await threads()).map((t) => [t.id, workThreadOf(t)?.status]),
     );
     expect(statuses).toEqual({ 'w-working': 'stopped', 'w-waiting': 'stopped', 'w-done': 'done' });
+  });
+
+  it('queues a thread past the limit and starts it when a slot frees', async () => {
+    const resourceId = 'u-work-queue';
+    const { mainThreadId, threads, mainTexts, controller, storage, memory } =
+      await setup(resourceId);
+    const now = new Date();
+    const busy = { parentThreadId: mainThreadId, title: 'Busy', status: 'working' };
+    await memory.saveThread({
+      thread: {
+        id: 'w-busy',
+        resourceId,
+        title: 'Busy',
+        createdAt: now,
+        updatedAt: now,
+        metadata: { [WORK_THREAD_KEY]: busy },
+      },
+    });
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      maxWorking: 1,
+    });
+    const started = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+    });
+    expect(started.status).toBe('queued');
+    const queued = async () =>
+      workThreadOf((await threads()).find((t) => t.id === started.threadId));
+    expect((await queued())?.status).toBe('queued');
+    // Nothing runs for it until a slot frees.
+    expect(await controller.getSessionByResource(resourceId, `work:${started.threadId}`)).toBe(
+      undefined,
+    );
+    await workThreads.drain(resourceId);
+    expect((await queued())?.status).toBe('queued');
+
+    await memory.updateThreadMetadata({
+      id: 'w-busy',
+      update: () => ({ [WORK_THREAD_KEY]: { ...busy, status: 'done' } }),
+    });
+    await workThreads.drain(resourceId);
+    await waitFor(async () => (await queued())?.status === 'done');
+    await waitFor(async () => (await mainTexts()).some((t) => t.includes('is done')));
+  });
+
+  it("lets the main chat list, read and message the threads it started, and no other's", async () => {
+    const resourceId = 'u-work-steer';
+    const { mainThreadId, threads, mainTexts, controller, storage, memory } =
+      await setup(resourceId);
+    const workThreads = createWorkThreads({ getController: async () => controller, storage });
+    const { threadId } = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+    });
+    await waitFor(async () => workThreadOf((await threads())[0])?.status === 'done');
+    const tools = workThreads.steering;
+    const ctx = { agent: { threadId: mainThreadId, resourceId } };
+    // biome-ignore lint/suspicious/noExplicitAny: calling the tools as the controller does
+    const call = (id: string, input: unknown, c: unknown = ctx) =>
+      (tools as any)[id].execute(input, c);
+
+    const { threads: listed } = await call(LIST_THREADS_TOOL, {});
+    expect(listed).toEqual([
+      expect.objectContaining({ threadId, title: 'Spring newsletter plan', status: 'done' }),
+    ]);
+    // The run's own messages go to the Memory's store, which this test keeps apart; the
+    // thread's words are read from the controller's store, as the thread routes read them.
+    await memory.saveMessages({
+      messages: [
+        {
+          id: 'w-reply',
+          role: 'assistant',
+          threadId,
+          resourceId,
+          createdAt: new Date(),
+          content: {
+            format: 2,
+            parts: [{ type: 'text', text: 'Subject: Spring is here.' }],
+            content: 'Subject: Spring is here.',
+          },
+        },
+      ],
+    });
+    const read = await call(READ_THREAD_TOOL, { threadId });
+    expect(read.messages.at(-1)).toEqual({
+      from: 'thread',
+      text: expect.stringContaining('Subject: Spring is here.'),
+    });
+
+    const sent = await call(MESSAGE_THREAD_TOOL, {
+      threadId,
+      message: 'Add a section on spring recipes.',
+    });
+    expect(sent.delivered).toBe('now');
+    await waitFor(async () =>
+      (await mainTexts()).some((t) => t.includes('Added a fourth section: spring recipes.')),
+    );
+
+    // Another chat of the same user, and the thread itself, can't reach it.
+    await expect(
+      call(READ_THREAD_TOOL, { threadId }, { agent: { threadId: 'other-chat', resourceId } }),
+    ).rejects.toThrow(/no thread with that id/);
+    await expect(call(LIST_THREADS_TOOL, {}, { agent: { threadId, resourceId } })).rejects.toThrow(
+      /Only the main chat/,
+    );
   });
 });

@@ -13,7 +13,7 @@ export const GROUPS: ReadonlyArray<{ id: Group; label: string }> = [
 /** Which group a thread is listed under. A thread that works or waits is never Resolved. */
 export function groupOf(t: ThreadItem): Group {
   if (t.status === 'needs_you') return 'waiting';
-  if (t.status === 'working') return 'working';
+  if (t.status === 'working' || t.status === 'queued') return 'working';
   return t.resolved ? 'resolved' : 'idle';
 }
 

@@ -227,12 +227,15 @@ export function createChatAgentController(opts?: {
     //
     // With the Firecrawl browser (BROWSER_PROVIDER=firecrawl, lib/firecrawl-browser.ts) the
     // same shutdown also closes every hosted browser session, so none is left billing.
-    // Firecrawl's tools, and start_thread when work threads are on (lib/work-threads.ts).
+    // Firecrawl's tools, and start_thread with the tools that steer threads when work
+    // threads are on (lib/work-threads.ts).
     ...(f.firecrawl || workThreads
       ? {
           tools: async () => ({
             ...(f.firecrawl ? await getFirecrawlTools() : {}),
-            ...(workThreads ? { [workThreads.tool.id]: workThreads.tool } : {}),
+            ...(workThreads
+              ? { [workThreads.tool.id]: workThreads.tool, ...workThreads.steering }
+              : {}),
           }),
         }
       : {}),

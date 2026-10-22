@@ -1,0 +1,172 @@
+/**
+ * The main chat's tools for the threads it started: list them, read one, and send one a
+ * message. With them the main chat's agent can answer "how is the website going?" and pass
+ * on "make the funnel use the site's colours" without the person opening the thread.
+ *
+ * Every tool works only on threads the calling chat started (same resource, same parent),
+ * and only from that chat: a thread never steers another thread.
+ */
+
+import type { RequestContext } from '@mastra/core/request-context';
+import type { MastraStorage } from '@mastra/core/storage';
+import { createTool } from '@mastra/core/tools';
+import { z } from 'zod';
+import { messageText as anyText } from './thread-utils';
+import { type WorkThreadInfo, workThreadOf } from './work-thread-info';
+import { excerpt } from './work-thread-text';
+
+export const LIST_THREADS_TOOL = 'list_threads';
+export const READ_THREAD_TOOL = 'read_thread';
+export const MESSAGE_THREAD_TOOL = 'message_thread';
+
+/** How many of a thread's latest messages `read_thread` returns. */
+export const READ_MESSAGES = 12;
+
+export type SteeringDeps = {
+  storage: MastraStorage;
+  /** Sends a work thread a message, running it now or after the step it is on. */
+  message: (input: {
+    threadId: string;
+    resourceId: string;
+    text: string;
+    requestContext?: RequestContext;
+  }) => Promise<{ running: boolean }>;
+  /** The host's screen for a thread's words before an agent reads them (`screenReport`). */
+  screen?: ((text: string, thread: WorkThreadInfo) => string) | undefined;
+};
+
+type ToolContext = {
+  agent?: { threadId?: string; resourceId?: string };
+  requestContext?: RequestContext;
+};
+
+export function createSteeringTools(deps: SteeringDeps) {
+  const memory = async () => {
+    const store = await deps.storage.getStore('memory');
+    if (!store) throw new Error('work threads need a memory store');
+    return store;
+  };
+
+  /** The calling chat and its resource; refused inside a work thread. */
+  async function caller(ctx: ToolContext | undefined) {
+    const chatId = ctx?.agent?.threadId;
+    const resourceId = ctx?.agent?.resourceId;
+    if (!chatId || !resourceId) throw new Error('Only a conversation can steer its threads.');
+    const store = await memory();
+    if (workThreadOf(await store.getThreadById({ threadId: chatId }))) {
+      throw new Error('Only the main chat steers threads: inside a thread, do the work yourself.');
+    }
+    return { chatId, resourceId };
+  }
+
+  /** One of the calling chat's threads, or a refusal naming the mix-up. */
+  async function ownThread(ctx: ToolContext | undefined, threadId: string) {
+    const { chatId, resourceId } = await caller(ctx);
+    const store = await memory();
+    const thread = await store.getThreadById({ threadId });
+    const info = workThreadOf(thread);
+    if (!thread || !info || thread.resourceId !== resourceId || info.parentThreadId !== chatId) {
+      throw new Error('This chat started no thread with that id. Use list_threads for the ids.');
+    }
+    return { resourceId, info };
+  }
+
+  const screen = (text: string, info: WorkThreadInfo) =>
+    deps.screen ? deps.screen(text, info) : text;
+
+  const listThreads = createTool({
+    id: LIST_THREADS_TOOL,
+    description:
+      'The threads this chat started, newest first: id, title, who does the work, status (queued, working, needs_you, done, failed, stopped), its checklist progress and latest line. Use it to answer how the work is going, or to find a thread to read or message.',
+    inputSchema: z.object({}),
+    execute: async (_input, ctx) => {
+      const { chatId, resourceId } = await caller(ctx as ToolContext);
+      const store = await memory();
+      const { threads } = await store.listThreads({ perPage: false, filter: { resourceId } });
+      const own = threads
+        .map((thread) => ({ thread, info: workThreadOf(thread) }))
+        .filter(
+          (t): t is { thread: (typeof threads)[number]; info: WorkThreadInfo } =>
+            t.info?.parentThreadId === chatId,
+        )
+        .sort((a, b) => +new Date(b.thread.updatedAt) - +new Date(a.thread.updatedAt));
+      return {
+        threads: own.map(({ thread, info }) => ({
+          threadId: thread.id,
+          title: info.title,
+          status: info.status,
+          ...(info.agent ? { agent: info.agent.name } : {}),
+          ...(info.tasks
+            ? {
+                progress: `${info.tasks.filter((t) => t.status === 'completed').length}/${info.tasks.length}`,
+              }
+            : {}),
+          ...(info.latest ? { latest: screen(info.latest, info) } : {}),
+          ...(info.resolved ? { resolved: true } : {}),
+        })),
+      };
+    },
+  });
+
+  const readThread = createTool({
+    id: READ_THREAD_TOOL,
+    description: `What one of this chat's threads has done so far: its status, its checklist and its latest ${READ_MESSAGES} messages, each trimmed. Read it before answering a question about a thread's work, or before messaging it.`,
+    inputSchema: z.object({ threadId: z.string().min(1).max(64) }),
+    execute: async ({ threadId }, ctx) => {
+      const { info } = await ownThread(ctx as ToolContext, threadId);
+      const store = await memory();
+      const { messages } = await store.listMessages({ threadId, perPage: false });
+      return {
+        title: info.title,
+        status: info.status,
+        ...(info.tasks ? { checklist: info.tasks } : {}),
+        messages: messages
+          .map((m) => ({ from: m.role === 'assistant' ? 'thread' : 'to_thread', text: anyText(m) }))
+          .filter((m) => m.text.trim())
+          .slice(-READ_MESSAGES)
+          .map((m) => ({ from: m.from, text: excerpt(screen(m.text, info)) })),
+      };
+    },
+  });
+
+  const messageThread = createTool({
+    id: MESSAGE_THREAD_TOOL,
+    description:
+      "Send one of this chat's threads a message: a change of plan, an answer it needs, or something to use. An idle thread starts working on it; a working one takes it after the step it is on. It reports back here when it finishes. Not for a thread that is queued (it has not started) or waiting for the person (they answer in the thread).",
+    inputSchema: z.object({
+      threadId: z.string().min(1).max(64),
+      message: z
+        .string()
+        .min(1)
+        .max(4000)
+        .describe("What to tell it, in the user's words where possible."),
+    }),
+    execute: async ({ threadId, message }, ctx) => {
+      const { resourceId, info } = await ownThread(ctx as ToolContext, threadId);
+      if (info.status === 'queued') {
+        throw new Error('That thread has not started yet. It starts when another one finishes.');
+      }
+      if (info.status === 'needs_you') {
+        throw new Error(
+          'That thread is waiting for the person. Tell them; they answer it in the thread.',
+        );
+      }
+      const requestContext = (ctx as ToolContext | undefined)?.requestContext;
+      const { running } = await deps.message({
+        threadId,
+        resourceId,
+        text: `From the main chat: ${message}`,
+        ...(requestContext ? { requestContext } : {}),
+      });
+      return { threadId, title: info.title, delivered: running ? 'after_current_step' : 'now' };
+    },
+  });
+
+  return {
+    [LIST_THREADS_TOOL]: listThreads,
+    [READ_THREAD_TOOL]: readThread,
+    [MESSAGE_THREAD_TOOL]: messageThread,
+  };
+}
+
+export type SteeringTools = ReturnType<typeof createSteeringTools>;

@@ -8,6 +8,7 @@ import { OutputIcon } from './thread-list';
 
 /** What each status reads as, and its dot's colour. */
 const STATUS: Record<WorkThreadStatus, { label: string; dot: string }> = {
+  queued: { label: 'Queued', dot: 'bg-muted-foreground/50' },
   working: { label: 'Working', dot: 'bg-blue-500 animate-pulse' },
   needs_you: { label: 'Waiting on you', dot: 'bg-amber-500' },
   done: { label: 'Done', dot: 'bg-emerald-500' },
