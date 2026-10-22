@@ -312,6 +312,16 @@
           "path": "../server/src/mastra/lib/work-thread-info.ts",
           "type": "registry:file",
           "target": "src/mastra/lib/work-thread-info.ts"
+        },
+        {
+          "path": "../server/src/mastra/lib/work-thread-steering.ts",
+          "type": "registry:file",
+          "target": "src/mastra/lib/work-thread-steering.ts"
+        },
+        {
+          "path": "../server/src/mastra/lib/work-thread-text.ts",
+          "type": "registry:file",
+          "target": "src/mastra/lib/work-thread-text.ts"
         }
       ]
     },

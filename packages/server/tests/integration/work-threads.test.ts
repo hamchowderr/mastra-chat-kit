@@ -350,4 +350,53 @@ describe('work threads (AIMock)', () => {
       /Only the main chat/,
     );
   });
+
+  it("runs a message sent mid-run as a run of its own, with the host's context, and reports both", async () => {
+    const resourceId = 'u-work-mid-run';
+    const { mainThreadId, controller, storage, memory } = await setup(resourceId);
+    const contexts: Array<{ untrusted: boolean; marked: unknown }> = [];
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      runContext: (context, thread) => {
+        context.set('host.untrusted', thread.untrusted === true);
+        contexts.push({ untrusted: thread.untrusted === true, marked: context.get('caller') });
+      },
+      reportMetadata: async ({ thread }) => ({ hostMark: thread.title }),
+    });
+    const caller = new (await import('@mastra/core/request-context')).RequestContext();
+    caller.set('caller', 'main');
+    const { threadId } = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+      requestContext: caller,
+    });
+    const sent = await workThreads.message({
+      threadId,
+      resourceId,
+      text: 'From the main chat: Add a section on spring recipes.',
+      requestContext: caller,
+    });
+    expect(sent.running).toBe(true);
+
+    const reports = async () =>
+      (await memory.listMessages({ threadId: mainThreadId })).messages.filter(
+        (m) => (m.content.metadata as Record<string, unknown> | undefined)?.[WORK_THREAD_KEY],
+      );
+    await waitFor(async () => (await reports()).length === 2);
+    const texts = (await reports()).map((m) => m.content.content ?? '');
+    expect(texts[0]).toContain('Subject: Spring is here.');
+    expect(texts[1]).toContain('Added a fourth section: spring recipes.');
+    for (const m of await reports()) {
+      expect(m.content.metadata).toEqual(
+        expect.objectContaining({ hostMark: 'Spring newsletter plan' }),
+      );
+    }
+    expect(contexts).toEqual([
+      { untrusted: false, marked: 'main' },
+      { untrusted: false, marked: 'main' },
+    ]);
+  });
 });

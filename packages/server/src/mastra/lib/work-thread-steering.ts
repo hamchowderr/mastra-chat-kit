@@ -24,7 +24,7 @@ export const READ_MESSAGES = 12;
 
 export type SteeringDeps = {
   storage: MastraStorage;
-  /** Sends a work thread a message, running it now or after the step it is on. */
+  /** Sends a work thread a message, running it now or once the run in progress ends. */
   message: (input: {
     threadId: string;
     resourceId: string;
@@ -44,6 +44,9 @@ type ToolContext = {
   agent?: { threadId?: string; resourceId?: string };
   requestContext?: RequestContext;
 };
+
+/** Reading a thread never waits for anyone: a host that asks by default must not ask here. */
+const neverAsks = () => false;
 
 export function createSteeringTools(deps: SteeringDeps) {
   const memory = async () => {
@@ -84,6 +87,7 @@ export function createSteeringTools(deps: SteeringDeps) {
     description:
       'The threads this chat started, newest first: id, title, who does the work, status (queued, working, needs_you, done, failed, stopped), its checklist progress and latest line. Use it to answer how the work is going, or to find a thread to read or message.',
     inputSchema: z.object({}),
+    requireApproval: neverAsks,
     execute: async (_input, ctx) => {
       const { chatId, resourceId } = await caller(ctx as ToolContext);
       const store = await memory();
@@ -117,6 +121,7 @@ export function createSteeringTools(deps: SteeringDeps) {
     id: READ_THREAD_TOOL,
     description: `What one of this chat's threads has done so far: its status, its checklist and its latest ${READ_MESSAGES} messages, each trimmed. Read it before answering a question about a thread's work, or before messaging it.`,
     inputSchema: z.object({ threadId: z.string().min(1).max(64) }),
+    requireApproval: neverAsks,
     execute: async ({ threadId }, ctx) => {
       const { info } = await ownThread(ctx as ToolContext, threadId);
       const store = await memory();
@@ -137,7 +142,7 @@ export function createSteeringTools(deps: SteeringDeps) {
   const messageThread = createTool({
     id: MESSAGE_THREAD_TOOL,
     description:
-      "Send one of this chat's threads a message: a change of plan, an answer it needs, or something to use. An idle thread starts working on it; a working one takes it after the step it is on. It reports back here when it finishes. Not for a thread that is queued (it has not started) or waiting for the person (they answer in the thread).",
+      "Send one of this chat's threads a message: a change of plan, an answer it needs, or something to use. An idle thread starts working on it; a working one takes it up as soon as it finishes what it is doing. It reports back here when it finishes. Not for a thread that is queued (it has not started) or waiting for the person (they answer in the thread).",
     inputSchema: z.object({
       threadId: z.string().min(1).max(64),
       message: z
@@ -169,7 +174,7 @@ export function createSteeringTools(deps: SteeringDeps) {
         text: `From the main chat: ${message}`,
         ...(requestContext ? { requestContext } : {}),
       });
-      return { threadId, title: info.title, delivered: running ? 'after_current_step' : 'now' };
+      return { threadId, title: info.title, delivered: running ? 'after_current_work' : 'now' };
     },
   });
 
