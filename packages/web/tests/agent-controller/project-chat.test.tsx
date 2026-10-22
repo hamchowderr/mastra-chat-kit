@@ -250,6 +250,54 @@ describe('ProjectChat', () => {
 });
 
 describe('threadIdFromHref', () => {
+  it('offers suggested threads with Start buttons, and shows one already started', async () => {
+    const api = fakeController({
+      threads: [
+        { id: WORK, title: 'Oslo weather', parentThreadId: MAIN, status: 'needs_you' },
+        { id: MAIN, title: 'Main' },
+      ],
+      messages: {
+        [MAIN]: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            parts: [
+              { type: 'text', text: 'Here is what we could do.' },
+              {
+                type: 'data-thread-suggestions',
+                data: {
+                  suggestions: [
+                    { title: 'Spring plan', why: 'The season starts soon.' },
+                    { title: 'Summer plan', why: 'Book early.' },
+                    { title: 'Oslo weather', why: 'For the trip.' },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            id: 'a2',
+            role: 'assistant',
+            parts: [{ type: 'data-work-thread', data: { threadId: WORK, title: 'Oslo weather' } }],
+          },
+        ],
+      },
+    });
+    renderChat();
+    const card = await screen.findByRole('region', { name: 'Suggested threads' });
+    expect(within(card).getByText('The season starts soon.')).toBeInTheDocument();
+    // Started already: its status and a way in, not Start.
+    const started = within(card).getByRole('button', { name: 'Open Oslo weather' });
+    expect(within(started).getByText('Waiting on you')).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: 'Start Oslo weather' })).toBeNull();
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Start 2 threads' }));
+    await waitFor(() => expect(api.sent('/api/agent-controller/stream')).toHaveLength(1));
+    expect(api.sent('/api/agent-controller/stream')[0]?.body).toMatchObject({
+      text: 'Start the suggested threads "Spring plan", "Summer plan".',
+    });
+  });
+
   it('reads only thread links', () => {
     expect(threadIdFromHref('#thread=a%2Fb')).toBe('a/b');
     expect(threadIdFromHref('https://example.com')).toBeNull();

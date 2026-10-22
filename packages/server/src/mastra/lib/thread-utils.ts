@@ -53,41 +53,47 @@ export function threadTitle(thread: any, firstUserMessage?: string): string {
   return 'New chat';
 }
 
+/** `suggest_threads` (work-thread-steering.ts), named here so this file does not import that one. */
+const SUGGEST_THREADS = 'suggest_threads';
+
+/** A thread a `start_thread` call made, as a restored message carries it. */
+type WorkThreadPart = { type: 'data-work-thread'; data: { threadId: string; title: string } };
+/** The threads a `suggest_threads` call offered, as a restored message carries them. */
+type SuggestionsPart = {
+  type: 'data-thread-suggestions';
+  data: { suggestions: Array<{ title: string; why: string }> };
+};
+
 /**
  * A UIMessage (AI SDK v7 parts shape) for restoring a thread into the chat UI: its text,
  * plus one `data-work-thread` part per thread a `start_thread` call made in it
  * (lib/work-threads.ts), so a restored main chat still shows the thread it started where
- * it started it. Other tool calls are not restored.
+ * it started it, and one `data-thread-suggestions` part per `suggest_threads` card. Other
+ * tool calls are not restored.
  */
 // biome-ignore lint/suspicious/noExplicitAny: MastraDBMessage
 export function toUIMessage(m: any): {
   id: string;
   role: 'user' | 'assistant';
-  parts: Array<
-    | { type: 'text'; text: string }
-    | { type: 'data-work-thread'; data: { threadId: string; title: string } }
-  >;
+  parts: Array<{ type: 'text'; text: string } | WorkThreadPart | SuggestionsPart>;
 } {
   return {
     id: String(m?.id ?? `${m?.threadId ?? 't'}-${m?.createdAt ?? Math.random()}`),
     role: m?.role === 'assistant' ? 'assistant' : 'user',
-    parts: [{ type: 'text', text: messageText(m) }, ...startedThreads(m)],
+    parts: [{ type: 'text', text: messageText(m) }, ...threadParts(m)],
   };
 }
 
-/** The threads a message's `start_thread` calls made, from their results. */
-function startedThreads(
+/** The threads a message's `start_thread` calls made, and its `suggest_threads` cards. */
+function threadParts(
   m: { content?: { parts?: unknown } } | undefined,
-): { type: 'data-work-thread'; data: { threadId: string; title: string } }[] {
+): Array<WorkThreadPart | SuggestionsPart> {
   const parts: unknown[] = Array.isArray(m?.content?.parts) ? (m.content.parts as unknown[]) : [];
-  return parts.flatMap((p) => {
+  return parts.flatMap((p): Array<WorkThreadPart | SuggestionsPart> => {
     const call = (p as { type?: string; toolInvocation?: Record<string, unknown> }).toolInvocation;
-    if (
-      (p as { type?: string }).type !== 'tool-invocation' ||
-      call?.toolName !== START_THREAD_TOOL
-    ) {
-      return [];
-    }
+    if ((p as { type?: string }).type !== 'tool-invocation' || !call) return [];
+    if (call.toolName === SUGGEST_THREADS) return suggestionsOf(call.args);
+    if (call.toolName !== START_THREAD_TOOL) return [];
     const result = call.result as { threadId?: unknown; title?: unknown } | undefined;
     if (typeof result?.threadId !== 'string') return [];
     return [
@@ -100,6 +106,21 @@ function startedThreads(
       },
     ];
   });
+}
+
+/** A `suggest_threads` call's titles and reasons (the briefs stay in the agent's history). */
+function suggestionsOf(args: unknown): SuggestionsPart[] {
+  const threads = (args as { threads?: unknown } | undefined)?.threads;
+  if (!Array.isArray(threads)) return [];
+  const suggestions = threads.flatMap((t) => {
+    const { title, why } = (t ?? {}) as { title?: unknown; why?: unknown };
+    return typeof title === 'string' && title.trim()
+      ? [{ title, why: typeof why === 'string' ? why : '' }]
+      : [];
+  });
+  return suggestions.length > 0
+    ? [{ type: 'data-thread-suggestions' as const, data: { suggestions } }]
+    : [];
 }
 
 /** A short, query-centered excerpt for search results. */

@@ -1,7 +1,9 @@
 /**
  * The main chat's tools for the threads it started: list them, read one, and send one a
  * message. With them the main chat's agent can answer "how is the website going?" and pass
- * on "make the funnel use the site's colours" without the person opening the thread.
+ * on "make the funnel use the site's colours" without the person opening the thread. And one
+ * for threads it has not started: `suggest_threads` offers them on a card, and the person
+ * picks which to start.
  *
  * Every tool works only on threads the calling chat started (same resource, same parent),
  * and only from that chat: a thread never steers another thread.
@@ -18,6 +20,10 @@ import { excerpt } from './work-thread-text';
 export const LIST_THREADS_TOOL = 'list_threads';
 export const READ_THREAD_TOOL = 'read_thread';
 export const MESSAGE_THREAD_TOOL = 'message_thread';
+export const SUGGEST_THREADS_TOOL = 'suggest_threads';
+
+/** How many threads one `suggest_threads` card offers at most. */
+export const MAX_SUGGESTIONS = 6;
 
 /** How many of a thread's latest messages `read_thread` returns. */
 export const READ_MESSAGES = 12;
@@ -38,6 +44,8 @@ export type SteeringDeps = {
   requireApproval?: ((requestContext: unknown) => boolean) | undefined;
   /** The host's screen for a thread's words before an agent reads them (`screenReport`). */
   screen?: ((text: string, thread: WorkThreadInfo) => string) | undefined;
+  /** The specialists a thread can run as (`agents` on the work threads), for suggestions. */
+  agents?: ReadonlyArray<{ id: string; description: string }> | undefined;
 };
 
 type ToolContext = {
@@ -178,7 +186,38 @@ export function createSteeringTools(deps: SteeringDeps) {
     },
   });
 
+  const agentIds = (deps.agents ?? []).map((a) => a.id);
+  const suggestion = z.object({
+    title: z.string().min(1).max(80).describe('A few words naming the work.'),
+    why: z.string().min(1).max(200).describe('One line on why it is worth doing.'),
+    brief: z
+      .string()
+      .min(1)
+      .max(8000)
+      .describe('The whole task, as start_thread would get it: the thread does not see this chat.'),
+    ...(agentIds.length > 0
+      ? {
+          agent: z
+            .enum(agentIds as [string, ...string[]])
+            .optional()
+            .describe('Who would do the work, as for start_thread.'),
+        }
+      : {}),
+  });
+
+  const suggestThreads = createTool({
+    id: SUGGEST_THREADS_TOOL,
+    description: `Offer the person threads to start, instead of starting them yourself. They show as a card under your message, with a Start button for each and one to start them all. Use it when the person asks what could be done, or when a request splits into several pieces of work they may not all want. Give each a short title, one line on why, and the brief start_thread would get. Then stop and let them pick: when they say to start a suggested thread, call start_thread with that suggestion's title, brief and agent unchanged. At most ${MAX_SUGGESTIONS}. Not for one quick step: do that yourself.`,
+    inputSchema: z.object({ threads: z.array(suggestion).min(1).max(MAX_SUGGESTIONS) }),
+    requireApproval: neverAsks,
+    execute: async ({ threads }, ctx) => {
+      await caller(ctx as ToolContext);
+      return { suggested: threads.map((t) => t.title) };
+    },
+  });
+
   return {
+    [SUGGEST_THREADS_TOOL]: suggestThreads,
     [LIST_THREADS_TOOL]: listThreads,
     [READ_THREAD_TOOL]: readThread,
     [MESSAGE_THREAD_TOOL]: messageThread,

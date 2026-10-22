@@ -11,6 +11,7 @@ import {
   LIST_THREADS_TOOL,
   MESSAGE_THREAD_TOOL,
   READ_THREAD_TOOL,
+  SUGGEST_THREADS_TOOL,
 } from '../../src/mastra/lib/work-thread-steering';
 import { createWorkThreads } from '../../src/mastra/lib/work-threads';
 
@@ -349,6 +350,14 @@ describe('work threads (AIMock)', () => {
     await expect(call(LIST_THREADS_TOOL, {}, { agent: { threadId, resourceId } })).rejects.toThrow(
       /Only the main chat/,
     );
+
+    // Suggesting starts nothing: it names what it offered, and only the main chat offers.
+    const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
+    expect(await call(SUGGEST_THREADS_TOOL, offer)).toEqual({ suggested: ['Summer plan'] });
+    expect(await threads()).toHaveLength(1);
+    await expect(
+      call(SUGGEST_THREADS_TOOL, offer, { agent: { threadId, resourceId } }),
+    ).rejects.toThrow(/Only the main chat/);
   });
 
   it("runs a message sent mid-run as a run of its own, with the host's context, and reports both", async () => {
