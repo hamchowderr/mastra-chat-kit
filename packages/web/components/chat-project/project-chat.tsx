@@ -31,6 +31,8 @@ import { type ThreadItem, useThreads } from '@/lib/agent-controller/use-threads'
 import { cn } from '@/lib/utils';
 import { ProjectSidebar } from './project-sidebar';
 import { ThreadChecklist } from './thread-checklist';
+import type { ThreadOutput } from './thread-groups';
+import { OutputIcon } from './thread-list';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
 
 /** How wide the chat area must be for an open thread to sit beside the chat, not over it. */
@@ -69,6 +71,7 @@ export function ProjectChat({
   toolViews,
   modes,
   isChat = isConversation,
+  outputsOf,
   placeholder = 'Ask anything…',
   emptyText = 'Ask for anything. Bigger pieces of work get a thread of their own.',
 }: {
@@ -87,6 +90,11 @@ export function ProjectChat({
    * thread; a host with conversations of its own (a site's, say) leaves those out.
    */
   isChat?: ((t: ThreadItem) => boolean) | undefined;
+  /**
+   * What each thread made that opens on its own page (a site it built, say): an icon on its
+   * row and a link in its header.
+   */
+  outputsOf?: ((t: ThreadItem) => ThreadOutput[]) | undefined;
   placeholder?: string;
   emptyText?: string;
 }) {
@@ -290,6 +298,17 @@ export function ProjectChat({
           <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0 truncate font-medium">{opened?.title ?? 'Thread'}</span>
         </nav>
+        {opened &&
+          outputsOf?.(opened).map((o) => (
+            <a
+              key={o.href}
+              href={o.href}
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <OutputIcon kind={o.kind} />
+              <span className="max-sm:sr-only">{o.label}</span>
+            </a>
+          ))}
         {opened?.agent && (
           <span
             className="hidden shrink-0 rounded-full border border-border px-2 py-0.5 text-muted-foreground text-xs sm:inline"
@@ -353,6 +372,7 @@ export function ProjectChat({
         onNew={newChat}
         onRename={rename}
         onDelete={deleteChat}
+        outputsOf={outputsOf}
         className={cn(
           'w-72 shrink-0 border-border border-r bg-background',
           listOpen ? 'absolute inset-y-0 left-0 z-20 shadow-lg' : 'max-md:hidden',
