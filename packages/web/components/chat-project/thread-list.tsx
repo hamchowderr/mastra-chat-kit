@@ -181,7 +181,9 @@ function ThreadListRow({
         </span>
       </button>
       {outputs.length > 0 && (
-        <span className="absolute right-1 bottom-0.5 flex">
+        <span
+          className={`absolute bottom-0.5 flex ${canResolve || group === 'resolved' ? 'right-9' : 'right-1'}`}
+        >
           {outputs.map((o) => (
             <a
               key={o.href}
