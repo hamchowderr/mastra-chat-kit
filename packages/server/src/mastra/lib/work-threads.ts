@@ -127,15 +127,17 @@ export type WorkThreadsConfig = {
    */
   runContext?: (requestContext: RequestContext, thread: WorkThreadInfo) => void;
   /**
-   * Extra metadata for a report saved into the main chat, from the thread's state: a host
-   * whose rules follow what a run has read marks the report of a thread that read untrusted
-   * content, so the main chat's next run treats it as such.
+   * Extra metadata for a report saved into the main chat, from the thread's state and the
+   * reported run's messages (as the Session showed them, tool results as the host's
+   * processors left them): a host whose rules follow what a run has read marks the report of
+   * a run that read untrusted content, so the main chat's next run treats it as such.
    */
   reportMetadata?: (input: {
     threadId: string;
     resourceId: string;
     thread: WorkThreadInfo;
-  }) => Promise<Record<string, unknown> | undefined>;
+    runMessages: unknown[];
+  }) => Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined;
 };
 
 type Tracked = {
@@ -144,8 +146,13 @@ type Tracked = {
   unsubscribe: () => void;
   /** Set while a run `start_thread` or `message_thread` began is going: its outcome is reported. */
   background: boolean;
-  /** Runs the kit queued on the Session that have not started yet; each is reported. */
-  pendingReports: number;
+  /**
+   * The request contexts of the runs the kit queued on the Session that have not started
+   * yet, in order; each run is reported.
+   */
+  pending: RequestContext[];
+  /** The messages of the run in progress (or last ended), as the Session showed them. */
+  runMessages: unknown[];
   /** The text of the run's latest finished assistant message. */
   lastReply: string;
   /** What the thread waits on, while it does. */
@@ -289,6 +296,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     threadId: string,
     status: 'done' | 'needs_you' | 'failed',
     detail?: string,
+    /** The reported run's messages, as the Session showed them. */
+    runMessages: unknown[] = [],
   ) {
     const store = await memory();
     const thread = await store.getThreadById({ threadId });
@@ -300,6 +309,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
       threadId,
       resourceId: thread.resourceId,
       thread: info,
+      runMessages,
     });
     await store.saveMessages({
       messages: [
@@ -350,7 +360,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
       session,
       unsubscribe: () => undefined,
       background: false,
-      pendingReports: 0,
+      pending: [],
+      runMessages: [],
       lastReply: '',
       waitingOn: undefined,
     };
@@ -368,10 +379,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           tracked.lastReply = '';
           tracked.waitingOn = undefined;
           // A run the kit queued (a brief, a message from the main chat) is reported.
-          if (tracked.pendingReports > 0) {
-            tracked.pendingReports -= 1;
-            tracked.background = true;
-          }
+          tracked.runMessages = [];
+          if (tracked.pending.shift()) tracked.background = true;
           // The person started a queued thread from the thread itself: its brief runs next,
           // and it no longer waits for a slot.
           const waiting = queued.get(threadId);
@@ -404,7 +413,9 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         }
         case 'message_end': {
           // The display state still holds the finished message here.
-          const text = messageText(session.displayState.get().currentMessage);
+          const finished = session.displayState.get().currentMessage;
+          if (finished) tracked.runMessages.push(finished);
+          const text = messageText(finished);
           if (text) tracked.lastReply = text;
           break;
         }
@@ -419,7 +430,9 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           tracked.waitingOn = `it is waiting for your OK to run ${event.toolName}.`;
           later(async () => {
             await setStatus(threadId, 'needs_you', `Waiting for your OK to run ${event.toolName}`);
-            if (tracked.background) await report(threadId, 'needs_you', tracked.waitingOn);
+            if (tracked.background) {
+              await report(threadId, 'needs_you', tracked.waitingOn, [...tracked.runMessages]);
+            }
             await drain(resourceId);
           });
           break;
@@ -436,29 +449,32 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           if (reason === 'suspended') {
             // A question ends the run; the answer resumes it from the thread itself.
             const waitingOn = tracked.waitingOn;
-            const background = tracked.background;
+            const { background } = tracked;
+            const seen = [...tracked.runMessages];
             tracked.background = false;
             later(async () => {
               await setStatus(threadId, 'needs_you', waitingLine(waitingOn));
-              if (background) await report(threadId, 'needs_you', waitingOn);
+              if (background) await report(threadId, 'needs_you', waitingOn, seen);
               await drain(resourceId);
             });
           } else if (reason === 'error') {
-            const background = tracked.background;
+            const { background } = tracked;
+            const seen = [...tracked.runMessages];
             tracked.background = false;
             later(async () => {
               await setStatus(threadId, 'failed', 'Stopped with an error');
-              if (background) await report(threadId, 'failed');
+              if (background) await report(threadId, 'failed', undefined, seen);
               await drain(resourceId);
             });
           } else {
-            const background = tracked.background;
+            const { background } = tracked;
+            const seen = [...tracked.runMessages];
             const reply = tracked.lastReply;
             tracked.background = false;
             later(async () => {
               if (reason === 'aborted') await setStatus(threadId, 'stopped', 'Stopped');
               else await setStatus(threadId, 'done', reply ? line(reply) : 'Done');
-              if (background && reason !== 'aborted') await report(threadId, 'done', reply);
+              if (background && reason !== 'aborted') await report(threadId, 'done', reply, seen);
               await drain(resourceId);
             });
           }
@@ -484,10 +500,11 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     content: string,
     requestContext: RequestContext,
   ) {
-    tracked.pendingReports += 1;
+    tracked.pending.push(requestContext);
     void tracked.session.queueMessage({ content, requestContext }).catch(async (err: unknown) => {
       // It never started, or failed as it did.
-      if (tracked.pendingReports > 0) tracked.pendingReports -= 1;
+      const waiting = tracked.pending.indexOf(requestContext);
+      if (waiting >= 0) tracked.pending.splice(waiting, 1);
       tracked.background = false;
       await failed(threadId, resourceId, err);
     });
@@ -496,9 +513,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   /** Marks a thread failed, reports it to the main chat and frees its slot. */
   async function failed(threadId: string, resourceId: string, err: unknown) {
     await setStatus(threadId, 'failed', 'Stopped with an error').catch(() => undefined);
-    await report(threadId, 'failed', err instanceof Error ? err.message : String(err)).catch(
-      () => undefined,
-    );
+    const why = err instanceof Error ? err.message : String(err);
+    await report(threadId, 'failed', why).catch(() => undefined);
     // Not awaited: this can run inside a start or queue decision.
     void drain(resourceId).catch(() => undefined);
   }
@@ -680,7 +696,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     live.delete(threadId);
     if (tracked) {
       tracked.background = false;
-      tracked.pendingReports = 0;
+      tracked.pending = [];
       tracked.unsubscribe();
       await closeSession(await config.getController(), { resourceId, threadId }).catch(
         () => undefined,
@@ -714,7 +730,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     const info = await threadInfo(threadId);
     if (!info) throw new Error('That thread could not be opened.');
     // A run is going, or one the kit queued has yet to start: this one waits for it.
-    const running = session.displayState.get().isRunning || tracked.pendingReports > 0;
+    const running = session.displayState.get().isRunning || tracked.pending.length > 0;
     send(threadId, resourceId, tracked, text, contextFor(requestContext, info));
     return { running };
   }
