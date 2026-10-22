@@ -1,10 +1,23 @@
 'use client';
 
-import { CheckIcon, ChevronDownIcon, CircleDashedIcon, RotateCcwIcon } from 'lucide-react';
+import {
+  AppWindowIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CircleDashedIcon,
+  GlobeIcon,
+  RotateCcwIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { ThreadItem } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
-import { ago, GROUPS, type Group, groupOf, progressOf } from './thread-groups';
+import { ago, GROUPS, type Group, groupOf, progressOf, type ThreadOutput } from './thread-groups';
+
+/** A thread output's icon: a globe for a site, a window for anything else. */
+export function OutputIcon({ kind, className }: { kind: string; className?: string }) {
+  const Icon = kind === 'site' ? GlobeIcon : AppWindowIcon;
+  return <Icon className={cn('size-3.5', className)} aria-hidden />;
+}
 
 /** The status word on a row, and its colour; Idle threads say how they ended. */
 const WORD: Record<NonNullable<ThreadItem['status']>, { label: string; tone: string }> = {
@@ -27,6 +40,7 @@ export function ThreadList({
   onOpen,
   onResolve,
   disabled,
+  outputsOf,
 }: {
   threads: ThreadItem[];
   openThreadId: string | null;
@@ -34,6 +48,8 @@ export function ThreadList({
   onResolve: (t: ThreadItem, resolved: boolean) => void;
   /** Whether a thread's row can't be opened now (its chat waits on another's answer). */
   disabled?: ((t: ThreadItem) => boolean) | undefined;
+  /** What each thread made that opens on its own page, linked from its row. */
+  outputsOf?: ((t: ThreadItem) => ThreadOutput[]) | undefined;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<Group>>(new Set(['resolved']));
   const waiting = threads.filter((t) => groupOf(t) === 'waiting').length;
@@ -89,6 +105,7 @@ export function ThreadList({
                   disabled={disabled?.(t) ?? false}
                   onOpen={() => onOpen(t.id)}
                   onResolve={(resolved) => onResolve(t, resolved)}
+                  outputs={outputsOf?.(t) ?? []}
                 />
               ))}
           </section>
@@ -104,12 +121,14 @@ function ThreadListRow({
   disabled,
   onOpen,
   onResolve,
+  outputs,
 }: {
   thread: ThreadItem;
   open: boolean;
   disabled: boolean;
   onOpen: () => void;
   onResolve: (resolved: boolean) => void;
+  outputs: ThreadOutput[];
 }) {
   const word = thread.status ? WORD[thread.status] : null;
   const progress = progressOf(thread.tasks);
@@ -149,7 +168,7 @@ function ThreadListRow({
             {ago(thread.updatedAt)}
           </span>
         </span>
-        <span className="w-full truncate text-xs">
+        <span className={cn('w-full truncate text-xs', outputs.length > 0 && 'pr-7')}>
           {thread.agent && (
             <span className="text-muted-foreground">
               {thread.agent.name}
@@ -161,6 +180,21 @@ function ThreadListRow({
           {thread.latest && <span className="text-muted-foreground">{thread.latest}</span>}
         </span>
       </button>
+      {outputs.length > 0 && (
+        <span className="absolute right-1 bottom-0.5 flex">
+          {outputs.map((o) => (
+            <a
+              key={o.href}
+              href={o.href}
+              aria-label={`${o.label}: ${thread.title || 'thread'}`}
+              title={o.label}
+              className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+            >
+              <OutputIcon kind={o.kind} />
+            </a>
+          ))}
+        </span>
+      )}
       {(canResolve || group === 'resolved') && (
         <button
           type="button"

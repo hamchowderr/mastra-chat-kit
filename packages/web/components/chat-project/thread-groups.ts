@@ -32,3 +32,15 @@ export function progressOf(tasks: WorkThreadTask[] | undefined): string | null {
   if (!tasks?.length) return null;
   return `${tasks.filter((t) => t.status === 'completed').length}/${tasks.length}`;
 }
+
+/**
+ * Something a thread made that opens on its own page (a site, a document): the host says what
+ * each thread has, and the list and the thread's header link to it.
+ */
+export type ThreadOutput = {
+  /** What it is, for its icon: `site`, or anything else for a generic one. */
+  kind: string;
+  /** What the link says, e.g. "Open site". */
+  label: string;
+  href: string;
+};
