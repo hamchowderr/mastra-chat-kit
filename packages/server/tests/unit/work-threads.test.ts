@@ -93,6 +93,41 @@ describe('toUIMessage', () => {
       { type: 'data-work-thread', data: { threadId: 't1', title: 'Plan' } },
     ]);
   });
+
+  it("restores a suggest_threads card's titles and reasons, never its briefs", () => {
+    const ui = toUIMessage({
+      id: 'm2',
+      role: 'assistant',
+      content: {
+        format: 2,
+        parts: [
+          { type: 'text', text: 'Here are some ideas.' },
+          {
+            type: 'tool-invocation',
+            toolInvocation: {
+              state: 'result',
+              toolCallId: 'c3',
+              toolName: 'suggest_threads',
+              args: {
+                threads: [
+                  { title: 'Spring site', why: 'The old one is dated.', brief: 'Build…' },
+                  { title: '', why: 'No title', brief: '…' },
+                ],
+              },
+              result: { suggested: ['Spring site'] },
+            },
+          },
+        ],
+      },
+    });
+    expect(ui.parts).toEqual([
+      { type: 'text', text: 'Here are some ideas.' },
+      {
+        type: 'data-thread-suggestions',
+        data: { suggestions: [{ title: 'Spring site', why: 'The old one is dated.' }] },
+      },
+    ]);
+  });
 });
 
 describe('start_thread approval', () => {
@@ -124,7 +159,7 @@ describe('start_thread approval', () => {
     const ask = steering.message_thread.requireApproval as (i: unknown, c: unknown) => boolean;
     expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
     expect(ask({}, { requestContext: new Map() })).toBe(false);
-    for (const read of [steering.list_threads, steering.read_thread]) {
+    for (const read of [steering.list_threads, steering.read_thread, steering.suggest_threads]) {
       const never = read.requireApproval as (i: unknown, c: unknown) => boolean;
       expect(never({}, { requestContext: new Map([['tainted', true]]) })).toBe(false);
     }
@@ -151,5 +186,20 @@ describe('start_thread agents', () => {
     expect(parses(tool, { title: 'T', brief: 'B', agent: 'email' })).toBe(true);
     expect(parses(tool, { title: 'T', brief: 'B' })).toBe(true);
     expect(parses(tool, { title: 'T', brief: 'B', agent: 'x' })).toBe(false);
+  });
+
+  it('suggests threads with the same agents, at most six at once', () => {
+    const one = { title: 'T', why: 'W', brief: 'B' };
+    const plain = createWorkThreads({ getController, storage }).steering.suggest_threads;
+    expect(parses(plain, { threads: [one] })).toBe(true);
+    expect(parses(plain, { threads: [] })).toBe(false);
+    expect(parses(plain, { threads: Array(7).fill(one) })).toBe(false);
+    const { steering } = createWorkThreads({
+      getController,
+      storage,
+      agents: [{ id: 'site', name: 'Site builder', description: 'Builds sites.', modeId: 'site' }],
+    });
+    expect(parses(steering.suggest_threads, { threads: [{ ...one, agent: 'site' }] })).toBe(true);
+    expect(parses(steering.suggest_threads, { threads: [{ ...one, agent: 'x' }] })).toBe(false);
   });
 });
