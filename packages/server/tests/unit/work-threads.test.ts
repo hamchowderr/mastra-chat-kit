@@ -124,8 +124,10 @@ describe('start_thread approval', () => {
     const ask = steering.message_thread.requireApproval as (i: unknown, c: unknown) => boolean;
     expect(ask({}, { requestContext: new Map([['tainted', true]]) })).toBe(true);
     expect(ask({}, { requestContext: new Map() })).toBe(false);
-    expect(steering.list_threads.requireApproval).toBeFalsy();
-    expect(steering.read_thread.requireApproval).toBeFalsy();
+    for (const read of [steering.list_threads, steering.read_thread]) {
+      const never = read.requireApproval as (i: unknown, c: unknown) => boolean;
+      expect(never({}, { requestContext: new Map([['tainted', true]]) })).toBe(false);
+    }
   });
 });
 
