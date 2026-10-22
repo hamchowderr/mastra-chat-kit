@@ -232,9 +232,16 @@ export function createWorkThreads(config: WorkThreadsConfig) {
       update: (thread) => {
         const info = workThreadOf(thread);
         if (!info) return undefined;
-        const next: Record<string, unknown> = { ...info, ...change };
+        // Merged into what is stored, not the parsed copy, so a host's own keys survive.
+        const raw = (thread.metadata as Record<string, unknown>)[WORK_THREAD_KEY] as Record<
+          string,
+          unknown
+        >;
+        const next: Record<string, unknown> = { ...raw, ...change };
+        // A thread that works or waits is never filed under Resolved.
+        if (change.status === 'working' || change.status === 'needs_you') delete next.resolved;
         for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
-        if (JSON.stringify(next) === JSON.stringify(info)) return undefined;
+        if (JSON.stringify(next) === JSON.stringify(raw)) return undefined;
         if (change.status && change.status !== info.status) changed = change.status;
         return { [WORK_THREAD_KEY]: next };
       },
@@ -323,8 +330,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           clearTimeout(idleTimers.get(threadId));
           tracked.lastReply = '';
           tracked.waitingOn = undefined;
-          // A new run takes the thread out of Resolved.
-          later(() => save(threadId, { status: 'working', resolved: undefined }));
+          // A new run takes the thread out of Resolved, and what it waited on is past.
+          later(() => save(threadId, { status: 'working', latest: undefined }));
           break;
         case 'task_updated': {
           const tasks = tasksOf(event.tasks);
@@ -349,7 +356,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           // A call it waited on was decided and ran: it is working again.
           if (tracked.waitingOn) {
             tracked.waitingOn = undefined;
-            later(() => setStatus(threadId, 'working'));
+            later(() => save(threadId, { status: 'working', latest: undefined }));
           }
           break;
         case 'tool_approval_required':
@@ -391,7 +398,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             tracked.background = false;
             later(async () => {
               if (reason === 'aborted') await setStatus(threadId, 'stopped', 'Stopped');
-              else await setStatus(threadId, 'done', reply ? line(reply) : undefined);
+              else await setStatus(threadId, 'done', reply ? line(reply) : 'Done');
               if (background && reason !== 'aborted') await report(threadId, 'done', reply);
             });
           }
