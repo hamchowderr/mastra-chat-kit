@@ -28,9 +28,20 @@ export type ThreadItem = {
    */
   parentThreadId?: string;
   status?: WorkThreadStatus;
+  /** Its progress checklist, as the thread's agent last left it. */
+  tasks?: WorkThreadTask[];
+  /** One line on where it is: what it waits on, or the start of its last reply. */
+  latest?: string;
+  /** The person marked it resolved; a new run in it reopens it. */
+  resolved?: boolean;
 };
 
 export type WorkThreadStatus = 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';
+
+export type WorkThreadTask = {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+};
 
 export type SearchHit = { id: string; title: string; snippet: string; score: number };
 
@@ -129,6 +140,12 @@ export function useThreads({ refreshSignal = 0 }: { refreshSignal?: number } = {
     [patch],
   );
 
+  /** File a work thread under Resolved, or take it back out (`false`). */
+  const resolve = useCallback(
+    (t: ThreadItem, resolved: boolean) => patch(t.id, { resolved }, { resolved }),
+    [patch],
+  );
+
   /** Rename. No-ops (resolving true) when the title is blank or unchanged. */
   const rename = useCallback(
     async (t: ThreadItem, title: string) => {
@@ -166,6 +183,7 @@ export function useThreads({ refreshSignal = 0 }: { refreshSignal?: number } = {
     searching,
     refresh,
     archive,
+    resolve,
     rename,
     remove,
   };

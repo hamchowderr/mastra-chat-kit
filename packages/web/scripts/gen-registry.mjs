@@ -423,12 +423,16 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
 
 // 6a) chat-project: a skin shaped like a project — chats in a list, and threads each one
 // starts for pieces of work (start_thread, lib/work-threads.ts on the server), each a row
-// under the message that started it and under its chat in the list, opening into its own
+// under the message that started it and in the Threads list (grouped by what it needs, with
+// its checklist), opening into its own
 // conversation.
 const PROJECT_FILES = [
   'components/chat-project/project-chat.tsx',
   'components/chat-project/project-sidebar.tsx',
   'components/chat-project/thread-row.tsx',
+  'components/chat-project/thread-list.tsx',
+  'components/chat-project/thread-groups.ts',
+  'components/chat-project/thread-checklist.tsx',
 ];
 {
   const c = classify(PROJECT_FILES);
