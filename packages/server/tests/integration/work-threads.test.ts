@@ -362,10 +362,8 @@ describe('work threads (AIMock)', () => {
         context.set('host.untrusted', thread.untrusted === true);
         contexts.push({ untrusted: thread.untrusted === true, marked: context.get('caller') });
       },
-      reportMetadata: ({ thread, runMessages }) => ({
-        hostMark: thread.title,
-        replied: JSON.stringify(runMessages).includes('Added a fourth section'),
-      }),
+      // Words only from runs that never said "spring recipes" (a stand-in for untrusted text).
+      reportsWords: ({ runMessages }) => !JSON.stringify(runMessages).includes('spring recipes'),
     });
     const caller = new (await import('@mastra/core/request-context')).RequestContext();
     caller.set('caller', 'main');
@@ -391,12 +389,9 @@ describe('work threads (AIMock)', () => {
     await waitFor(async () => (await reports()).length === 2);
     const texts = (await reports()).map((m) => m.content.content ?? '');
     expect(texts[0]).toContain('Subject: Spring is here.');
-    expect(texts[1]).toContain('Added a fourth section: spring recipes.');
-    // Each report is marked from its own run's messages.
-    expect((await reports()).map((m) => m.content.metadata)).toEqual([
-      expect.objectContaining({ hostMark: 'Spring newsletter plan', replied: false }),
-      expect.objectContaining({ hostMark: 'Spring newsletter plan', replied: true }),
-    ]);
+    // Each report is judged by its own run: the second carries no words.
+    expect(texts[1]).toMatch(/is done\.$/);
+    expect(texts[1]).not.toContain('Added a fourth section');
     expect(contexts).toEqual([
       { untrusted: false, marked: 'main' },
       { untrusted: false, marked: 'main' },
