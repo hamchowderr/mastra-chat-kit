@@ -39,7 +39,14 @@ export type ToolViews = {
 };
 
 /** Tools the chat draws in their own way (a question, a plan, a thread, an image). */
-const OWN_VIEW = new Set(['ask_user', 'setGoal', 'submit_plan', 'start_thread', 'generateImage']);
+const OWN_VIEW = new Set([
+  'ask_user',
+  'setGoal',
+  'submit_plan',
+  'start_thread',
+  'suggest_threads',
+  'generateImage',
+]);
 
 /** A tool's name in words: `query_data` → "Query data", `generateImage` → "Generate image". */
 export function toolWords(name: string): string {

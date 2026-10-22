@@ -34,6 +34,13 @@ import { ThreadChecklist } from './thread-checklist';
 import type { ThreadOutput } from './thread-groups';
 import { OutputIcon } from './thread-list';
 import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
+import {
+  chatThreads,
+  offered,
+  startedAfter,
+  suggestionsOf,
+  ThreadSuggestions,
+} from './thread-suggestions';
 
 /** How wide the chat area must be for an open thread to sit beside the chat, not over it. */
 const SIDE_BY_SIDE_PX = 900;
@@ -175,7 +182,7 @@ export function ProjectChat({
     openPanel(id);
   };
 
-  // While a thread is working, re-read statuses (one waiting on the person changes only when
+  // While a thread is working or queued, re-read statuses (one waiting on the person changes only when
   // they act, in that thread). When one changes, its report has
   // landed in the main chat (reload it unless it is mid-turn, which reloads anyway), and
   // an open thread has moved on (reload it unless it is streaming its own turn).
@@ -183,7 +190,7 @@ export function ProjectChat({
     .filter((t) => t.parentThreadId)
     .map((t) => `${t.id}:${t.status}`)
     .join();
-  const active = /:working(,|$)/.test(statuses) || threadRunning;
+  const active = /:(working|queued)(,|$)/.test(statuses) || threadRunning;
   const threadBusy = thread.status === 'streaming';
   const lastStatuses = useRef(statuses);
   // A report that landed during a main-chat turn is shown once the turn ends.
@@ -519,6 +526,8 @@ export function ChatView({
   const busy = status === 'streaming';
   const views = useMemo(() => withPlainSteps(toolViews), [toolViews]);
   const lastAssistant = transcript.messages.findLastIndex((m) => m.role !== 'user');
+  // The threads this chat started, by title: a suggestion with one shows it, not Start.
+  const madeHere = useMemo(() => chatThreads(transcript.messages), [transcript.messages]);
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
     <div className="min-h-0 flex-1" onClick={onLinkClick}>
@@ -556,6 +565,29 @@ export function ChatView({
                       name?: string;
                       args?: unknown;
                     };
+                    if (call.type === 'tool_call' && call.name === 'suggest_threads') {
+                      // Drawn once the tool accepted it: a refused call offered nothing.
+                      const result = resultsById.get(call.id ?? '');
+                      if (result?.isError || !offered(result?.result)) return null;
+                      return (
+                        <ThreadSuggestions
+                          key={partKey(m.id, i)}
+                          suggestions={suggestionsOf(call.args)}
+                          startedOf={(title) => {
+                            const thread = startedAfter(madeHere, at, title);
+                            return thread
+                              ? {
+                                  threadId: thread.threadId,
+                                  status: work.get(thread.threadId)?.status,
+                                }
+                              : undefined;
+                          }}
+                          onStart={(text) => void controller.sendMessage(text)}
+                          onOpen={onOpenThread}
+                          disabled={busy || Boolean(pendingSuspension)}
+                        />
+                      );
+                    }
                     if (call.type === 'tool_call' && call.name === 'start_thread') {
                       const result = resultsById.get(call.id ?? '')?.result as
                         | { threadId?: string; title?: string }

@@ -29,6 +29,7 @@ export function OutputIcon({ kind, className }: { kind: string; className?: stri
 
 /** The status word on a row, and its colour; Idle threads say how they ended. */
 const WORD: Record<NonNullable<ThreadItem['status']>, { label: string; tone: string }> = {
+  queued: { label: 'Queued', tone: 'text-muted-foreground' },
   working: { label: 'Working', tone: 'text-blue-600 dark:text-blue-400' },
   needs_you: { label: 'Waiting on you', tone: 'text-amber-600 dark:text-amber-400' },
   done: { label: 'Done', tone: 'text-muted-foreground' },

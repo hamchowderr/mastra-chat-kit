@@ -38,7 +38,7 @@ export type ThreadItem = {
   agent?: { id: string; name: string };
 };
 
-export type WorkThreadStatus = 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';
+export type WorkThreadStatus = 'queued' | 'working' | 'needs_you' | 'done' | 'failed' | 'stopped';
 
 export type WorkThreadTask = {
   content: string;

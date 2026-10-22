@@ -7,6 +7,12 @@ import {
   getWorkThreads,
 } from '../../src/mastra/lib/agent-controller';
 import { WORK_THREAD_KEY, workThreadOf } from '../../src/mastra/lib/work-thread-info';
+import {
+  LIST_THREADS_TOOL,
+  MESSAGE_THREAD_TOOL,
+  READ_THREAD_TOOL,
+  SUGGEST_THREADS_TOOL,
+} from '../../src/mastra/lib/work-thread-steering';
 import { createWorkThreads } from '../../src/mastra/lib/work-threads';
 
 /**
@@ -231,5 +237,200 @@ describe('work threads (AIMock)', () => {
       (await threads()).map((t) => [t.id, workThreadOf(t)?.status]),
     );
     expect(statuses).toEqual({ 'w-working': 'stopped', 'w-waiting': 'stopped', 'w-done': 'done' });
+  });
+
+  it('queues a thread past the limit and starts it when a slot frees', async () => {
+    const resourceId = 'u-work-queue';
+    const { mainThreadId, threads, mainTexts, controller, storage, memory } =
+      await setup(resourceId);
+    const now = new Date();
+    const busy = { parentThreadId: mainThreadId, title: 'Busy', status: 'working' };
+    await memory.saveThread({
+      thread: {
+        id: 'w-busy',
+        resourceId,
+        title: 'Busy',
+        createdAt: now,
+        updatedAt: now,
+        metadata: { [WORK_THREAD_KEY]: busy },
+      },
+    });
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      maxWorking: 1,
+    });
+    const started = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+    });
+    expect(started.status).toBe('queued');
+    const queued = async () =>
+      workThreadOf((await threads()).find((t) => t.id === started.threadId));
+    expect((await queued())?.status).toBe('queued');
+    // Nothing runs for it until a slot frees.
+    expect(await controller.getSessionByResource(resourceId, `work:${started.threadId}`)).toBe(
+      undefined,
+    );
+    await workThreads.drain(resourceId);
+    expect((await queued())?.status).toBe('queued');
+
+    await memory.updateThreadMetadata({
+      id: 'w-busy',
+      update: () => ({ [WORK_THREAD_KEY]: { ...busy, status: 'done' } }),
+    });
+    await workThreads.drain(resourceId);
+    await waitFor(async () => (await queued())?.status === 'done');
+    await waitFor(async () => (await mainTexts()).some((t) => t.includes('is done')));
+  });
+
+  it("lets the main chat list, read and message the threads it started, and no other's", async () => {
+    const resourceId = 'u-work-steer';
+    const { mainThreadId, threads, mainTexts, controller, storage, memory } =
+      await setup(resourceId);
+    const workThreads = createWorkThreads({ getController: async () => controller, storage });
+    const { threadId } = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+    });
+    await waitFor(async () => workThreadOf((await threads())[0])?.status === 'done');
+    const tools = workThreads.steering;
+    const ctx = { agent: { threadId: mainThreadId, resourceId } };
+    // Called as the controller calls them: the input, then the run's context.
+    // biome-ignore lint/suspicious/noExplicitAny: each tool's result is read loosely here
+    type Execute = (input: unknown, c: unknown) => Promise<Record<string, any>>;
+    const call = (id: keyof typeof tools, input: unknown, c: unknown = ctx) =>
+      (tools[id].execute as unknown as Execute)(input, c);
+
+    const { threads: listed } = await call(LIST_THREADS_TOOL, {});
+    expect(listed).toEqual([
+      expect.objectContaining({ threadId, title: 'Spring newsletter plan', status: 'done' }),
+    ]);
+    // The run's own messages go to the Memory's store, which this test keeps apart; the
+    // thread's words are read from the controller's store, as the thread routes read them.
+    await memory.saveMessages({
+      messages: [
+        {
+          id: 'w-reply',
+          role: 'assistant',
+          threadId,
+          resourceId,
+          createdAt: new Date(),
+          content: {
+            format: 2,
+            parts: [{ type: 'text', text: 'Subject: Spring is here.' }],
+            content: 'Subject: Spring is here.',
+          },
+        },
+      ],
+    });
+    const read = await call(READ_THREAD_TOOL, { threadId });
+    expect(read.messages.at(-1)).toEqual({
+      from: 'thread',
+      text: expect.stringContaining('Subject: Spring is here.'),
+    });
+
+    const sent = await call(MESSAGE_THREAD_TOOL, {
+      threadId,
+      message: 'Add a section on spring recipes.',
+    });
+    expect(sent.delivered).toBe('now');
+    await waitFor(async () =>
+      (await mainTexts()).some((t) => t.includes('Added a fourth section: spring recipes.')),
+    );
+
+    // Another chat of the same user, and the thread itself, can't reach it.
+    await expect(
+      call(READ_THREAD_TOOL, { threadId }, { agent: { threadId: 'other-chat', resourceId } }),
+    ).rejects.toThrow(/no thread with that id/);
+    await expect(call(LIST_THREADS_TOOL, {}, { agent: { threadId, resourceId } })).rejects.toThrow(
+      /Only the main chat/,
+    );
+
+    // Suggesting starts nothing: it names what it offered, and only the main chat offers.
+    const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
+    expect(await call(SUGGEST_THREADS_TOOL, offer)).toEqual({ suggested: ['Summer plan'] });
+    expect(await threads()).toHaveLength(1);
+    await expect(
+      call(SUGGEST_THREADS_TOOL, offer, { agent: { threadId, resourceId } }),
+    ).rejects.toThrow(/Only the main chat/);
+  });
+
+  it('refuses suggestions from a run that read untrusted content, with the host mark', async () => {
+    const resourceId = 'u-work-suggest-untrusted';
+    const { mainThreadId, controller, storage } = await setup(resourceId);
+    const { RequestContext } = await import('@mastra/core/request-context');
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      startsUntrusted: (rc) => (rc as InstanceType<typeof RequestContext>)?.get('tainted') === true,
+      refusedSuggestion: { dropArgs: 'host-mark' },
+    });
+    const tainted = new RequestContext();
+    tainted.set('tainted', true);
+    // biome-ignore lint/suspicious/noExplicitAny: the tool's result is read loosely here
+    type Execute = (input: unknown, c: unknown) => Promise<Record<string, any>>;
+    const suggest = workThreads.steering[SUGGEST_THREADS_TOOL].execute as unknown as Execute;
+    const offer = { threads: [{ title: 'Summer plan', why: 'Next season.', brief: 'Plan it.' }] };
+    const agent = { threadId: mainThreadId, resourceId };
+    // Refused as a result carrying the host's fields, for its memory to act on.
+    expect(await suggest(offer, { agent, requestContext: tainted })).toEqual({
+      refused: expect.stringMatching(/read outside content/),
+      dropArgs: 'host-mark',
+    });
+    expect(await suggest(offer, { agent, requestContext: new RequestContext() })).toEqual({
+      suggested: ['Summer plan'],
+    });
+  });
+
+  it("runs a message sent mid-run as a run of its own, with the host's context, and reports both", async () => {
+    const resourceId = 'u-work-mid-run';
+    const { mainThreadId, controller, storage, memory } = await setup(resourceId);
+    const contexts: Array<{ untrusted: boolean; marked: unknown }> = [];
+    const workThreads = createWorkThreads({
+      getController: async () => controller,
+      storage,
+      runContext: (context, thread) => {
+        context.set('host.untrusted', thread.untrusted === true);
+        contexts.push({ untrusted: thread.untrusted === true, marked: context.get('caller') });
+      },
+      // Words only from runs that never said "spring recipes" (a stand-in for untrusted text).
+      reportsWords: ({ runMessages }) => !JSON.stringify(runMessages).includes('spring recipes'),
+    });
+    const caller = new (await import('@mastra/core/request-context')).RequestContext();
+    caller.set('caller', 'main');
+    const { threadId } = await workThreads.start({
+      resourceId,
+      parentThreadId: mainThreadId,
+      title: 'Spring newsletter plan',
+      brief: 'Plan the spring newsletter: three sections and a subject line.',
+      requestContext: caller,
+    });
+    const sent = await workThreads.message({
+      threadId,
+      resourceId,
+      text: 'From the main chat: Add a section on spring recipes.',
+      requestContext: caller,
+    });
+    expect(sent.running).toBe(true);
+
+    const reports = async () =>
+      (await memory.listMessages({ threadId: mainThreadId })).messages.filter(
+        (m) => (m.content.metadata as Record<string, unknown> | undefined)?.[WORK_THREAD_KEY],
+      );
+    await waitFor(async () => (await reports()).length === 2);
+    const texts = (await reports()).map((m) => m.content.content ?? '');
+    expect(texts[0]).toContain('Subject: Spring is here.');
+    // Each report is judged by its own run: the second carries no words.
+    expect(texts[1]).toMatch(/is done\.$/);
+    expect(texts[1]).not.toContain('Added a fourth section');
+    expect(contexts).toEqual([
+      { untrusted: false, marked: 'main' },
+      { untrusted: false, marked: 'main' },
+    ]);
   });
 });
