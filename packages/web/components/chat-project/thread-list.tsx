@@ -158,7 +158,16 @@ function ThreadListRow({
       {(canResolve || group === 'resolved') && (
         <button
           type="button"
-          onClick={() => onResolve(group !== 'resolved')}
+          onClick={(e) => {
+            // The row moves to another group; keep focus in the list, on its group's header.
+            const list = e.currentTarget.closest('[role="tabpanel"]') as HTMLElement | null;
+            const header = e.currentTarget.closest('section')?.querySelector('button');
+            onResolve(group !== 'resolved');
+            requestAnimationFrame(() => {
+              if (header?.isConnected) header.focus();
+              else list?.focus();
+            });
+          }}
           aria-label={
             group === 'resolved'
               ? `Reopen ${thread.title || 'thread'}`

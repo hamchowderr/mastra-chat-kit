@@ -32,6 +32,7 @@ function setup() {
           { content: 'Report back', status: 'pending' },
         ],
       },
+      { id: 'work-3', title: 'Tag cleanup', parentThreadId: MAIN, status: 'done' },
       { id: 'work-2', title: 'Old report', parentThreadId: MAIN, status: 'done', resolved: true },
       { id: MAIN, title: 'Main' },
       { id: 'older', title: 'An older chat' },
@@ -133,7 +134,7 @@ describe('ProjectChat', () => {
   it('lists threads by what they need, with their checklist and latest line', async () => {
     setup();
     renderChat();
-    const list = await screen.findByRole('tabpanel', { name: 'Threads' });
+    const list = await screen.findByRole('tabpanel', { name: /^Threads/ });
     expect(within(list).getByText('1 thread is waiting on you.')).toBeInTheDocument();
     const waiting = within(list).getByRole('region', { name: 'Waiting on you' });
     expect(within(waiting).getByText('Oslo weather')).toBeInTheDocument();
@@ -147,10 +148,27 @@ describe('ProjectChat', () => {
     expect(within(list).queryByText('An older chat')).toBeNull();
   });
 
+  it('resolves an idle thread, keeping focus in the list', async () => {
+    const api = setup();
+    renderChat();
+    const list = await screen.findByRole('tabpanel', { name: /^Threads/ });
+    const idle = within(list).getByRole('region', { name: 'Idle' });
+    fireEvent.click(within(idle).getByRole('button', { name: 'Resolve Tag cleanup' }));
+    await waitFor(() =>
+      expect(api.sent('/api/agent-controller/threads/work-3')[0]?.body).toEqual({
+        resolved: true,
+      }),
+    );
+    // Nothing that works or waits can be resolved.
+    const waiting = within(list).getByRole('region', { name: 'Waiting on you' });
+    expect(within(waiting).queryByRole('button', { name: /^Resolve/ })).toBeNull();
+    await waitFor(() => expect(list.contains(document.activeElement)).toBe(true));
+  });
+
   it('reopens a resolved thread from the list', async () => {
     const api = setup();
     renderChat();
-    const list = await screen.findByRole('tabpanel', { name: 'Threads' });
+    const list = await screen.findByRole('tabpanel', { name: /^Threads/ });
     fireEvent.click(within(list).getByRole('button', { name: /Resolved/ }));
     fireEvent.click(within(list).getByRole('button', { name: 'Reopen Old report' }));
     await waitFor(() =>

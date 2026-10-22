@@ -232,24 +232,44 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
       if (!thread) {
         return c.json({ error: 'not found' }, 404);
       }
-      const metadata = { ...(thread.metadata as Record<string, unknown> | undefined) };
-      if (typeof body.archived === 'boolean') {
-        metadata.archived = body.archived;
+      // Metadata changes go through the store's per-thread update, so a work thread's own
+      // saves (its status, its checklist) made meanwhile are never written over.
+      let refused: string | undefined;
+      if (typeof body.archived === 'boolean' || typeof body.resolved === 'boolean') {
+        const store = await c.get('mastra').getStorage()?.getStore('memory');
+        if (!store) return c.json({ error: 'memory not configured' }, 500);
+        await store.updateThreadMetadata({
+          id,
+          update: (fresh) => {
+            const change: Record<string, unknown> = {};
+            if (typeof body.archived === 'boolean') change.archived = body.archived;
+            const work = workThreadOf(fresh);
+            if (typeof body.resolved === 'boolean' && work) {
+              if (body.resolved && (work.status === 'working' || work.status === 'needs_you')) {
+                refused = "a thread that is working or waiting on you can't be resolved";
+              } else {
+                // Resolving files a work thread under Resolved; a new run in it reopens it.
+                const raw = {
+                  ...((fresh.metadata as Record<string, unknown>)[WORK_THREAD_KEY] as object),
+                } as Record<string, unknown>;
+                if (body.resolved) raw.resolved = true;
+                else delete raw.resolved;
+                change[WORK_THREAD_KEY] = raw;
+              }
+            }
+            return Object.keys(change).length ? change : undefined;
+          },
+        });
       }
-      // Resolving files a work thread under Resolved; a new run in it reopens it.
-      const work = workThreadOf(thread);
-      if (typeof body.resolved === 'boolean' && work) {
-        const { resolved: _, ...rest } = work;
-        metadata[WORK_THREAD_KEY] = body.resolved ? { ...rest, resolved: true } : rest;
+      if (refused) return c.json({ error: refused }, 409);
+      if (typeof body.title === 'string' && body.title.trim()) {
+        const current = await memory.getThreadById({ threadId: id });
+        await memory.updateThread({
+          id,
+          title: body.title.trim(),
+          metadata: { ...(current?.metadata as Record<string, unknown> | undefined) },
+        });
       }
-      await memory.updateThread({
-        id,
-        title:
-          typeof body.title === 'string' && body.title.trim()
-            ? body.title.trim()
-            : (thread.title ?? ''),
-        metadata,
-      });
       return c.json({ ok: true });
     },
   }),

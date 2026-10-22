@@ -330,7 +330,8 @@ export function ProjectChat({
     <div className={cn('relative flex h-full min-h-0', className)}>
       <ProjectSidebar
         chats={chats}
-        threads={[...work.values()]}
+        // Threads of an archived chat go with it.
+        threads={[...work.values()].filter((t) => chats.some((c) => c.id === t.parentThreadId))}
         activeChatId={mainId}
         openThreadId={openId}
         // A chat that is answering keeps its place until the answer ends.

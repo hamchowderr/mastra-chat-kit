@@ -55,14 +55,26 @@ export function ProjectSidebar({
   return (
     <aside id="project-chats" className={cn('flex min-h-0 flex-col', className)}>
       <div className="flex items-center gap-1 p-2">
-        <div role="tablist" aria-label="List" className="flex min-w-0 flex-1 gap-1">
+        <div
+          role="tablist"
+          aria-label="List"
+          className="flex min-w-0 flex-1 gap-1"
+          onKeyDown={(e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            const next = tab === 'threads' ? 'chats' : 'threads';
+            setTab(next);
+            document.getElementById(`project-tab-${next}`)?.focus();
+          }}
+        >
           {(['threads', 'chats'] as const).map((id) => (
             <button
               key={id}
+              id={`project-tab-${id}`}
               type="button"
               role="tab"
               aria-selected={tab === id}
-              aria-controls={id === 'threads' ? 'project-threads' : 'project-chats-list'}
+              aria-controls={`project-panel-${id}`}
+              tabIndex={tab === id ? 0 : -1}
               onClick={() => setTab(id)}
               className={cn(
                 'flex h-8 items-center gap-1.5 rounded-md px-2.5 font-medium text-sm transition-colors',
@@ -74,7 +86,7 @@ export function ProjectSidebar({
               {id === 'threads' ? 'Threads' : 'Chats'}
               {id === 'threads' && waiting > 0 && (
                 <span className="rounded-full bg-amber-500 px-1.5 text-[11px] text-white tabular-nums">
-                  <span className="sr-only">waiting on you: </span>
+                  <span className="sr-only">, waiting on you: </span>
                   {waiting}
                 </span>
               )}
@@ -97,57 +109,58 @@ export function ProjectSidebar({
           {problem}
         </p>
       )}
-      {tab === 'threads' ? (
-        <nav
-          id="project-threads"
-          role="tabpanel"
-          aria-label="Threads"
-          className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
-        >
-          <ThreadList
-            threads={threads}
-            openThreadId={openThreadId}
-            onOpen={onOpenThread}
-            onResolve={onResolveThread}
-            // A thread opens over its own chat, which waits while another chat answers.
-            disabled={(t) => busy && t.parentThreadId !== activeChatId}
-          />
-        </nav>
-      ) : (
-        <nav
-          id="project-chats-list"
-          role="tabpanel"
-          aria-label="Chats"
-          className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
-        >
-          {chats.length === 0 && (
-            <p className="px-2 py-2 text-pretty text-muted-foreground text-xs">
-              Your chats show up here once you start one.
-            </p>
-          )}
-          {chats.map((chat) => (
-            <div key={chat.id} className="mb-0.5">
-              <ChatRow
-                chat={chat}
-                active={chat.id === activeChatId && !openThreadId}
-                locked={busy && chat.id !== activeChatId}
-                answering={busy && chat.id === activeChatId}
-                onSelect={() => onSelectChat(chat.id)}
-                onRename={async (title) => {
-                  setProblem(null);
-                  if (!(await onRename(chat, title))) setProblem("Couldn't rename that chat.");
-                }}
-                onDelete={async () => {
-                  setProblem(null);
-                  if (!(await onDelete(chat))) {
-                    setProblem("Couldn't delete that chat. A thread in it may still be working.");
-                  }
-                }}
-              />
-            </div>
-          ))}
-        </nav>
-      )}
+      <nav
+        id="project-panel-threads"
+        role="tabpanel"
+        aria-labelledby="project-tab-threads"
+        tabIndex={-1}
+        hidden={tab !== 'threads'}
+        className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 outline-none"
+      >
+        <ThreadList
+          threads={threads}
+          openThreadId={openThreadId}
+          onOpen={onOpenThread}
+          onResolve={onResolveThread}
+          // A thread opens over its own chat, which waits while another chat answers.
+          disabled={(t) => busy && t.parentThreadId !== activeChatId}
+        />
+      </nav>
+      <nav
+        id="project-panel-chats"
+        role="tabpanel"
+        aria-labelledby="project-tab-chats"
+        tabIndex={-1}
+        hidden={tab !== 'chats'}
+        className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 outline-none"
+      >
+        {chats.length === 0 && (
+          <p className="px-2 py-2 text-pretty text-muted-foreground text-xs">
+            Your chats show up here once you start one.
+          </p>
+        )}
+        {chats.map((chat) => (
+          <div key={chat.id} className="mb-0.5">
+            <ChatRow
+              chat={chat}
+              active={chat.id === activeChatId && !openThreadId}
+              locked={busy && chat.id !== activeChatId}
+              answering={busy && chat.id === activeChatId}
+              onSelect={() => onSelectChat(chat.id)}
+              onRename={async (title) => {
+                setProblem(null);
+                if (!(await onRename(chat, title))) setProblem("Couldn't rename that chat.");
+              }}
+              onDelete={async () => {
+                setProblem(null);
+                if (!(await onDelete(chat))) {
+                  setProblem("Couldn't delete that chat. A thread in it may still be working.");
+                }
+              }}
+            />
+          </div>
+        ))}
+      </nav>
     </aside>
   );
 }
