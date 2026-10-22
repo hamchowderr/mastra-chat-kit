@@ -32,6 +32,7 @@ import {
   WORK_THREAD_KEY,
   type WorkThreadInfo,
   type WorkThreadStatus,
+  type WorkThreadTask,
   workThreadOf,
 } from './work-thread-info';
 
@@ -56,6 +57,40 @@ export function reportText(
 function excerpt(text: string): string {
   const t = text.trim();
   return t.length <= REPORT_EXCERPT_CHARS ? t : `${t.slice(0, REPORT_EXCERPT_CHARS).trimEnd()}…`;
+}
+
+/** The longest latest line a thread keeps for its row in the list. */
+export const LATEST_CHARS = 140;
+
+/** The first line of some text, cut to `LATEST_CHARS`: a thread's latest line. */
+function line(text: string): string {
+  const first =
+    text
+      .trim()
+      .split('\n')
+      .find((l) => l.trim()) ?? '';
+  const t = first.replace(/^[#>*\-\s]+/, '').trim();
+  return t.length <= LATEST_CHARS ? t : `${t.slice(0, LATEST_CHARS - 1).trimEnd()}…`;
+}
+
+/** What a thread waits on, as its latest line ("it asked …" reads "Asked …"). */
+function waitingLine(waitingOn: string | undefined): string {
+  if (!waitingOn) return 'Waiting for your answer';
+  const t = waitingOn.replace(/^it (is )?/, '').replace(/\.$/, '');
+  return line(t.charAt(0).toUpperCase() + t.slice(1));
+}
+
+/** The checklist kept for a thread: each task's words and status, at most 20. */
+function tasksOf(tasks: unknown): WorkThreadTask[] {
+  if (!Array.isArray(tasks)) return [];
+  return tasks
+    .filter(
+      (t): t is WorkThreadTask =>
+        typeof t?.content === 'string' &&
+        ['pending', 'in_progress', 'completed'].includes(t?.status),
+    )
+    .slice(0, 20)
+    .map((t) => ({ content: t.content.slice(0, 200), status: t.status }));
 }
 
 /**
@@ -182,17 +217,40 @@ export function createWorkThreads(config: WorkThreadsConfig) {
 
   const openSession = config.openSession ?? openWorkSession;
 
-  async function setStatus(threadId: string, status: WorkThreadStatus) {
+  /**
+   * Saves a change to a work thread's state: its status, and what goes with it (its checklist,
+   * its latest line, whether it is resolved). A key set to undefined is removed.
+   */
+  async function save(
+    threadId: string,
+    change: { [K in keyof WorkThreadInfo]?: WorkThreadInfo[K] | undefined },
+  ) {
     const store = await memory();
+    let changed: WorkThreadStatus | undefined;
     await store.updateThreadMetadata({
       id: threadId,
       update: (thread) => {
         const info = workThreadOf(thread);
-        if (!info || info.status === status) return undefined;
-        return { [WORK_THREAD_KEY]: { ...info, status } };
+        if (!info) return undefined;
+        // Merged into what is stored, not the parsed copy, so a host's own keys survive.
+        const raw = (thread.metadata as Record<string, unknown>)[WORK_THREAD_KEY] as Record<
+          string,
+          unknown
+        >;
+        const next: Record<string, unknown> = { ...raw, ...change };
+        // A thread that works or waits is never filed under Resolved.
+        if (change.status === 'working' || change.status === 'needs_you') delete next.resolved;
+        for (const key of Object.keys(next)) if (next[key] === undefined) delete next[key];
+        if (JSON.stringify(next) === JSON.stringify(raw)) return undefined;
+        if (change.status && change.status !== info.status) changed = change.status;
+        return { [WORK_THREAD_KEY]: next };
       },
     });
-    config.onStatus?.(threadId, status);
+    if (changed) config.onStatus?.(threadId, changed);
+  }
+
+  function setStatus(threadId: string, status: WorkThreadStatus, latest?: string) {
+    return save(threadId, latest === undefined ? { status } : { status, latest });
   }
 
   /** Saves a report into the main chat's thread, as the agent's own message. */
@@ -272,8 +330,22 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           clearTimeout(idleTimers.get(threadId));
           tracked.lastReply = '';
           tracked.waitingOn = undefined;
-          later(() => setStatus(threadId, 'working'));
+          // A new run takes the thread out of Resolved, and what it waited on is past.
+          later(() => save(threadId, { status: 'working', latest: undefined }));
           break;
+        case 'task_updated': {
+          const tasks = tasksOf(event.tasks);
+          const doing = (event.tasks as Array<{ status?: string; activeForm?: string }>).find(
+            (t) => t.status === 'in_progress',
+          );
+          later(() =>
+            save(threadId, {
+              tasks: tasks.length ? tasks : undefined,
+              ...(doing?.activeForm ? { latest: line(doing.activeForm) } : {}),
+            }),
+          );
+          break;
+        }
         case 'message_end': {
           // The display state still holds the finished message here.
           const text = messageText(session.displayState.get().currentMessage);
@@ -284,13 +356,13 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           // A call it waited on was decided and ran: it is working again.
           if (tracked.waitingOn) {
             tracked.waitingOn = undefined;
-            later(() => setStatus(threadId, 'working'));
+            later(() => save(threadId, { status: 'working', latest: undefined }));
           }
           break;
         case 'tool_approval_required':
           tracked.waitingOn = `it is waiting for your OK to run ${event.toolName}.`;
           later(async () => {
-            await setStatus(threadId, 'needs_you');
+            await setStatus(threadId, 'needs_you', `Waiting for your OK to run ${event.toolName}`);
             if (tracked.background) await report(threadId, 'needs_you', tracked.waitingOn);
           });
           break;
@@ -310,14 +382,14 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             const background = tracked.background;
             tracked.background = false;
             later(async () => {
-              await setStatus(threadId, 'needs_you');
+              await setStatus(threadId, 'needs_you', waitingLine(waitingOn));
               if (background) await report(threadId, 'needs_you', waitingOn);
             });
           } else if (reason === 'error') {
             const background = tracked.background;
             tracked.background = false;
             later(async () => {
-              await setStatus(threadId, 'failed');
+              await setStatus(threadId, 'failed', 'Stopped with an error');
               if (background) await report(threadId, 'failed');
             });
           } else {
@@ -325,7 +397,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             const reply = tracked.lastReply;
             tracked.background = false;
             later(async () => {
-              await setStatus(threadId, reason === 'aborted' ? 'stopped' : 'done');
+              if (reason === 'aborted') await setStatus(threadId, 'stopped', 'Stopped');
+              else await setStatus(threadId, 'done', reply ? line(reply) : 'Done');
               if (background && reason !== 'aborted') await report(threadId, 'done', reply);
             });
           }
@@ -394,7 +467,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
       .catch(async (err: unknown) => {
         if (!tracked.background) return;
         tracked.background = false;
-        await setStatus(threadId, 'failed').catch(() => undefined);
+        await setStatus(threadId, 'failed', 'Stopped with an error').catch(() => undefined);
         await report(threadId, 'failed', err instanceof Error ? err.message : String(err)).catch(
           () => undefined,
         );
@@ -424,7 +497,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         // Nothing runs on a Session just opened: a thread left working or waiting by a
         // run in an earlier process is stopped (its approval gates went with that process).
         if (info.status === 'working' || info.status === 'needs_you') {
-          await setStatus(threadId, 'stopped');
+          await setStatus(threadId, 'stopped', 'Stopped when the server restarted');
         }
         releaseWhenIdle(threadId, resourceId, tracked);
         return tracked;
@@ -448,7 +521,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
       const info = workThreadOf(thread);
       if (!info || live.has(thread.id)) continue;
       if (info.status === 'working' || info.status === 'needs_you') {
-        await setStatus(thread.id, 'stopped');
+        await setStatus(thread.id, 'stopped', 'Stopped when the server restarted');
       }
     }
   }

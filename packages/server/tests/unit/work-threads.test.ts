@@ -18,6 +18,29 @@ describe('work thread info', () => {
     expect(workThreadOf(null)).toBeUndefined();
   });
 
+  it('keeps its checklist, latest line and resolved flag, dropping malformed steps', () => {
+    const info = {
+      parentThreadId: 'm1',
+      title: 'Plan',
+      status: 'done',
+      latest: 'All set.',
+      resolved: true,
+      tasks: [
+        { content: 'Draft it', status: 'completed' },
+        { content: 'Bad', status: 'sleeping' },
+        { status: 'pending' },
+      ],
+    };
+    expect(workThreadOf({ metadata: { workThread: info } })).toEqual({
+      ...info,
+      tasks: [{ content: 'Draft it', status: 'completed' }],
+    });
+    const plain = workThreadOf({
+      metadata: { workThread: { ...info, tasks: [], latest: '', resolved: 'yes' } },
+    });
+    expect(plain).toEqual({ parentThreadId: 'm1', title: 'Plan', status: 'done' });
+  });
+
   it('links a thread by id, keeping the title from breaking the link', () => {
     expect(threadLink('a/b', 'Plan [v2]')).toBe('[Plan v2](#thread=a%2Fb)');
   });
