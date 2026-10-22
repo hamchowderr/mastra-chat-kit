@@ -290,6 +290,14 @@ export function ProjectChat({
           <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0 truncate font-medium">{opened?.title ?? 'Thread'}</span>
         </nav>
+        {opened?.agent && (
+          <span
+            className="hidden shrink-0 rounded-full border border-border px-2 py-0.5 text-muted-foreground text-xs sm:inline"
+            title="The agent doing this work"
+          >
+            {opened.agent.name}
+          </span>
+        )}
         <ThreadStatus status={opened?.status} />
         <button
           ref={panelClose}

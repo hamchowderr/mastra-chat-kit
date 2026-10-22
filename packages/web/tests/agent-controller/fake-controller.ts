@@ -18,6 +18,7 @@ export type Thread = {
   tasks?: Array<{ content: string; status: string }>;
   latest?: string;
   resolved?: boolean;
+  agent?: { id: string; name: string };
 };
 
 const sse = (events: Event[]) =>

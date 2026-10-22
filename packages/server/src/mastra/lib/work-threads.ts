@@ -119,6 +119,19 @@ function messageText(message: unknown): string {
     .trim();
 }
 
+/**
+ * A specialist a work thread can run as: one of the controller's modes, which carries its own
+ * instructions and tools. The main chat's agent picks one per thread from their descriptions.
+ */
+export type ThreadAgent = {
+  id: string;
+  name: string;
+  /** What it does and when to pick it, for the main chat's agent. */
+  description: string;
+  /** The controller mode its threads run in. */
+  modeId: string;
+};
+
 export type WorkThreadsConfig = {
   getController: () => Promise<AgentController>;
   /** The controller's own store: threads' metadata and the reports are written to it. */
@@ -162,6 +175,12 @@ export type WorkThreadsConfig = {
   ) => Promise<unknown>;
   /** How long an idle work thread keeps its Session before it is torn down. Default 60 s. */
   idleMs?: number;
+  /**
+   * The specialists threads can run as. With them, `start_thread` takes an `agent` (the first
+   * one when left out) and the thread runs in that agent's mode, whatever mode the main chat
+   * is in. Without them, a thread runs in the controller's default mode.
+   */
+  agents?: readonly ThreadAgent[];
 };
 
 type Tracked = {
@@ -421,22 +440,27 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     parentThreadId,
     title,
     brief,
+    agent,
     requestContext,
   }: {
     resourceId: string;
     parentThreadId: string;
     title: string;
     brief: string;
+    /** The specialist to run; the first of `agents` when left out. */
+    agent?: ThreadAgent;
     requestContext?: RequestContext;
-  }): Promise<{ threadId: string; title: string; status: WorkThreadStatus }> {
+  }): Promise<{ threadId: string; title: string; status: WorkThreadStatus; agent?: string }> {
     const controller = await config.getController();
     const threadId = globalThis.crypto.randomUUID();
     const untrusted = config.startsUntrusted?.(requestContext) ?? false;
+    const runs = agent ?? config.agents?.[0];
     const info: WorkThreadInfo = {
       parentThreadId,
       title,
       status: 'working',
       ...(untrusted ? { untrusted } : {}),
+      ...(runs ? { agent: { id: runs.id, name: runs.name } } : {}),
     };
     const store = await memory();
     const now = new Date();
@@ -450,7 +474,8 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         title,
         createdAt: now,
         updatedAt: now,
-        metadata: { [WORK_THREAD_KEY]: info },
+        // The Session restores the thread's mode from `currentModeId` when it opens it.
+        metadata: { [WORK_THREAD_KEY]: info, ...(runs ? { currentModeId: runs.modeId } : {}) },
       },
     });
     const opening = openSession(controller, { resourceId, threadId }).then((session) =>
@@ -472,7 +497,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
           () => undefined,
         );
       });
-    return { threadId, title, status: 'working' };
+    return { threadId, title, status: 'working', ...(runs ? { agent: runs.name } : {}) };
   }
 
   /**
@@ -554,6 +579,20 @@ export function createWorkThreads(config: WorkThreadsConfig) {
     return workThreadOf(await store.getThreadById({ threadId }));
   }
 
+  const agents = config.agents ?? [];
+  const agentIds = agents.map((a) => a.id) as [string, ...string[]];
+  const agentField =
+    agents.length > 0
+      ? {
+          agent: z
+            .enum(agentIds)
+            .optional()
+            .describe(
+              `Who does the work. ${agents.map((a) => `${a.id}: ${a.description}`).join(' ')} Default ${agents[0]?.id}.`,
+            ),
+        }
+      : {};
+
   const tool = createTool({
     id: START_THREAD_TOOL,
     description:
@@ -565,6 +604,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         .min(1)
         .max(8000)
         .describe("The whole task, in the user's words where possible."),
+      ...agentField,
     }),
     ...(config.requireApproval
       ? {
@@ -572,7 +612,9 @@ export function createWorkThreads(config: WorkThreadsConfig) {
             config.requireApproval?.(ctx?.requestContext) ?? false,
         }
       : {}),
-    execute: async ({ title, brief }, ctx) => {
+    execute: async (input, ctx) => {
+      const { title, brief } = input;
+      const chosen = agents.find((a) => a.id === (input as { agent?: string }).agent);
       const parentThreadId = ctx?.agent?.threadId;
       const resourceId = ctx?.agent?.resourceId;
       if (!parentThreadId || !resourceId) {
@@ -588,6 +630,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
         parentThreadId,
         title: title.trim(),
         brief,
+        ...(chosen ? { agent: chosen } : {}),
         ...(ctx?.requestContext ? { requestContext: ctx.requestContext } : {}),
       });
     },

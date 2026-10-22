@@ -27,6 +27,7 @@ function setup() {
         parentThreadId: MAIN,
         status: 'needs_you',
         latest: 'Waiting for your OK to run getWeather',
+        agent: { id: 'research', name: 'Researcher' },
         tasks: [
           { content: 'Look up the forecast', status: 'completed' },
           { content: 'Report back', status: 'pending' },
@@ -140,6 +141,7 @@ describe('ProjectChat', () => {
     expect(within(waiting).getByText('Oslo weather')).toBeInTheDocument();
     expect(within(waiting).getByText('Waiting for your OK to run getWeather')).toBeInTheDocument();
     expect(within(waiting).getByText('1/2')).toBeInTheDocument();
+    expect(within(waiting).getByText(/Researcher/)).toBeInTheDocument();
     // Resolved is folded until opened; chats are not threads.
     const resolved = within(list).getByRole('region', { name: 'Resolved' });
     expect(within(resolved).queryByText('Old report')).toBeNull();
@@ -185,6 +187,9 @@ describe('ProjectChat', () => {
     const progress = await screen.findByRole('region', { name: 'Progress' });
     expect(within(progress).getByText('Look up the forecast')).toBeInTheDocument();
     expect(within(progress).getByText('1/2')).toBeInTheDocument();
+    // The thread's header names the agent doing the work.
+    const panel = screen.getByRole('region', { name: 'Thread: Oslo weather' });
+    expect(within(panel).getByText('Researcher')).toBeInTheDocument();
   });
 
   it('opens another chat from the Chats tab, and starts a new one', async () => {
