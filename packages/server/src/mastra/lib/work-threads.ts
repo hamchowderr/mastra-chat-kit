@@ -707,6 +707,7 @@ export function createWorkThreads(config: WorkThreadsConfig) {
   const steering = createSteeringTools({
     storage: config.storage,
     message,
+    requireApproval: config.requireApproval,
     screen: config.screenReport,
   });
 
