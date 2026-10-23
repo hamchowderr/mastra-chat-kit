@@ -77,6 +77,7 @@ export function ProjectChat({
   models = false,
   webSearch = false,
   placeholder = 'Ask anything…',
+  greeting = 'What should we work on?',
   emptyText = 'Ask for anything. Bigger pieces of work get a thread of their own.',
 }: {
   className?: string;
@@ -109,6 +110,8 @@ export function ProjectChat({
   /** The composer's "Search the web" toggle, for an agent that can search. */
   webSearch?: boolean;
   placeholder?: string;
+  /** The heading over the box before the chat's first message. */
+  greeting?: string;
   emptyText?: string;
 }) {
   const main = useAgentControllerChat();
@@ -317,6 +320,36 @@ export function ProjectChat({
     </div>
   );
 
+  const mainComposer = (
+    <ProjectComposer
+      controller={main}
+      placeholder={placeholder}
+      models={models}
+      webSearch={webSearch}
+      mode={mode}
+      // With a thread open each box takes the files dropped on itself.
+      globalDrop={!openId}
+      onSent={settleMain}
+      toolsExtra={
+        modes && modes.length > 1 ? (
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value)}
+            aria-label="Mode"
+            className="h-8 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-ring"
+          >
+            {modes.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        ) : undefined
+      }
+    />
+  );
+  const empty = main.transcript.messages.length === 0 && !mainBusy && !main.goal;
+
   return (
     <div ref={setArea} className={cn('relative flex h-full min-h-0', className)}>
       <section
@@ -338,44 +371,33 @@ export function ProjectChat({
             )}
           </button>
         )}
-        <ChatView
-          controller={main}
-          approvalViews={approvalViews}
-          toolViews={toolViews}
-          emptyText={emptyText}
-          working={false}
-          onOpenThread={openPanel}
-          onLinkClick={onLinkClick}
-          work={work}
-          openThreadId={openId}
-          outputsOf={outputsOf}
-        />
-        <ProjectComposer
-          controller={main}
-          placeholder={placeholder}
-          models={models}
-          webSearch={webSearch}
-          mode={mode}
-          // With a thread open each box takes the files dropped on itself.
-          globalDrop={!openId}
-          onSent={settleMain}
-          toolsExtra={
-            modes && modes.length > 1 ? (
-              <select
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-                aria-label="Mode"
-                className="h-8 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-ring"
-              >
-                {modes.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            ) : undefined
-          }
-        />
+        {empty ? (
+          // Before the first message the heading and the box sit together in the middle, as
+          // in the kit's chat; once it is going the box pins to the bottom.
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
+            <div className="space-y-2 text-center">
+              <h1 className="text-balance font-semibold text-3xl tracking-tight">{greeting}</h1>
+              <p className="text-base text-muted-foreground">{emptyText}</p>
+            </div>
+            <div className="w-full max-w-3xl">{mainComposer}</div>
+          </div>
+        ) : (
+          <>
+            <ChatView
+              controller={main}
+              approvalViews={approvalViews}
+              toolViews={toolViews}
+              emptyText={emptyText}
+              working={false}
+              onOpenThread={openPanel}
+              onLinkClick={onLinkClick}
+              work={work}
+              openThreadId={openId}
+              outputsOf={outputsOf}
+            />
+            {mainComposer}
+          </>
+        )}
       </section>
       {panelOpen && (
         <ProjectPanel
@@ -392,8 +414,9 @@ export function ProjectChat({
           onHide={hidePanel}
           closeRef={panelClose}
           className={cn(
-            'border-border bg-background',
-            roomy ? 'w-[min(36rem,45%)] shrink-0 border-l' : 'absolute inset-0 z-20',
+            roomy
+              ? 'mr-2 mb-2 w-[min(32rem,42%)] shrink-0 rounded-xl bg-sidebar'
+              : 'absolute inset-0 z-20 bg-background',
           )}
         />
       )}
@@ -428,9 +451,10 @@ function ProjectComposer({
 }) {
   const { sendMessage, stop, status, transcript } = controller;
   return (
-    <div className="mx-auto w-full max-w-2xl px-3 pb-3">
+    <div className="mx-auto w-full max-w-3xl px-4 pb-4">
       <Composer
-        className="m-0"
+        // The kit's raised box: a card over the page, with its soft shadow.
+        className="m-0 [&_[data-slot=input-group]]:border-border [&_[data-slot=input-group]]:bg-card [&_[data-slot=input-group]]:shadow-[var(--shadow-float)]"
         {...(label ? { label } : {})}
         placeholder={placeholder}
         disabled={disabled}

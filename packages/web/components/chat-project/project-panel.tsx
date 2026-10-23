@@ -138,7 +138,7 @@ export function ProjectPanel({
 
   return (
     <aside aria-label="Project" className={cn('flex min-h-0 min-w-0 flex-col', className)}>
-      <div className="flex items-center gap-1 border-border border-b p-2">
+      <div className="flex items-center gap-1 p-2">
         <div
           role="tablist"
           aria-label="Project"
