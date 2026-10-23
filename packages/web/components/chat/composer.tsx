@@ -163,6 +163,7 @@ export function Composer({
   speech = true,
   disabled = false,
   onStop,
+  globalDrop = true,
 }: {
   /**
    * Send the message. Return (or resolve to) `false` when it was not sent: the composer
@@ -200,6 +201,11 @@ export function Composer({
    * it, a message sent while one streams waits its turn on the server.
    */
   onStop?: (() => void) | undefined;
+  /**
+   * A file dropped anywhere on the page lands in this box. Turn it off where two boxes share
+   * a page: each then takes the files dropped on itself.
+   */
+  globalDrop?: boolean;
 }) {
   const speechSupported = useSpeechRecognitionSupport();
   const modelList = models === false ? [] : models;
@@ -230,6 +236,11 @@ export function Composer({
     if (!hasText && !hasAttachments) {
       return;
     }
+    // Enter while an answer streams, where the button is Stop: nothing sends, and the text
+    // and files stay in the box.
+    if (onStop && status === 'streaming') {
+      throw new Error('still answering');
+    }
     const typed = message.text ?? '';
     // PromptInput has already emptied the box (it resets the form on submit).
     setText('');
@@ -252,7 +263,7 @@ export function Composer({
     <PromptInput
       onSubmit={handleSubmit}
       className={className}
-      globalDrop
+      globalDrop={globalDrop}
       multiple
       accept={ATTACH_ACCEPT}
       maxFiles={MAX_FILES}

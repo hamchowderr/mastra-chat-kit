@@ -267,6 +267,21 @@ describe('ProjectChat', () => {
     expect(await screen.findByRole('tab', { name: 'Library' })).toBeInTheDocument();
   });
 
+  it('goes back to the Threads tab when a thread opened from it closes', async () => {
+    setup();
+    renderChat();
+    const list = await screen.findByRole('tabpanel', { name: /^Threads/ });
+    const waiting = within(list).getByRole('region', { name: 'Waiting on you' });
+    const row = within(waiting)
+      .getAllByRole('button')
+      .find((b) => /Oslo weather/.test(b.textContent ?? ''));
+    if (!row) throw new Error('no row for Oslo weather');
+    row.focus();
+    fireEvent.click(row);
+    fireEvent.click(await screen.findByRole('button', { name: 'Close thread' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: /^Threads/ })).toHaveFocus());
+  });
+
   it('opens the thread a link to this page names, then drops the link', async () => {
     setup();
     window.history.replaceState(null, '', `/chat#thread=${WORK}`);
