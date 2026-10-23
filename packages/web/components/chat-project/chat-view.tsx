@@ -72,10 +72,10 @@ export function ChatView({
     // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
     <div className="min-h-0 flex-1" onClick={onLinkClick}>
       <Conversation className="h-full">
-        <ConversationContent className="mx-auto w-full max-w-2xl">
+        <ConversationContent className="mx-auto w-full max-w-3xl pt-10">
           {/* The standing objective the agent set itself, with its latest verdict. */}
           {goal && <GoalCard goal={goal} onClear={clearGoal} />}
-          {transcript.messages.length === 0 && (
+          {transcript.messages.length === 0 && emptyText && (
             <p className="py-12 text-center text-muted-foreground text-sm">{emptyText}</p>
           )}
           {transcript.messages.map((m, at) => {
