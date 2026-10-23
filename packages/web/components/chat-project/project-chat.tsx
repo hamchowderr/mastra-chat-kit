@@ -78,7 +78,7 @@ export function ProjectChat({
   webSearch = false,
   placeholder = 'Ask anything…',
   greeting = 'What should we work on?',
-  emptyText = 'Ask for anything. Bigger pieces of work get a thread of their own.',
+  emptyText = '',
 }: {
   className?: string;
   /** What approval cards say, per tool name (components/chat/approval-view.tsx). */
@@ -383,7 +383,7 @@ export function ProjectChat({
           // in the kit's chat; once it is going the box pins to the bottom.
           <div className="flex flex-1 flex-col items-center justify-end gap-2 px-4 pb-6 text-center">
             <h1 className="text-balance font-semibold text-3xl tracking-tight">{greeting}</h1>
-            <p className="text-base text-muted-foreground">{emptyText}</p>
+            {emptyText && <p className="text-base text-muted-foreground">{emptyText}</p>}
           </div>
         ) : (
           <ChatView

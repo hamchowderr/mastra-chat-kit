@@ -75,7 +75,7 @@ export function ChatView({
         <ConversationContent className="mx-auto w-full max-w-3xl pt-10">
           {/* The standing objective the agent set itself, with its latest verdict. */}
           {goal && <GoalCard goal={goal} onClear={clearGoal} />}
-          {transcript.messages.length === 0 && (
+          {transcript.messages.length === 0 && emptyText && (
             <p className="py-12 text-center text-muted-foreground text-sm">{emptyText}</p>
           )}
           {transcript.messages.map((m, at) => {
