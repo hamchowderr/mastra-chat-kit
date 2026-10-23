@@ -67,7 +67,13 @@ export function CopyTurn({ content }: { content: AgentControllerContentPart[] })
  * live/`done`/error footer. Driven by the accumulated `subagent_*` events; falls
  * back to the parent tool-call `task` before any subagent event arrives.
  */
-export function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?: string }) {
+export function SubagentCard({
+  run,
+  fallbackTask,
+}: {
+  run?: SubagentRun | undefined;
+  fallbackTask?: string | undefined;
+}) {
   const agentType = run?.agentType ?? 'subagent';
   const task = run?.task ?? fallbackTask;
   const running = run?.status !== 'done';
