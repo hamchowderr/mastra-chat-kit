@@ -46,6 +46,7 @@ const OWN_VIEW = new Set([
   'start_thread',
   'suggest_threads',
   'generateImage',
+  'subagent',
 ]);
 
 /** A tool's name in words: `query_data` → "Query data", `generateImage` → "Generate image". */

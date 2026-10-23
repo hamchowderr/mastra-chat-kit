@@ -14,7 +14,7 @@ our own copies of only the few we had to patch.
 |---|---|---|
 | `chat` | block | **The full skin** — history sidebar │ conversation │ the 4-tab workbench (browser, files, memory, schedules). **Install this for the complete experience.** |
 | `chat-minimal` | block | **A second skin** — conversation + composer + approvals only, no sidebar or workbench. For embedding an agent in a corner of an existing app. |
-| `chat-project` | block | **A fourth skin** — one main chat that starts threads for pieces of work. Each thread is a row under the message that started it, with its status; it opens into its own conversation and reports back to the main chat when it finishes or needs you. Needs the server's work threads (`start_thread`, in `chat-server`). |
+| `chat-project` | block | **A fourth skin** — one chat that starts threads for pieces of work, with a panel beside it (Threads, plus your own tabs). Each thread is a row under the message that started it, with its status; it opens into its own conversation in the panel and reports back to the chat when it finishes or needs you. Needs the server's work threads (`start_thread`, in `chat-server`). |
 | `chat-composer` | component | The one composer `chat` and `chat-panel` use: attachments, dictation, optional model picker and web search, and the Plan toggle (`plan-mode`). |
 | `chat-panel` | block | **A third skin** — a docked side panel: a header (title, conversation history, new chat, your own buttons), a greeting and suggestions when empty, and a rounded composer card with the Plan toggle (hide it with `plan={false}`). No model picker, no web search. |
 | `chat-tool-views` | component | Shared renderers turning real tool output into elements (sources, generated images, plan, goal card, `ask_user`). Used by **every** skin. |
@@ -413,18 +413,28 @@ its text and attachments and the server's reason is shown. It ships no colours o
 
 ### The project chat (work threads)
 
-`chat-project` is shaped like a project: one main chat, and threads it starts for
-pieces of work. The agent starts one with the `start_thread` tool (a title and a brief);
-the thread runs the brief on a Session of its own (scope `work:<threadId>`) while the
-main chat stays free. Its row under the starting message shows how it is doing:
-working, needs you (an approval or a question), done, failed, or stopped (the server
-restarted mid-run). Clicking the row opens the thread, where its approvals and
-questions can be answered and the conversation continued; "Main chat" goes back.
+`chat-project` is shaped like a Claude project: one chat, and threads it starts for
+pieces of work, in a panel beside it. The agent starts one with the `start_thread` tool (a
+title and a brief); the thread runs the brief on a Session of its own (scope
+`work:<threadId>`) while the chat stays free. Its row under the starting message shows how
+it is doing: working, needs you (an approval or a question), done, failed, or stopped (the
+server restarted mid-run). Clicking the row, or the thread in the panel's Threads tab, opens
+it in the panel, where its approvals and questions can be answered and the conversation
+continued; "Threads" goes back to the list.
+
+The panel's tabs are Threads (grouped: waiting on you, working, idle, resolved), then your
+own (`tabs`: a Library of the project's files, its pull requests, its schedules). It can be
+hidden; where the screen is narrow it opens over the chat. Both boxes are the kit's one
+composer (`chat-composer`): attachments, a screenshot, dictation and the token usage, with
+the model picker and web search when you turn them on (`models`, `webSearch`).
 
 ```tsx
 import { ProjectChat } from '@/components/chat-project/project-chat';
 
-<ProjectChat modes={[{ id: 'chat', name: 'Chat' }, { id: 'plan', name: 'Plan' }]} />
+<ProjectChat
+  modes={[{ id: 'chat', name: 'Chat' }, { id: 'plan', name: 'Plan' }]}
+  tabs={[{ id: 'library', label: 'Library', content: <MyLibrary /> }]}
+/>
 ```
 
 When a thread started by `start_thread` finishes, fails, or stops for you, the server
@@ -444,7 +454,7 @@ const workThreads = createWorkThreads({ getController, storage });
 //   workThreads.sessionForThread(threadId, resourceId),
 ```
 
-The main chat is the newest conversation that is not a work thread. Thread statuses are
+The chat is the newest conversation that is not a work thread (`isChat` narrows it). Thread statuses are
 re-read every few seconds while one is working or waiting; nothing polls otherwise.
 
 `onToolEnd` (on `ChatPanel`, `ChatSwitcher`, or `useAgentControllerChat({ onToolEnd })`)

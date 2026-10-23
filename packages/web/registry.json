@@ -336,7 +336,9 @@
       ],
       "registryDependencies": [
         "button",
+        "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
+        "@mastra-chat-kit/context",
         "@mastra-chat-kit/image",
         "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
@@ -347,6 +349,7 @@
         "https://ai-sdk.dev/elements/api/registry/inline-citation.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
         "https://ai-sdk.dev/elements/api/registry/plan.json",
+        "https://ai-sdk.dev/elements/api/registry/queue.json",
         "https://ai-sdk.dev/elements/api/registry/reasoning.json",
         "https://ai-sdk.dev/elements/api/registry/sources.json",
         "https://ai-sdk.dev/elements/api/registry/terminal.json"
@@ -376,6 +379,11 @@
           "path": "components/chat/approval-view.tsx",
           "type": "registry:component",
           "target": "components/chat/approval-view.tsx"
+        },
+        {
+          "path": "components/chat/turn-extras.tsx",
+          "type": "registry:component",
+          "target": "components/chat/turn-extras.tsx"
         }
       ]
     },
@@ -395,9 +403,7 @@
         "sheet",
         "tabs",
         "use-mobile",
-        "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
-        "@mastra-chat-kit/context",
         "@mastra-chat-kit/tool",
         "@mastra-chat-kit/chat-engine",
         "@mastra-chat-kit/chat-composer",
@@ -405,7 +411,6 @@
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
         "https://ai-sdk.dev/elements/api/registry/file-tree.json",
         "https://ai-sdk.dev/elements/api/registry/message.json",
-        "https://ai-sdk.dev/elements/api/registry/queue.json",
         "https://ai-sdk.dev/elements/api/registry/reasoning.json",
         "https://ai-sdk.dev/elements/api/registry/shimmer.json",
         "https://ai-sdk.dev/elements/api/registry/suggestion.json",
@@ -487,12 +492,12 @@
       "name": "chat-project",
       "type": "registry:block",
       "title": "Mastra Chat (project)",
-      "description": "Chats that start threads for pieces of work, in a list with New chat, rename and delete. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to its chat when it finishes or needs you. Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
+      "description": "One chat that starts threads for pieces of work, with a panel beside it: a Threads tab (grouped by what each needs) and the host's own tabs. Each thread shows as a row with its status, opens into its own conversation in the panel (approvals, questions, replies), and reports back to the chat when it finishes or needs you. Both boxes are the kit's full composer (attachments, screenshot, dictation, usage). Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
       "dependencies": [
         "lucide-react"
       ],
       "registryDependencies": [
-        "dropdown-menu",
+        "@mastra-chat-kit/chat-composer",
         "@mastra-chat-kit/chat-tool-views",
         "@mastra-chat-kit/chat-engine",
         "https://ai-sdk.dev/elements/api/registry/conversation.json",
@@ -507,9 +512,14 @@
           "target": "components/chat-project/project-chat.tsx"
         },
         {
-          "path": "components/chat-project/project-sidebar.tsx",
+          "path": "components/chat-project/project-panel.tsx",
           "type": "registry:component",
-          "target": "components/chat-project/project-sidebar.tsx"
+          "target": "components/chat-project/project-panel.tsx"
+        },
+        {
+          "path": "components/chat-project/chat-view.tsx",
+          "type": "registry:component",
+          "target": "components/chat-project/chat-view.tsx"
         },
         {
           "path": "components/chat-project/thread-row.tsx",

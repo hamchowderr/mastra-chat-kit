@@ -108,10 +108,27 @@ function AttachmentsDisplay() {
  * a message), and while a turn streams. Enter in the textarea checks this same button,
  * so the keyboard follows the same rule.
  */
-function SubmitButton({ hasText, status }: { hasText: boolean; status?: ChatStatus }) {
+function SubmitButton({
+  hasText,
+  status,
+  disabled,
+  onStop,
+}: {
+  hasText: boolean;
+  status?: ChatStatus;
+  disabled: boolean;
+  onStop?: (() => void) | undefined;
+}) {
   const attachments = usePromptInputAttachments();
   const empty = !hasText && attachments.files.length === 0;
-  return <PromptInputSubmit disabled={empty && status !== 'streaming'} status={status} />;
+  const streaming = status === 'streaming';
+  return (
+    <PromptInputSubmit
+      disabled={streaming ? false : disabled || empty}
+      status={status}
+      {...(onStop ? { onStop } : {})}
+    />
+  );
 }
 
 /**
@@ -142,7 +159,10 @@ export function Composer({
   models = MODELS,
   webSearch: showWebSearch = true,
   placeholder = 'Ask anything…',
+  label = 'Message',
   speech = true,
+  disabled = false,
+  onStop,
 }: {
   /**
    * Send the message. Return (or resolve to) `false` when it was not sent: the composer
@@ -165,12 +185,21 @@ export function Composer({
   webSearch?: boolean;
   /** The textarea's placeholder. */
   placeholder?: string;
+  /** The textarea's accessible name, which tells two boxes on one screen apart. */
+  label?: string;
   /**
    * Show the microphone (AI Elements SpeechInput): dictation into the textarea. It only
    * appears where the browser has speech recognition built in; elsewhere there is no
    * button rather than a broken one.
    */
   speech?: boolean;
+  /** Nothing can be typed or sent (say, while a thread works on its own). */
+  disabled?: boolean;
+  /**
+   * Stops the answer streaming now: while one streams, the send button becomes Stop. Without
+   * it, a message sent while one streams waits its turn on the server.
+   */
+  onStop?: (() => void) | undefined;
 }) {
   const speechSupported = useSpeechRecognitionSupport();
   const modelList = models === false ? [] : models;
@@ -243,6 +272,8 @@ export function Composer({
           onChange={(e) => setText(e.target.value)}
           value={text}
           placeholder={placeholder}
+          aria-label={label}
+          disabled={disabled}
         />
       </PromptInputBody>
       <PromptInputFooter>
@@ -353,7 +384,12 @@ export function Composer({
               }
             />
           )}
-          <SubmitButton hasText={Boolean(text.trim())} status={status} />
+          <SubmitButton
+            hasText={Boolean(text.trim())}
+            status={status}
+            disabled={disabled}
+            onStop={onStop}
+          />
         </div>
       </PromptInputFooter>
     </PromptInput>
