@@ -319,6 +319,8 @@ const SERVER_FILES = [
   ['../server/src/mastra/lib/thread-utils.ts', 'src/mastra/lib/thread-utils.ts'],
   // The turn's time zone: its request-context key and the Intl check. No imports.
   ['../server/src/mastra/lib/time-zone.ts', 'src/mastra/lib/time-zone.ts'],
+  // Connectors turned off for a chat: their request-context key and the list's reading.
+  ['../server/src/mastra/lib/connectors-off.ts', 'src/mastra/lib/connectors-off.ts'],
   // Which Session a request about a thread drives (a work thread has its own).
   ['../server/src/mastra/routes/thread-session.ts', 'src/mastra/routes/thread-session.ts'],
   // Work threads: start_thread, the Session each runs on, and the reports back to the

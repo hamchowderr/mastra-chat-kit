@@ -116,6 +116,18 @@ describe('/agent-controller/stream', () => {
     expect(ctxOff.get('webSearch')).toBeUndefined();
   });
 
+  it('puts the connectors turned off for this chat on the request context', async () => {
+    const some = fakeSession();
+    await run(some, { text: 'hi', connectorsOff: ['gmail', 'Not A Slug'] });
+    const ctxSome = some.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxSome.get('connectorsOff')).toEqual(['gmail']);
+
+    const none = fakeSession();
+    await run(none, { text: 'hi' });
+    const ctxNone = none.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxNone.get('connectorsOff')).toBeUndefined();
+  });
+
   it("puts the browser's time zone on the request context, and drops one Intl doesn't know", async () => {
     const known = fakeSession();
     await run(known, { text: 'hi', timeZone: 'America/Los_Angeles' });
@@ -301,6 +313,20 @@ describe('/agent-controller/answer', () => {
       toolCallId: 'p1',
       requestContext: expect.any(RequestContext),
     });
+  });
+
+  it('keeps the connectors turned off for this chat off in the resumed run', async () => {
+    const session = fakeSession();
+    const respondToToolSuspension = vi.fn(async (_args: AnyEvent) => {
+      session.emit({ type: 'agent_end', reason: 'complete' });
+    });
+    const withResume = { ...session, respondToToolSuspension };
+
+    const { c } = ctx({ body: { answer: 'yes', connectorsOff: ['slack'] } });
+    await ((await answerRoute(withResume).handler(c)) as Response).text();
+    expect(respondToToolSuspension.mock.calls[0]?.[0].requestContext.get('connectorsOff')).toEqual([
+      'slack',
+    ]);
   });
 
   it("resumes in the user's time zone, so the resumed run knows today's date", async () => {

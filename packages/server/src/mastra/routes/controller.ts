@@ -12,6 +12,7 @@
 
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
+import { CONNECTORS_OFF_KEY, readConnectorsOff } from '../lib/connectors-off';
 import { TIME_ZONE_KEY } from '../lib/time-zone';
 import { resourceIdOf } from './resource';
 import { sessionEventStream } from './session-sse';
@@ -19,19 +20,25 @@ import { streamBodyLimit, streamBodySchema, timeZone } from './stream-body';
 import { sessionForThread } from './thread-session';
 import type { ChatServerDeps } from './types';
 
-/** A turn's request context: the composer's Search toggle and the browser's time zone. */
+/**
+ * A turn's request context: the composer's Search toggle, the browser's time zone, and the
+ * connectors turned off for this chat.
+ */
 function turnRequestContext({
   webSearch,
   timeZone,
+  connectorsOff,
 }: {
   // `| undefined` so callers can pass a parsed-but-absent field under
   // exactOptionalPropertyTypes (consumers compile with it).
   webSearch?: boolean | undefined;
   timeZone?: string | undefined;
+  connectorsOff?: string[] | undefined;
 }) {
   const requestContext = new RequestContext();
   if (webSearch === true) requestContext.set('webSearch', true);
   if (timeZone) requestContext.set(TIME_ZONE_KEY, timeZone);
+  if (connectorsOff?.length) requestContext.set(CONNECTORS_OFF_KEY, connectorsOff);
   return requestContext;
 }
 
@@ -93,12 +100,13 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
       if (!parsed.success) {
         return c.json({ error: parsed.error.issues[0]?.message ?? 'invalid body' }, 400);
       }
-      const { text, threadId, model, mode, webSearch, files, timeZone } = parsed.data;
+      const { text, threadId, model, mode, webSearch, files, timeZone, connectorsOff } =
+        parsed.data;
       // Route the composer's "Search" toggle through the request context (not the
       // user message) so the agent's dynamic instructions flip into browse-the-web
       // mode — driving the workspace browser the Browser panel screencasts.
       // The browser's time zone rides the same way, for today's date (lib/turn-context.ts).
-      const requestContext = turnRequestContext({ webSearch, timeZone });
+      const requestContext = turnRequestContext({ webSearch, timeZone, connectorsOff });
       // Map the composer's attachments onto sendMessage's file shape ({ data, ... }).
       // `createMessageInput` accepts a data URL as `data` for both text and binary parts.
       const messageFiles = files?.length
@@ -227,6 +235,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         toolCallId?: string;
         timeZone?: string;
         threadId?: string;
+        connectorsOff?: unknown;
       }>();
       const { answer, plan, toolCallId } = body;
       let resumeData: string | string[] | { action: 'approved' | 'rejected'; feedback?: string };
@@ -258,8 +267,12 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           session.respondToToolSuspension({
             resumeData,
             ...(toolCallId ? { toolCallId } : {}),
-            // The resumed run reads today's date in the user's zone too.
-            requestContext: turnRequestContext({ timeZone: timeZone.parse(body.timeZone) }),
+            // The resumed run reads today's date in the user's zone too, and keeps the
+            // connectors turned off for this chat off.
+            requestContext: turnRequestContext({
+              timeZone: timeZone.parse(body.timeZone),
+              connectorsOff: readConnectorsOff(body.connectorsOff),
+            }),
           }),
       });
     },

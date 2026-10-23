@@ -83,6 +83,11 @@ export type UseAgentControllerChatOptions = {
    * to react to what the agent changed, e.g. refresh its own page after a write.
    */
   onToolEnd?: (tool: AgentControllerToolEnd) => void;
+  /**
+   * Host fields sent with every turn and every answer, read at send time (the connectors
+   * turned off for this chat, say). The kit's own fields win over them.
+   */
+  extra?: (() => Record<string, unknown> | undefined) | undefined;
 };
 
 /**
@@ -104,11 +109,16 @@ export function browserTimeZone(): string | undefined {
  * `data:`-framed SSE, and folds each AgentControllerEvent into a transcript.
  */
 export function useAgentControllerChat(options: string | UseAgentControllerChatOptions = {}) {
-  const { endpoint = '/api/agent-controller/stream', onToolEnd } =
-    typeof options === 'string' ? { endpoint: options } : options;
-  // The latest callback, so a host passing an inline function doesn't restart anything.
+  const {
+    endpoint = '/api/agent-controller/stream',
+    onToolEnd,
+    extra,
+  } = typeof options === 'string' ? { endpoint: options } : options;
+  // The latest callbacks, so a host passing inline functions doesn't restart anything.
   const onToolEndRef = useRef(onToolEnd);
   onToolEndRef.current = onToolEnd;
+  const extraRef = useRef(extra);
+  extraRef.current = extra;
   // tool_end carries only the call id; tool_start names the tool.
   const toolNames = useRef(new Map<string, string>());
   const [transcript, setTranscript] = useState<AgentControllerTranscript>(emptyTranscript);
@@ -235,6 +245,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         /** Controller mode for this turn ('plan' | 'chat'); the server switches if it differs. */
         mode?: string;
         files?: Array<{ url: string; mediaType: string; filename?: string }>;
+        /** Host fields for the server (see ProjectChat's `turnExtra`); the kit's own win. */
+        extra?: Record<string, unknown>;
       },
     ): Promise<boolean> => {
       if (!text.trim() && !opts?.files?.length) {
@@ -267,6 +279,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
           // the controller honors them: the run switches model via `session.model.switch`,
           // web search flows through the request context, and files pass to sendMessage.
           body: JSON.stringify({
+            ...extraRef.current?.(),
+            ...opts?.extra,
             text,
             threadId: threadRef.current,
             model: opts?.model,
@@ -392,6 +406,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
           signal: run.signal,
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
+            // A resumed run carries the host's fields too, so an answer can't undo them.
+            ...extraRef.current?.(),
             ...body,
             ...(threadRef.current ? { threadId: threadRef.current } : {}),
             timeZone: browserTimeZone(),
