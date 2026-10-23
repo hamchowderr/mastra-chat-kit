@@ -28,7 +28,12 @@ const POLL_MS = 3000;
 const isConversation = (t: ThreadItem) => !t.parentThreadId;
 
 /** What the composer sends with a turn: its words, files, and the picks the host offers. */
-const turnOptions = ({ model, webSearch, files }: ComposerSubmit, mode?: string) => ({
+const turnOptions = (
+  { model, webSearch, files }: ComposerSubmit,
+  mode?: string,
+  extra?: Record<string, unknown>,
+) => ({
+  ...(extra ? { extra } : {}),
   ...(model ? { model } : {}),
   ...(webSearch ? { webSearch } : {}),
   ...(mode ? { mode } : {}),
@@ -79,6 +84,8 @@ export function ProjectChat({
   placeholder = 'Ask anything…',
   greeting = 'What should we work on?',
   emptyText = '',
+  composerMenu,
+  turnExtra,
 }: {
   className?: string;
   /** What approval cards say, per tool name (components/chat/approval-view.tsx). */
@@ -113,6 +120,16 @@ export function ProjectChat({
   /** The heading over the box before the chat's first message. */
   greeting?: string;
   emptyText?: string;
+  /**
+   * More items in both composers' + menu, after the attachments (a connectors submenu, say).
+   * Radix dropdown items: `DropdownMenuItem`, `DropdownMenuSub` and the like.
+   */
+  composerMenu?: ReactNode;
+  /**
+   * Extra fields sent with every turn from either box, read at send time (the connectors
+   * turned off for this chat, say). The server reads only the fields it knows.
+   */
+  turnExtra?: (() => Record<string, unknown> | undefined) | undefined;
 }) {
   const main = useAgentControllerChat();
   const thread = useAgentControllerChat();
@@ -316,6 +333,8 @@ export function ProjectChat({
         models={models}
         webSearch={webSearch}
         globalDrop={false}
+        menuExtra={composerMenu}
+        turnExtra={turnExtra}
       />
     </div>
   );
@@ -330,6 +349,8 @@ export function ProjectChat({
       // With a thread open each box takes the files dropped on itself.
       globalDrop={!openId}
       onSent={settleMain}
+      menuExtra={composerMenu}
+      turnExtra={turnExtra}
       toolsExtra={
         modes && modes.length > 1 ? (
           <select
@@ -438,6 +459,8 @@ function ProjectComposer({
   webSearch,
   mode,
   toolsExtra,
+  menuExtra,
+  turnExtra,
   globalDrop,
   onSent,
 }: {
@@ -449,6 +472,8 @@ function ProjectComposer({
   webSearch: boolean;
   mode?: string | undefined;
   toolsExtra?: ReactNode;
+  menuExtra?: ReactNode;
+  turnExtra?: (() => Record<string, unknown> | undefined) | undefined;
   globalDrop: boolean;
   /** A message is on its way, before the conversation it makes is known. */
   onSent?: () => void;
@@ -465,13 +490,14 @@ function ProjectComposer({
         models={models}
         webSearch={webSearch}
         toolsExtra={toolsExtra}
+        menuExtra={menuExtra}
         footerExtra={<UsageContext usage={transcript.usage} />}
         status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
         onStop={stop}
         globalDrop={globalDrop}
         onSend={(submit) => {
           onSent?.();
-          return sendMessage(submit.text, turnOptions(submit, mode));
+          return sendMessage(submit.text, turnOptions(submit, mode, turnExtra?.()));
         }}
       />
     </div>

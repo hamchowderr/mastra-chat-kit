@@ -235,6 +235,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         /** Controller mode for this turn ('plan' | 'chat'); the server switches if it differs. */
         mode?: string;
         files?: Array<{ url: string; mediaType: string; filename?: string }>;
+        /** Host fields for the server (see ProjectChat's `turnExtra`); the kit's own win. */
+        extra?: Record<string, unknown>;
       },
     ): Promise<boolean> => {
       if (!text.trim() && !opts?.files?.length) {
@@ -267,6 +269,7 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
           // the controller honors them: the run switches model via `session.model.switch`,
           // web search flows through the request context, and files pass to sendMessage.
           body: JSON.stringify({
+            ...opts?.extra,
             text,
             threadId: threadRef.current,
             model: opts?.model,
