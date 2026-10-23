@@ -299,6 +299,11 @@
           "target": "src/mastra/lib/time-zone.ts"
         },
         {
+          "path": "../server/src/mastra/lib/connectors-off.ts",
+          "type": "registry:file",
+          "target": "src/mastra/lib/connectors-off.ts"
+        },
+        {
           "path": "../server/src/mastra/routes/thread-session.ts",
           "type": "registry:file",
           "target": "src/mastra/routes/thread-session.ts"

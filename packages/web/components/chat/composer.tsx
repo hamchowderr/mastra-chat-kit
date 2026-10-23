@@ -156,6 +156,7 @@ export function Composer({
   className = 'm-4',
   footerExtra,
   toolsExtra,
+  menuExtra,
   models = MODELS,
   webSearch: showWebSearch = true,
   placeholder = 'Ask anything…',
@@ -176,6 +177,8 @@ export function Composer({
   footerExtra?: ReactNode;
   /** Rendered at the START of the tools row (e.g. the controller mode switcher). */
   toolsExtra?: ReactNode;
+  /** More items in the + menu, after the attachments (Radix dropdown items or a submenu). */
+  menuExtra?: ReactNode;
   /**
    * The models the picker offers, first one selected. `false` hides the picker, and each
    * turn then runs on the server's own CHAT_MODEL. The server only honours ids on its
@@ -291,10 +294,13 @@ export function Composer({
         <PromptInputTools>
           {toolsExtra}
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger aria-label="Attach images or files" />
-            <PromptInputActionMenuContent>
+            <PromptInputActionMenuTrigger
+              aria-label={menuExtra ? 'Add files and more' : 'Attach images or files'}
+            />
+            <PromptInputActionMenuContent className="w-56">
               <PromptInputActionAddAttachments />
               <PromptInputActionAddScreenshot />
+              {menuExtra}
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
           {showWebSearch && (

@@ -253,6 +253,27 @@ describe('ProjectChat', () => {
     ).toBeInTheDocument();
   });
 
+  it("adds the host's items to the + menu and its fields to every turn", async () => {
+    const api = setup();
+    renderChat({
+      composerMenu: <span>Connectors</span>,
+      turnExtra: () => ({ appsOff: ['gmail'], text: 'not this' }),
+    });
+    const chat = await screen.findByRole('region', { name: 'Chat: Main' });
+    await within(chat).findByText('I started a thread for it.');
+    expect(within(chat).getByRole('button', { name: 'Add files and more' })).toBeInTheDocument();
+    fireEvent.change(within(chat).getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'Draft a reply' },
+    });
+    fireEvent.click(within(chat).getByRole('button', { name: 'Submit' }));
+    await waitFor(() => expect(api.sent('/api/agent-controller/stream')).toHaveLength(1));
+    // The host's field rides along; it can't replace the kit's own.
+    expect(api.sent('/api/agent-controller/stream')[0]?.body).toMatchObject({
+      text: 'Draft a reply',
+      appsOff: ['gmail'],
+    });
+  });
+
   it("shows the host's tabs after Threads, and hides and shows the panel", async () => {
     setup();
     renderChat({ tabs: [{ id: 'library', label: 'Library', content: <p>Brand guide.pdf</p> }] });
