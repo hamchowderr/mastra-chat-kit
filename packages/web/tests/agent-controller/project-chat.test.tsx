@@ -12,9 +12,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { fakeController } from './fake-controller';
 
 /**
- * The project skin: one main chat, the threads it started as rows with their status, and
- * a thread opening into its own conversation, where what it waits on (an approval parked
- * while nobody watched) can be answered on the thread's own Session.
+ * The project skin: one chat, the threads it started as rows with their status, and a thread
+ * opening into its own conversation in the panel beside the chat, where what it waits on (an
+ * approval parked while nobody watched) can be answered on the thread's own Session.
  */
 
 afterEach(() => {
@@ -94,15 +94,17 @@ const renderChat = (props: Parameters<typeof ProjectChat>[0] = {}) =>
     </TooltipProvider>,
   );
 
-/** A button in the conversation, not in the list of chats beside it. */
+/** A button in the chat, not in the panel beside it. */
 const inChat = async (name: RegExp) => {
-  const found = (await screen.findAllByRole('button', { name })).find((b) => !b.closest('nav'));
+  const found = (await screen.findAllByRole('button', { name })).find(
+    (b) => !b.closest('[role="tabpanel"]'),
+  );
   if (!found) throw new Error(`no ${name} button in the conversation`);
   return found;
 };
 
 describe('ProjectChat', () => {
-  it('opens the newest main chat with a row for the thread it started', async () => {
+  it('opens the newest chat with a row for the thread it started', async () => {
     setup();
     renderChat();
     const row = await inChat(/Oslo weather/);
@@ -116,7 +118,7 @@ describe('ProjectChat', () => {
     fireEvent.click(await inChat(/Oslo weather/));
 
     expect(await screen.findByText('Check the weather in Oslo.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Back to Main/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Threads' })).toBeInTheDocument();
     // The chat stays in view beside the thread.
     expect(screen.getByText('I started a thread for it.')).toBeInTheDocument();
     expect(await inChat(/Oslo weather/)).toHaveAttribute('aria-current', 'true');
@@ -224,18 +226,60 @@ describe('ProjectChat', () => {
     );
   });
 
-  it('opens another chat from the Chats tab, and starts a new one', async () => {
+  it('keeps one chat, with no list of chats to switch between', async () => {
     setup();
     renderChat();
-    fireEvent.click(await screen.findByRole('tab', { name: 'Chats' }));
-    const list = await screen.findByRole('tabpanel', { name: 'Chats' });
-    expect(within(list).getByRole('button', { name: /^Main$/ })).toBeInTheDocument();
-    // A work thread is not a chat of its own.
-    expect(within(list).queryByRole('button', { name: /Oslo weather/ })).toBeNull();
-    fireEvent.click(within(list).getByRole('button', { name: /^An older chat$/ }));
-    await waitFor(() => expect(screen.queryByText('I started a thread for it.')).toBeNull());
-    fireEvent.click(screen.getByRole('button', { name: /New chat/ }));
-    expect(await screen.findByText(/Ask for anything/)).toBeInTheDocument();
+    await inChat(/Oslo weather/);
+    expect(screen.queryByRole('tab', { name: 'Chats' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /New chat/ })).toBeNull();
+    expect(screen.queryByText('An older chat')).toBeNull();
+  });
+
+  it("uses the kit's full composer in the chat and in a thread", async () => {
+    setup();
+    renderChat();
+    const chat = await screen.findByRole('region', { name: 'Chat: Main' });
+    await within(chat).findByText('I started a thread for it.');
+    expect(
+      within(chat).getByRole('button', { name: 'Attach images or files' }),
+    ).toBeInTheDocument();
+    expect(within(chat).getByRole('textbox', { name: 'Message' })).toBeInTheDocument();
+    // A finished reply can be copied.
+    expect(within(chat).getAllByRole('button', { name: 'Copy' }).length).toBeGreaterThan(0);
+    fireEvent.click(await inChat(/Oslo weather/));
+    const panel = await screen.findByRole('region', { name: 'Thread: Oslo weather' });
+    expect(
+      within(panel).getByRole('button', { name: 'Attach images or files' }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the host's tabs after Threads, and hides and shows the panel", async () => {
+    setup();
+    renderChat({ tabs: [{ id: 'library', label: 'Library', content: <p>Brand guide.pdf</p> }] });
+    fireEvent.click(await screen.findByRole('tab', { name: 'Library' }));
+    expect(await screen.findByRole('tabpanel', { name: 'Library' })).toHaveTextContent(
+      'Brand guide.pdf',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Hide panel' }));
+    expect(screen.queryByRole('tab', { name: 'Library' })).toBeNull();
+    // A thread waits on you, so the button to show the panel again says so.
+    fireEvent.click(screen.getByRole('button', { name: 'Show threads, 1 waiting on you' }));
+    expect(await screen.findByRole('tab', { name: 'Library' })).toBeInTheDocument();
+  });
+
+  it('goes back to the Threads tab when a thread opened from it closes', async () => {
+    setup();
+    renderChat();
+    const list = await screen.findByRole('tabpanel', { name: /^Threads/ });
+    const waiting = within(list).getByRole('region', { name: 'Waiting on you' });
+    const row = within(waiting)
+      .getAllByRole('button')
+      .find((b) => /Oslo weather/.test(b.textContent ?? ''));
+    if (!row) throw new Error('no row for Oslo weather');
+    row.focus();
+    fireEvent.click(row);
+    fireEvent.click(await screen.findByRole('button', { name: 'Close thread' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: /^Threads/ })).toHaveFocus());
   });
 
   it('opens the thread a link to this page names, then drops the link', async () => {

@@ -76,7 +76,7 @@ const INIT_BASE_ARGS =
 // What a correct install must produce. These counts are the contract; if the
 // registry legitimately grows, update them here in the same commit.
 const EXPECT = {
-  'components/chat': 15, // + tool-steps.tsx (chat-tool-views)
+  'components/chat': 16, // + tool-steps.tsx (chat-tool-views), turn-extras.tsx
   'components/ai-elements': 5, // OUR vendored ones; upstream adds more on top
   'app/api': 16, // route.ts files
 };

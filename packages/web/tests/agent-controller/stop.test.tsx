@@ -49,13 +49,13 @@ describe('Stop', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
       target: { value: 'Clean up my contacts' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
 
     fireEvent.click(await screen.findByRole('button', { name: 'Stop' }));
 
     expect(api.aborted()).toBe(true);
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
-    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeInTheDocument();
     expect(screen.queryByText(/aborted/i)).toBeNull();
   });
 });
