@@ -348,7 +348,14 @@ export function ProjectChat({
       }
     />
   );
-  const empty = main.transcript.messages.length === 0 && !mainBusy && !main.goal;
+  // The centred start: no chat yet, and nothing on show (an answer, a question, an error).
+  const empty =
+    !mainId &&
+    main.transcript.messages.length === 0 &&
+    !mainBusy &&
+    !main.goal &&
+    !main.pendingSuspension &&
+    !main.transcript.error;
 
   return (
     <div ref={setArea} className={cn('relative flex h-full min-h-0', className)}>
@@ -374,30 +381,27 @@ export function ProjectChat({
         {empty ? (
           // Before the first message the heading and the box sit together in the middle, as
           // in the kit's chat; once it is going the box pins to the bottom.
-          <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4">
-            <div className="space-y-2 text-center">
-              <h1 className="text-balance font-semibold text-3xl tracking-tight">{greeting}</h1>
-              <p className="text-base text-muted-foreground">{emptyText}</p>
-            </div>
-            <div className="w-full max-w-3xl">{mainComposer}</div>
+          <div className="flex flex-1 flex-col items-center justify-end gap-2 px-4 pb-6 text-center">
+            <h1 className="text-balance font-semibold text-3xl tracking-tight">{greeting}</h1>
+            <p className="text-base text-muted-foreground">{emptyText}</p>
           </div>
         ) : (
-          <>
-            <ChatView
-              controller={main}
-              approvalViews={approvalViews}
-              toolViews={toolViews}
-              emptyText={emptyText}
-              working={false}
-              onOpenThread={openPanel}
-              onLinkClick={onLinkClick}
-              work={work}
-              openThreadId={openId}
-              outputsOf={outputsOf}
-            />
-            {mainComposer}
-          </>
+          <ChatView
+            controller={main}
+            approvalViews={approvalViews}
+            toolViews={toolViews}
+            emptyText={emptyText}
+            working={false}
+            onOpenThread={openPanel}
+            onLinkClick={onLinkClick}
+            work={work}
+            openThreadId={openId}
+            outputsOf={outputsOf}
+          />
         )}
+        {/* One box in both layouts, so a draft, its files and the box's own choices survive
+            the first send (and a refused one comes back into the same box). */}
+        <div className={cn(empty && 'flex-1')}>{mainComposer}</div>
       </section>
       {panelOpen && (
         <ProjectPanel
