@@ -297,7 +297,7 @@ export function Composer({
             <PromptInputActionMenuTrigger
               aria-label={menuExtra ? 'Add files and more' : 'Attach images or files'}
             />
-            <PromptInputActionMenuContent>
+            <PromptInputActionMenuContent className="w-56">
               <PromptInputActionAddAttachments />
               <PromptInputActionAddScreenshot />
               {menuExtra}
