@@ -1,36 +1,12 @@
 'use client';
 
-import { BotIcon, CopyIcon, UserIcon } from 'lucide-react';
-import { Agent, AgentContent, AgentHeader } from '@/components/ai-elements/agent';
-import {
-  Context,
-  ContextContent,
-  ContextContentBody,
-  ContextContentHeader,
-  ContextInputUsage,
-  ContextOutputUsage,
-  ContextReasoningUsage,
-  ContextTrigger,
-} from '@/components/ai-elements/context';
+import { BotIcon, UserIcon } from 'lucide-react';
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
-import {
-  Message,
-  MessageAction,
-  MessageActions,
-  MessageContent,
-} from '@/components/ai-elements/message';
-import {
-  Queue,
-  QueueItem,
-  QueueItemContent,
-  QueueItemDescription,
-  QueueItemIndicator,
-  QueueList,
-} from '@/components/ai-elements/queue';
+import { Message, MessageContent } from '@/components/ai-elements/message';
 import { Reasoning, ReasoningContent, ReasoningTrigger } from '@/components/ai-elements/reasoning';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { Suggestion } from '@/components/ai-elements/suggestion';
@@ -55,6 +31,12 @@ import {
   StepTrace,
 } from '@/components/chat/tool-views';
 import { ApprovalCards, SubmittedPlanCard } from '@/components/chat/transcript';
+import {
+  CopyTurn,
+  QueuedFollowUps,
+  SubagentCard,
+  UsageContext,
+} from '@/components/chat/turn-extras';
 import {
   type ActiveTool,
   type AgentControllerContentPart,
@@ -191,30 +173,7 @@ export function AgentControllerChat({
     });
 
   // Live token usage lives INSIDE the composer footer (not floating in the chat).
-  const contextSlot = usage ? (
-    <Context
-      usedTokens={usage.totalTokens ?? 0}
-      maxTokens={200_000}
-      modelId="anthropic/claude-haiku-4-5"
-      usage={{
-        inputTokens: usage.promptTokens ?? 0,
-        outputTokens: usage.completionTokens ?? 0,
-        totalTokens: usage.totalTokens ?? 0,
-        reasoningTokens: usage.reasoningTokens,
-        cachedInputTokens: usage.cachedInputTokens,
-      }}
-    >
-      <ContextTrigger />
-      <ContextContent>
-        <ContextContentHeader />
-        <ContextContentBody>
-          <ContextInputUsage />
-          <ContextOutputUsage />
-          <ContextReasoningUsage />
-        </ContextContentBody>
-      </ContextContent>
-    </Context>
-  ) : null;
+  const contextSlot = <UsageContext usage={usage} />;
 
   // White composer so it pops against the zinc canvas. Rendered under the hero on the
   // empty state, or pinned at the bottom once the chat is going. The token-usage Context
@@ -304,17 +263,7 @@ export function AgentControllerChat({
                           renderContent(part, i, resultsById, subagentsById, planView),
                         )}
                       </MessageContent>
-                      {m.role === 'assistant' && (
-                        <MessageActions>
-                          <MessageAction
-                            tooltip="Copy"
-                            label="Copy"
-                            onClick={() => copyAgentControllerMessage(m.content)}
-                          >
-                            <CopyIcon className="size-4" />
-                          </MessageAction>
-                        </MessageActions>
-                      )}
+                      {m.role === 'assistant' && <CopyTurn content={m.content} />}
                     </Message>
                   </div>
                 );
@@ -358,22 +307,7 @@ export function AgentControllerChat({
             {/* Messages sent while a run was busy are queued server-side and replayed
                 when it settles (`follow_up_queued`). Without this the count is folded
                 into state and never shown, so the user gets no sign they landed. */}
-            {queuedFollowUps > 0 && (
-              <Queue className="px-2">
-                <QueueList>
-                  <QueueItem>
-                    <QueueItemIndicator />
-                    <QueueItemContent>
-                      <QueueItemDescription>
-                        {queuedFollowUps === 1
-                          ? '1 message queued — it will send when this run finishes'
-                          : `${queuedFollowUps} messages queued — they will send when this run finishes`}
-                      </QueueItemDescription>
-                    </QueueItemContent>
-                  </QueueItem>
-                </QueueList>
-              </Queue>
-            )}
+            <QueuedFollowUps count={queuedFollowUps} />
 
             {/* Transient run status (controller `info` events). */}
             {info && !error && <p className="px-2 text-muted-foreground text-xs italic">{info}</p>}
@@ -392,66 +326,6 @@ export function AgentControllerChat({
         <div className="mx-auto w-full max-w-3xl px-4 pb-4">{composer}</div>
       )}
     </div>
-  );
-}
-
-/** Copy the plain text of a controller assistant turn (text parts only). */
-function copyAgentControllerMessage(content: AgentControllerContentPart[]) {
-  const text = content
-    .filter((p) => p.type === 'text')
-    .map((p) => (p as { text: string }).text ?? '')
-    .join('\n');
-  navigator.clipboard?.writeText(text);
-}
-
-/**
- * A subagent invocation → the <Agent> card: header (type + model + forked badge),
- * the delegated task, the subagent's nested tool calls, its streamed text, and a
- * live/`done`/error footer. Driven by the accumulated `subagent_*` events; falls
- * back to the parent tool-call `task` before any subagent event arrives.
- */
-function SubagentCard({ run, fallbackTask }: { run?: SubagentRun; fallbackTask?: string }) {
-  const agentType = run?.agentType ?? 'subagent';
-  const task = run?.task ?? fallbackTask;
-  const running = run?.status !== 'done';
-  return (
-    <Agent className="my-2 rounded-lg">
-      <AgentHeader
-        name={`Subagent · ${agentType}${run?.forked ? ' (forked)' : ''}`}
-        model={run?.modelId}
-      />
-      <AgentContent className="pt-3">
-        {task && <p className="text-muted-foreground text-xs">Task: {task}</p>}
-        {run?.tools.map((t, ti) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: tool list is append-only, never reordered
-          <Tool key={`${t.name}-${ti}`}>
-            <ToolHeader
-              type={`tool-${t.name}`}
-              state={t.result !== undefined ? 'output-available' : 'input-available'}
-            />
-            <ToolContent>
-              <ToolInput input={t.args} />
-              {t.result !== undefined && (
-                <ToolOutput
-                  output={
-                    <pre className="overflow-x-auto text-xs">
-                      {JSON.stringify(t.result, null, 2)}
-                    </pre>
-                  }
-                  errorText={t.isError ? 'Tool reported an error' : undefined}
-                />
-              )}
-            </ToolContent>
-          </Tool>
-        ))}
-        {run?.text && <ChatMarkdown>{run.text}</ChatMarkdown>}
-        {running ? (
-          <p className="animate-pulse text-muted-foreground text-xs italic">Working…</p>
-        ) : run?.isError ? (
-          <p className="text-destructive text-xs">Subagent reported an error.</p>
-        ) : null}
-      </AgentContent>
-    </Agent>
   );
 }
 

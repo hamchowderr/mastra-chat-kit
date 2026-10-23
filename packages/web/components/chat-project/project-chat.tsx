@@ -1,48 +1,24 @@
 'use client';
 
-import { ChevronRightIcon, PanelLeftIcon, SendIcon, SquareIcon, XIcon } from 'lucide-react';
-import {
-  type FormEvent,
-  Fragment,
-  type MouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { Conversation, ConversationContent } from '@/components/ai-elements/conversation';
-import { Message, MessageContent } from '@/components/ai-elements/message';
-import { Shimmer } from '@/components/ai-elements/shimmer';
+import { PanelRightIcon } from 'lucide-react';
+import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { ApprovalViews } from '@/components/chat/approval-view';
-import {
-  messagePieces,
-  ToolStepList,
-  type ToolViews,
-  withPlainSteps,
-} from '@/components/chat/tool-steps';
-import { AskUserPrompt } from '@/components/chat/tool-views';
-import { ApprovalCards, partKey, TranscriptPart } from '@/components/chat/transcript';
+import { Composer, type ComposerSubmit, type ModelOption } from '@/components/chat/composer';
+import type { ToolViews } from '@/components/chat/tool-steps';
+import { UsageContext } from '@/components/chat/turn-extras';
 import {
   type UseAgentControllerChat,
   useAgentControllerChat,
 } from '@/lib/agent-controller/use-agent-controller-chat';
 import { type ThreadItem, useThreads } from '@/lib/agent-controller/use-threads';
 import { cn } from '@/lib/utils';
-import { ProjectSidebar } from './project-sidebar';
+import { ChatView } from './chat-view';
+import { ProjectPanel, type ProjectTab, THREADS_TAB } from './project-panel';
 import { ThreadChecklist } from './thread-checklist';
 import type { ThreadOutput } from './thread-groups';
-import { OutputIcon } from './thread-list';
-import { ThreadRow, ThreadStatus, threadIdFromHref } from './thread-row';
-import {
-  chatThreads,
-  offered,
-  startedAfter,
-  suggestionsOf,
-  ThreadSuggestions,
-} from './thread-suggestions';
+import { threadIdFromHref } from './thread-row';
 
-/** How wide the chat area must be for an open thread to sit beside the chat, not over it. */
+/** How wide the chat area must be for the panel to sit beside the chat, not over it. */
 const SIDE_BY_SIDE_PX = 900;
 
 /** How often thread statuses are re-read while one is working. */
@@ -51,24 +27,42 @@ const POLL_MS = 3000;
 /** An ordinary conversation, as opposed to a work thread. */
 const isConversation = (t: ThreadItem) => !t.parentThreadId;
 
+/** What the composer sends with a turn: its words, files, and the picks the host offers. */
+const turnOptions = ({ model, webSearch, files }: ComposerSubmit, mode?: string) => ({
+  ...(model ? { model } : {}),
+  ...(webSearch ? { webSearch } : {}),
+  ...(mode ? { mode } : {}),
+  ...(files?.length
+    ? {
+        files: files.map((f) => ({
+          url: f.url,
+          mediaType: f.mediaType,
+          ...(f.filename ? { filename: f.filename } : {}),
+        })),
+      }
+    : {}),
+});
+
 /**
- * A chat shaped like a project: chats, and threads each chat starts for pieces of work.
+ * A chat shaped like a Claude project: one chat, and the threads it starts for pieces of work,
+ * in a panel beside it.
  *
- * The list on the left holds every chat, newest first, with its threads under it: New chat
- * starts another, and each can be renamed or deleted (its threads go with it). The page
- * opens on the newest chat.
+ * The chat is the project's one conversation (the newest, if older ones exist; the first
+ * message makes it). The panel on the right holds tabs: Threads, every thread grouped by what
+ * it needs (waiting on you, working, idle, resolved), then the host's own (`tabs`: a Library, its
+ * pull requests...). The panel can be hidden, and covers the chat where the screen is narrow.
  *
  * The agent starts a thread with its `start_thread` tool (server: lib/work-threads.ts). The
- * thread shows up as a row under the message that started it, with its status (working,
- * needs you, done). Clicking the row opens the thread's own conversation in a panel beside
- * the chat, where you can answer its approvals and questions and steer it; closing the panel
- * leaves the chat as it was. When
- * a thread finishes or stops for you, a short note with a link to it lands in the main
- * chat (saved by the server, no model call).
+ * thread shows up as a row under the message that started it, with its status. Opening it,
+ * from that row or the list, shows its own conversation in the panel, under "Threads › title",
+ * where you can answer its approvals and questions and steer it. When a thread finishes or
+ * stops for you, a short note with a link to it lands in the chat (saved by the server, no
+ * model call).
  *
- * Two engines run side by side, one per view, so a chat keeps streaming while a thread is
- * open. Every tool call shows as a step row, folded into one line per run, unless the host's
- * `toolViews` draws it some other way.
+ * Both boxes are the kit's one composer: attachments, a screenshot, dictation, the token usage,
+ * and the model picker and web search where the host turns them on. Two engines run side by
+ * side, so the chat keeps streaming while a thread is open. Every tool call shows as a step
+ * row, folded into one line per run, unless the host's `toolViews` draws it some other way.
  *
  *   <ProjectChat />
  */
@@ -79,6 +73,9 @@ export function ProjectChat({
   modes,
   isChat = isConversation,
   outputsOf,
+  tabs = [],
+  models = false,
+  webSearch = false,
   placeholder = 'Ask anything…',
   emptyText = 'Ask for anything. Bigger pieces of work get a thread of their own.',
 }: {
@@ -88,12 +85,12 @@ export function ProjectChat({
   /** How the host's own tools show in both views (chat/tool-steps.tsx). */
   toolViews?: ToolViews | undefined;
   /**
-   * Controller modes the person can pick in the main chat, first one selected. Fewer than
-   * two shows no picker.
+   * Controller modes the person can pick in the chat, first one selected. Fewer than two shows
+   * no picker.
    */
   modes?: ReadonlyArray<{ id: string; name: string }> | undefined;
   /**
-   * Which conversations are chats in the list. Defaults to every one that is not a work
+   * Which conversations can be the project's chat. Defaults to every one that is not a work
    * thread; a host with conversations of its own (a site's, say) leaves those out.
    */
   isChat?: ((t: ThreadItem) => boolean) | undefined;
@@ -102,25 +99,52 @@ export function ProjectChat({
    * row and a link in its header.
    */
   outputsOf?: ((t: ThreadItem) => ThreadOutput[]) | undefined;
+  /** The host's tabs in the panel, after Threads (a Library, pull requests, schedules). */
+  tabs?: readonly ProjectTab[] | undefined;
+  /**
+   * The composer's model picker (chat/composer.tsx). Off by default: each turn runs on the
+   * server's own model unless the server allows the ones offered.
+   */
+  models?: ModelOption[] | false;
+  /** The composer's "Search the web" toggle, for an agent that can search. */
+  webSearch?: boolean;
   placeholder?: string;
   emptyText?: string;
 }) {
   const main = useAgentControllerChat();
   const thread = useAgentControllerChat();
-  const { threads, refresh, rename, remove, resolve } = useThreads({
-    refreshSignal: main.refreshSignal,
-  });
+  const { threads, refresh, resolve } = useThreads({ refreshSignal: main.refreshSignal });
   const [openId, setOpenId] = useState<string | null>(null);
   const [threadRunning, setThreadRunning] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
-  const [mainId, setMainId] = useMainThread(main, isChat);
+  const [tab, setTab] = useState(THREADS_TAB);
+  const [mainId, settleMain] = useMainThread(main, isChat);
+  const [mode, setMode] = useState(modes?.[0]?.id);
 
   const work = new Map(threads.filter((t) => t.parentThreadId).map((t) => [t.id, t]));
   const opened = openId ? work.get(openId) : undefined;
   const mainBusy = main.status === 'streaming';
   const chats = threads.filter((t) => isChat(t) && !t.archived);
+  // The project's threads: every one a chat started (a site's conversation starts none here).
+  const projectThreads = [...work.values()].filter((t) =>
+    chats.some((c) => c.id === t.parentThreadId),
+  );
 
-  // The engines' functions are stable; the objects around them are not.
+  // The panel shows where there is room, and opens over the chat on a narrow screen.
+  const [area, setArea] = useState<HTMLDivElement | null>(null);
+  const [roomy, setRoomy] = useState(true);
+  const [panelShown, setPanelShown] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!area || typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(([entry]) => {
+      if (entry) setRoomy(entry.contentRect.width >= SIDE_BY_SIDE_PX);
+    });
+    watch.observe(area);
+    return () => watch.disconnect();
+  }, [area]);
+  // Until the person shows or hides it, the panel follows the room there is.
+  const panelOpen = Boolean(openId) || (panelShown ?? roomy);
+  const covered = panelOpen && !roomy;
+
   const { openThread: openInThread } = thread;
   const { openThread: openInMain } = main;
   // Only the latest open (or going back) counts: a slow one never lands over a newer one.
@@ -140,36 +164,43 @@ export function ProjectChat({
     setThreadRunning(false);
   };
 
-  const { reset: resetMain } = main;
-  const newChat = () => {
-    back();
-    setListOpen(false);
-    resetMain();
-    setMainId(null);
-  };
-  const selectChat = (id: string) => {
-    back();
-    setListOpen(false);
-    if (id === mainId) return;
-    setMainId(id);
-    void openInMain(id);
-  };
-  // A thread opens over its own chat, so going back lands on the chat that started it.
-  const openFromList = (id: string) => {
-    setListOpen(false);
-    const parent = work.get(id)?.parentThreadId;
-    if (parent && parent !== mainId && !mainBusy) {
-      setMainId(parent);
-      void openInMain(parent);
-    }
+  // Focus moves into a thread when it opens, and back to what opened it when it closes.
+  const opener = useRef<HTMLElement | null>(null);
+  const panelClose = useRef<HTMLButtonElement>(null);
+  const openPanel = (id: string) => {
+    if (!openId) opener.current = document.activeElement as HTMLElement | null;
     void open(id);
   };
-  const deleteChat = async (chat: ThreadItem) => {
-    const ok = await remove(chat);
+  useEffect(() => {
+    if (openId) panelClose.current?.focus();
+  }, [openId]);
+  const closeThread = () => {
+    back();
     void refresh();
-    if (ok && chat.id === mainId) newChat();
-    else if (ok && opened?.parentThreadId === chat.id) back();
-    return ok;
+    const to = opener.current;
+    opener.current = null;
+    // After the thread is gone; the opener may have gone too (a row in a list that changed).
+    // A row in the Threads tab was swapped out for the thread: the tab takes focus instead.
+    requestAnimationFrame(() => {
+      if (to?.isConnected) to.focus();
+      else focusTab();
+    });
+  };
+  const focusMessage = () => area?.querySelector<HTMLElement>('[aria-label="Message"]')?.focus();
+  const focusTab = () => {
+    const tabButton = area?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (tabButton) tabButton.focus();
+    else focusMessage();
+  };
+  const hidePanel = () => {
+    setPanelShown(false);
+    if (openId) back();
+    void refresh();
+    requestAnimationFrame(focusMessage);
+  };
+  const showPanel = () => {
+    setPanelShown(true);
+    requestAnimationFrame(focusTab);
   };
 
   // Report notes link to their thread as `#thread=<id>`; open it here instead of navigating.
@@ -182,18 +213,15 @@ export function ProjectChat({
     openPanel(id);
   };
 
-  // While a thread is working or queued, re-read statuses (one waiting on the person changes only when
-  // they act, in that thread). When one changes, its report has
-  // landed in the main chat (reload it unless it is mid-turn, which reloads anyway), and
-  // an open thread has moved on (reload it unless it is streaming its own turn).
-  const statuses = threads
-    .filter((t) => t.parentThreadId)
-    .map((t) => `${t.id}:${t.status}`)
-    .join();
+  // While a thread is working or queued, re-read statuses (one waiting on the person changes
+  // only when they act, in that thread). When one changes, its report has landed in the chat
+  // (reload it unless it is mid-turn, which reloads anyway), and an open thread has moved on
+  // (reload it unless it is streaming its own turn).
+  const statuses = [...work.values()].map((t) => `${t.id}:${t.status}`).join();
   const active = /:(working|queued)(,|$)/.test(statuses) || threadRunning;
   const threadBusy = thread.status === 'streaming';
   const lastStatuses = useRef(statuses);
-  // A report that landed during a main-chat turn is shown once the turn ends.
+  // A report that landed during a chat turn is shown once the turn ends.
   const mainStale = useRef(false);
   useEffect(() => {
     if (mainBusy || !mainStale.current || !mainId) return;
@@ -222,8 +250,8 @@ export function ProjectChat({
 
   // A page that links here as `/chat#thread=<id>` (a host's list of what threads made, say)
   // opens that thread once the list has it, then drops the hash so a reload starts clean.
-  // After the status effect above, so its reload of the main chat can't land over the
-  // linked thread's chat. An id the list never has (a deleted thread) is dropped too.
+  // After the status effect above, so its reload of the chat can't land over the linked
+  // thread's. An id the list never has (a deleted thread) is dropped too.
   const [linked, setLinked] = useState<string | null>(null);
   useEffect(() => {
     const read = () => setLinked(threadIdFromHref(window.location.hash));
@@ -233,130 +261,35 @@ export function ProjectChat({
   }, []);
   const linkedReady = linked !== null && work.has(linked);
   const linkedGone = linked !== null && threads.length > 0 && !linkedReady;
-  const openLinked = useRef(openFromList);
-  openLinked.current = openFromList;
+  const openLinked = useRef(open);
+  openLinked.current = open;
   useEffect(() => {
     if (!linked || (!linkedReady && !linkedGone)) return;
     setLinked(null);
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
-    if (linkedReady) openLinked.current(linked);
+    if (linkedReady) void openLinked.current(linked);
   }, [linkedReady, linkedGone, linked]);
 
-  // Escape closes the list where it opens over the chat (a phone).
-  useEffect(() => {
-    if (!listOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setListOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [listOpen]);
-
-  // Beside the chat when the space allows it (measured, since the host may put this in a
-  // narrow column); otherwise the thread covers the chat, which is then out of reach.
-  const [area, setArea] = useState<HTMLDivElement | null>(null);
-  const [roomy, setRoomy] = useState(true);
-  useEffect(() => {
-    if (!area || typeof ResizeObserver === 'undefined') return;
-    const watch = new ResizeObserver(([entry]) => {
-      if (entry) setRoomy(entry.contentRect.width >= SIDE_BY_SIDE_PX);
-    });
-    watch.observe(area);
-    return () => watch.disconnect();
-  }, [area]);
-  const covered = Boolean(openId) && !roomy;
-
-  // The thread's breadcrumb names the chat it belongs to, which may not be the one on show.
-  const parentTitle =
-    chats.find((c) => c.id === (opened?.parentThreadId ?? mainId))?.title || 'Chat';
-  const chatTitle = chats.find((c) => c.id === mainId)?.title || 'Chat';
-  // Focus moves into a thread when it opens, and back to what opened it when it closes.
-  const opener = useRef<HTMLElement | null>(null);
-  const panelClose = useRef<HTMLButtonElement>(null);
-  const openPanel = (id: string) => {
-    if (!openId) opener.current = document.activeElement as HTMLElement | null;
-    void open(id);
-  };
-  useEffect(() => {
-    if (openId) panelClose.current?.focus();
-  }, [openId]);
-  const closeThread = () => {
-    back();
-    void refresh();
-    const to = opener.current;
-    opener.current = null;
-    // After the panel is gone; the opener may have gone too (a row in a list that changed).
-    requestAnimationFrame(() => {
-      if (to?.isConnected) to.focus();
-      else area?.querySelector<HTMLElement>('[aria-label="Message"]')?.focus();
-    });
-  };
-  // Escape closes a thread that covers the chat, as it closes the list.
+  // Escape closes a panel that covers the chat: the open thread first, then the panel.
   // biome-ignore lint/correctness/useExhaustiveDependencies: closeThread changes every render.
   useEffect(() => {
-    if (!covered || listOpen) return;
+    if (!covered) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeThread();
+      // A menu inside (the composer's, say) closes on its own Escape first.
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (openId) closeThread();
+      else setPanelShown(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [covered, listOpen]);
+  }, [covered, openId]);
 
-  // An open thread sits beside its chat, as a panel on the right, so both stay in view. On a
-  // narrow screen it covers the chat instead.
-  const threadPanel = openId && (
-    <section
-      // A new thread starts with its own empty box, not what was typed for the last one.
-      key={openId}
-      aria-label={`Thread: ${opened?.title ?? 'Thread'}`}
-      className={cn(
-        'flex min-h-0 min-w-0 flex-col border-border bg-background',
-        roomy ? 'w-[min(36rem,50%)] shrink-0 border-l' : 'absolute inset-0 z-10',
-      )}
-    >
-      <div className="flex items-center gap-2 border-border border-b px-3 py-2">
-        <nav aria-label="Thread" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-          <button
-            type="button"
-            onClick={closeThread}
-            aria-label={`Back to ${parentTitle}`}
-            className="min-w-0 max-w-[45%] shrink-0 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            {parentTitle}
-          </button>
-          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="min-w-0 truncate font-medium">{opened?.title ?? 'Thread'}</span>
-        </nav>
-        {opened &&
-          outputsOf?.(opened).map((o) => (
-            <a
-              key={o.href}
-              href={o.href}
-              className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <OutputIcon kind={o.kind} />
-              <span className="max-sm:sr-only">{o.label}</span>
-            </a>
-          ))}
-        {opened?.agent && (
-          <span
-            className="hidden shrink-0 rounded-full border border-border px-2 py-0.5 text-muted-foreground text-xs sm:inline"
-            title="The agent doing this work"
-          >
-            {opened.agent.name}
-          </span>
-        )}
-        <ThreadStatus status={opened?.status} />
-        <button
-          ref={panelClose}
-          type="button"
-          onClick={closeThread}
-          aria-label="Close thread"
-          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <XIcon className="size-4" aria-hidden />
-        </button>
-      </div>
+  const chatTitle = chats.find((c) => c.id === mainId)?.title || 'Chat';
+  const waiting = projectThreads.filter((t) => t.status === 'needs_you').length;
+
+  const threadBody = openId && (
+    // A new thread starts with its own empty box, not what was typed for the last one.
+    <div key={openId} className="flex min-h-0 flex-1 flex-col">
       <ThreadChecklist
         // Live while this view streams the thread's turn; otherwise as the list last read it.
         tasks={thread.transcript.tasks.length > 0 ? thread.transcript.tasks : opened?.tasks}
@@ -372,102 +305,163 @@ export function ProjectChat({
         work={work}
         outputsOf={outputsOf}
       />
-      <Composer
+      <ProjectComposer
+        controller={thread}
         label="Message this thread"
         placeholder={threadRunning ? 'This thread is working…' : 'Steer this thread…'}
         disabled={threadRunning}
-        busy={thread.status === 'streaming'}
-        onSend={(text) => thread.sendMessage(text)}
-        onStop={thread.stop}
+        models={models}
+        webSearch={webSearch}
+        globalDrop={false}
       />
-    </section>
+    </div>
   );
 
   return (
-    <div className={cn('relative flex h-full min-h-0', className)}>
-      <ProjectSidebar
-        chats={chats}
-        // Threads of an archived chat go with it.
-        threads={[...work.values()].filter((t) => chats.some((c) => c.id === t.parentThreadId))}
-        activeChatId={mainId}
-        openThreadId={openId}
-        // A chat that is answering keeps its place until the answer ends.
-        busy={mainBusy}
-        onSelectChat={selectChat}
-        onOpenThread={(id) => {
-          if (!openId) opener.current = document.activeElement as HTMLElement | null;
-          openFromList(id);
-        }}
-        onResolveThread={(t, resolved) => void resolve(t, resolved)}
-        onNew={newChat}
-        onRename={rename}
-        onDelete={deleteChat}
-        outputsOf={outputsOf}
-        className={cn(
-          'w-72 shrink-0 border-border border-r bg-background',
-          listOpen ? 'absolute inset-y-0 left-0 z-20 shadow-lg' : 'max-md:hidden',
-        )}
-      />
-      {/* The chat and an open thread share this area; the list keeps its own column. */}
-      <div ref={setArea} className="relative flex min-h-0 min-w-0 flex-1">
-        <section
-          aria-label={`Chat: ${chatTitle}`}
-          inert={covered}
-          className="flex min-h-0 min-w-0 flex-1 flex-col"
-        >
+    <div ref={setArea} className={cn('relative flex h-full min-h-0', className)}>
+      <section
+        aria-label={`Chat: ${chatTitle}`}
+        inert={covered}
+        className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      >
+        {!panelOpen && (
           <button
             type="button"
-            onClick={() => setListOpen((v) => !v)}
-            aria-label={listOpen ? 'Hide chats' : 'Show chats'}
-            aria-expanded={listOpen}
-            aria-controls="project-chats"
-            className="m-1 flex size-9 items-center justify-center self-start rounded-md text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+            onClick={showPanel}
+            aria-label={waiting > 0 ? `Show threads, ${waiting} waiting on you` : 'Show threads'}
+            title="Threads"
+            className="absolute top-2 right-2 z-10 flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <PanelLeftIcon className="size-4" />
+            <PanelRightIcon className="size-4" aria-hidden />
+            {waiting > 0 && (
+              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-amber-500" />
+            )}
           </button>
-          <ChatView
-            controller={main}
-            approvalViews={approvalViews}
-            toolViews={toolViews}
-            emptyText={emptyText}
-            working={false}
-            onOpenThread={openPanel}
-            onLinkClick={onLinkClick}
-            work={work}
-            openThreadId={openId}
-            outputsOf={outputsOf}
-          />
-          <Composer
-            placeholder={placeholder}
-            busy={mainBusy}
-            modes={modes}
-            onSend={(text, mode) => main.sendMessage(text, mode ? { mode } : undefined)}
-            onStop={main.stop}
-          />
-        </section>
-        {threadPanel}
-      </div>
+        )}
+        <ChatView
+          controller={main}
+          approvalViews={approvalViews}
+          toolViews={toolViews}
+          emptyText={emptyText}
+          working={false}
+          onOpenThread={openPanel}
+          onLinkClick={onLinkClick}
+          work={work}
+          openThreadId={openId}
+          outputsOf={outputsOf}
+        />
+        <ProjectComposer
+          controller={main}
+          placeholder={placeholder}
+          models={models}
+          webSearch={webSearch}
+          mode={mode}
+          // With a thread open each box takes the files dropped on itself.
+          globalDrop={!openId}
+          onSent={settleMain}
+          toolsExtra={
+            modes && modes.length > 1 ? (
+              <select
+                value={mode}
+                onChange={(e) => setMode(e.target.value)}
+                aria-label="Mode"
+                className="h-8 rounded-md border border-border bg-background px-2 text-sm outline-none focus:border-ring"
+              >
+                {modes.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            ) : undefined
+          }
+        />
+      </section>
+      {panelOpen && (
+        <ProjectPanel
+          tab={tab}
+          onTab={setTab}
+          tabs={tabs}
+          threads={projectThreads}
+          openThreadId={openId}
+          onOpenThread={openPanel}
+          onResolveThread={(t, resolved) => void resolve(t, resolved)}
+          outputsOf={outputsOf}
+          thread={openId ? { item: opened, body: threadBody } : null}
+          onCloseThread={closeThread}
+          onHide={hidePanel}
+          closeRef={panelClose}
+          className={cn(
+            'border-border bg-background',
+            roomy ? 'w-[min(36rem,45%)] shrink-0 border-l' : 'absolute inset-0 z-20',
+          )}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The kit's one composer, sending to one conversation, with its usage in the footer. */
+function ProjectComposer({
+  controller,
+  label,
+  placeholder,
+  disabled = false,
+  models,
+  webSearch,
+  mode,
+  toolsExtra,
+  globalDrop,
+  onSent,
+}: {
+  controller: UseAgentControllerChat;
+  label?: string;
+  placeholder: string;
+  disabled?: boolean;
+  models: ModelOption[] | false;
+  webSearch: boolean;
+  mode?: string | undefined;
+  toolsExtra?: ReactNode;
+  globalDrop: boolean;
+  /** A message is on its way, before the conversation it makes is known. */
+  onSent?: () => void;
+}) {
+  const { sendMessage, stop, status, transcript } = controller;
+  return (
+    <div className="mx-auto w-full max-w-2xl px-3 pb-3">
+      <Composer
+        className="m-0"
+        {...(label ? { label } : {})}
+        placeholder={placeholder}
+        disabled={disabled}
+        models={models}
+        webSearch={webSearch}
+        toolsExtra={toolsExtra}
+        footerExtra={<UsageContext usage={transcript.usage} />}
+        status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
+        onStop={stop}
+        globalDrop={globalDrop}
+        onSend={(submit) => {
+          onSent?.();
+          return sendMessage(submit.text, turnOptions(submit, mode));
+        }}
+      />
     </div>
   );
 }
 
 /**
- * The chat on show. It starts as the newest chat (`isChat`, read once), opened into `main`;
- * with none, the first message makes one. A new chat's id is picked up once its first message
- * makes it.
+ * The project's chat: the newest one there is (`isChat`, read once), opened into `main`. With
+ * none, the first message makes it, and its id is picked up then.
  */
 function useMainThread(
   main: UseAgentControllerChat,
   isChat: (t: ThreadItem) => boolean,
-): [string | null, (id: string | null) => void] {
-  const [mainId, setPicked] = useState<string | null>(null);
+): [string | null, () => void] {
+  const [mainId, setMainId] = useState<string | null>(null);
   const firstIsChat = useRef(isChat);
-  // Once the person picks a chat (or a new one), the first pick, if still loading, gives way.
-  const chosen = useRef(false);
-  const setMainId = useCallback((id: string | null) => {
-    chosen.current = true;
-    setPicked(id);
-  }, []);
+  // A chat the first message made while the list loaded stays the one on show.
+  const settled = useRef(false);
   const picked = useRef(false);
   const { openThread, activeThreadId } = main;
   useEffect(() => {
@@ -478,254 +472,26 @@ function useMainThread(
         const res = await fetch('/api/agent-controller/threads', { cache: 'no-store' });
         const data = (await res.json()) as { threads?: ThreadItem[] };
         const first = (data.threads ?? []).find((t) => firstIsChat.current(t) && !t.archived);
-        if (first && !chosen.current) {
-          setPicked(first.id);
+        if (first && !settled.current) {
+          settled.current = true;
+          setMainId(first.id);
           await openThread(first.id);
         }
       } catch {
-        // No history to show; the first message starts the main chat.
+        // No history to show; the first message starts the chat.
       }
     })();
   }, [openThread]);
   // A first message with no chat open makes one: that is the chat now.
   useEffect(() => {
-    if (!mainId && activeThreadId) setMainId(activeThreadId);
-  }, [mainId, activeThreadId, setMainId]);
-  return [mainId, setMainId];
-}
-
-/** One conversation: its messages (with thread rows), and what it waits on. */
-export function ChatView({
-  controller,
-  approvalViews,
-  emptyText,
-  working,
-  onOpenThread,
-  onLinkClick,
-  work,
-  toolViews,
-  openThreadId = null,
-  outputsOf,
-}: {
-  controller: UseAgentControllerChat;
-  approvalViews?: ApprovalViews | undefined;
-  /** How the host's own tools show: as short step rows, or as cards (chat/tool-steps.tsx). */
-  toolViews?: ToolViews | undefined;
-  emptyText: string;
-  /** A run going on the server that this view is not streaming (a thread's own). */
-  working: boolean;
-  onOpenThread: (threadId: string) => void;
-  onLinkClick: (e: MouseEvent) => void;
-  work: Map<string, ThreadItem>;
-  /** The thread open beside this chat, whose row shows as selected. */
-  openThreadId?: string | null;
-  /** What each thread made, shown beside its row (see `ProjectChat`). */
-  outputsOf?: ((t: ThreadItem) => ThreadOutput[]) | undefined;
-}) {
-  const { transcript, status, answerQuestion, pendingSuspension } = controller;
-  const busy = status === 'streaming';
-  const views = useMemo(() => withPlainSteps(toolViews), [toolViews]);
-  const lastAssistant = transcript.messages.findLastIndex((m) => m.role !== 'user');
-  // The threads this chat started, by title: a suggestion with one shows it, not Start.
-  const madeHere = useMemo(() => chatThreads(transcript.messages), [transcript.messages]);
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegates clicks on the report links inside, which are focusable anchors already.
-    <div className="min-h-0 flex-1" onClick={onLinkClick}>
-      <Conversation className="h-full">
-        <ConversationContent className="mx-auto w-full max-w-2xl">
-          {transcript.messages.length === 0 && (
-            <p className="py-12 text-center text-muted-foreground text-sm">{emptyText}</p>
-          )}
-          {transcript.messages.map((m, at) => {
-            // tool_result parts arrive apart from their tool_call; pair them by id.
-            const resultsById = new Map(
-              m.content
-                .filter((p) => p.type === 'tool_result')
-                .map((p) => [
-                  (p as { id: string }).id,
-                  p as { result?: unknown; isError?: boolean },
-                ]),
-            );
-            // The turn streaming now is the last assistant message (a follow-up may sit below it).
-            const live = busy && at === lastAssistant;
-            return (
-              <Message key={m.id} from={m.role === 'user' ? 'user' : 'assistant'}>
-                <MessageContent>
-                  {messagePieces(m.id, m.content, views, live).map((piece) => {
-                    if (piece.kind === 'steps') {
-                      return <ToolStepList key={piece.key} steps={piece.steps} />;
-                    }
-                    if (piece.kind === 'card') {
-                      return <Fragment key={piece.key}>{piece.node}</Fragment>;
-                    }
-                    const { part, index: i } = piece;
-                    const call = part as {
-                      type: string;
-                      id?: string;
-                      name?: string;
-                      args?: unknown;
-                    };
-                    if (call.type === 'tool_call' && call.name === 'suggest_threads') {
-                      // Drawn once the tool accepted it: a refused call offered nothing.
-                      const result = resultsById.get(call.id ?? '');
-                      if (result?.isError || !offered(result?.result)) return null;
-                      return (
-                        <ThreadSuggestions
-                          key={partKey(m.id, i)}
-                          suggestions={suggestionsOf(call.args)}
-                          startedOf={(title) => {
-                            const thread = startedAfter(madeHere, at, title);
-                            return thread
-                              ? {
-                                  threadId: thread.threadId,
-                                  status: work.get(thread.threadId)?.status,
-                                }
-                              : undefined;
-                          }}
-                          onStart={(text) => void controller.sendMessage(text)}
-                          onOpen={onOpenThread}
-                          disabled={busy || Boolean(pendingSuspension)}
-                        />
-                      );
-                    }
-                    if (call.type === 'tool_call' && call.name === 'start_thread') {
-                      const result = resultsById.get(call.id ?? '')?.result as
-                        | { threadId?: string; title?: string }
-                        | undefined;
-                      const title =
-                        result?.title ?? (call.args as { title?: string } | undefined)?.title ?? '';
-                      const started = result?.threadId ? work.get(result.threadId) : undefined;
-                      return (
-                        <ThreadRow
-                          key={partKey(m.id, i)}
-                          title={title}
-                          threadId={result?.threadId}
-                          status={result?.threadId ? work.get(result.threadId)?.status : undefined}
-                          open={Boolean(result?.threadId) && result?.threadId === openThreadId}
-                          onOpen={onOpenThread}
-                          outputs={started ? outputsOf?.(started) : undefined}
-                        />
-                      );
-                    }
-                    return (
-                      <TranscriptPart
-                        key={partKey(m.id, i)}
-                        part={part}
-                        resultsById={resultsById}
-                        controller={controller}
-                      />
-                    );
-                  })}
-                </MessageContent>
-              </Message>
-            );
-          })}
-
-          {((busy && transcript.messages.at(-1)?.role === 'user') || working) && (
-            <Shimmer className="text-muted-foreground text-sm">
-              {working ? 'Working…' : 'Thinking…'}
-            </Shimmer>
-          )}
-
-          {transcript.error && (
-            <p role="alert" className="text-destructive text-sm">
-              {transcript.error}
-            </p>
-          )}
-
-          {/* A question parks the run until it's answered. */}
-          {pendingSuspension && (
-            <AskUserPrompt suspension={pendingSuspension} onAnswer={answerQuestion} />
-          )}
-
-          {/* Gated tools park the run until someone decides. */}
-          <ApprovalCards
-            controller={controller}
-            {...(approvalViews ? { views: approvalViews } : {})}
-          />
-        </ConversationContent>
-      </Conversation>
-    </div>
-  );
-}
-
-/** The message box, with a mode picker when there is more than one mode. */
-export function Composer({
-  label = 'Message',
-  placeholder,
-  busy,
-  disabled = false,
-  modes,
-  onSend,
-  onStop,
-}: {
-  /** The box's accessible name, which tells two boxes on screen apart. */
-  label?: string;
-  placeholder: string;
-  busy: boolean;
-  disabled?: boolean;
-  modes?: ReadonlyArray<{ id: string; name: string }> | undefined;
-  onSend: (text: string, mode?: string) => Promise<boolean>;
-  /** Stops the answer streaming now; while one streams, the send button becomes Stop. */
-  onStop?: (() => void) | undefined;
-}) {
-  const [input, setInput] = useState('');
-  const [mode, setMode] = useState(modes?.[0]?.id);
-  const blocked = busy || disabled;
-
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || blocked) return;
-    setInput('');
-    // A refused message comes back to the box so nothing typed is lost.
-    if (!(await onSend(text, mode))) setInput(text);
-  };
-
-  return (
-    <form onSubmit={onSubmit} className="mx-auto flex w-full max-w-2xl gap-2 p-3">
-      <input
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder={placeholder}
-        aria-label={label}
-        disabled={disabled}
-        className="h-10 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring disabled:opacity-60"
-      />
-      {modes && modes.length > 1 && (
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-          aria-label="Mode"
-          className="h-10 rounded-lg border border-border bg-background px-2 text-sm outline-none focus:border-ring"
-        >
-          {modes.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      )}
-      {busy && onStop ? (
-        <button
-          type="button"
-          onClick={onStop}
-          aria-label="Stop"
-          title="Stop"
-          className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[scale] active:scale-95"
-        >
-          <SquareIcon className="size-3.5 fill-current" />
-        </button>
-      ) : (
-        <button
-          type="submit"
-          disabled={blocked || !input.trim()}
-          aria-label={busy ? 'Working' : 'Send'}
-          className="flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-[scale,opacity] enabled:active:scale-95 disabled:opacity-40"
-        >
-          {busy ? <SquareIcon className="size-4" /> : <SendIcon className="size-4" />}
-        </button>
-      )}
-    </form>
-  );
+    if (mainId || !activeThreadId) return;
+    settled.current = true;
+    setMainId(activeThreadId);
+  }, [mainId, activeThreadId]);
+  // A message sent before the list loads makes (or continues) the chat on show: the list,
+  // once it lands, must not open another over it.
+  const settle = useCallback(() => {
+    settled.current = true;
+  }, []);
+  return [mainId, settle];
 }

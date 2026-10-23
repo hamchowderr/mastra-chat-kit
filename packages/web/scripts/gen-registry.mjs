@@ -66,6 +66,7 @@ const SHARED_ITEM_OF = {
   'components/chat/tool-views': 'chat-tool-views',
   'components/chat/transcript': 'chat-tool-views',
   'components/chat/tool-steps': 'chat-tool-views',
+  'components/chat/turn-extras': 'chat-tool-views',
   'components/chat/composer': 'chat-composer',
 };
 
@@ -358,6 +359,7 @@ const TOOL_VIEW_FILES = [
   'components/chat/tool-steps.tsx',
   'components/chat/chat-markdown.tsx',
   'components/chat/approval-view.tsx',
+  'components/chat/turn-extras.tsx',
 ];
 {
   const c = classify(TOOL_VIEW_FILES);
@@ -425,14 +427,14 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
   });
 }
 
-// 6a) chat-project: a skin shaped like a project — chats in a list, and threads each one
-// starts for pieces of work (start_thread, lib/work-threads.ts on the server), each a row
-// under the message that started it and in the Threads list (grouped by what it needs, with
-// its checklist), opening into its own
-// conversation.
+// 6a) chat-project: a skin shaped like a Claude project — one chat, and the threads it starts
+// for pieces of work (start_thread, lib/work-threads.ts on the server), each a row under the
+// message that started it and in the panel's Threads tab (grouped by what it needs, with its
+// checklist), opening into its own conversation in that panel. Hosts add their own tabs.
 const PROJECT_FILES = [
   'components/chat-project/project-chat.tsx',
-  'components/chat-project/project-sidebar.tsx',
+  'components/chat-project/project-panel.tsx',
+  'components/chat-project/chat-view.tsx',
   'components/chat-project/thread-row.tsx',
   'components/chat-project/thread-list.tsx',
   'components/chat-project/thread-groups.ts',
@@ -446,7 +448,7 @@ const PROJECT_FILES = [
     type: 'registry:block',
     title: 'Mastra Chat (project)',
     description:
-      "Chats that start threads for pieces of work, in a list with New chat, rename and delete. Each thread shows as a row with its status, opens into its own conversation (approvals, questions, replies), and reports back to its chat when it finishes or needs you. Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
+      "One chat that starts threads for pieces of work, with a panel beside it: a Threads tab (grouped by what each needs) and the host's own tabs. Each thread shows as a row with its status, opens into its own conversation in the panel (approvals, questions, replies), and reports back to the chat when it finishes or needs you. Both boxes are the kit's full composer (attachments, screenshot, dictation, usage). Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
     dependencies: c.npm,
     registryDependencies: [...regDeps(c, 'chat-project'), NS('chat-routes')],
     files: PROJECT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
