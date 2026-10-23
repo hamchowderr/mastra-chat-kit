@@ -117,7 +117,7 @@ export function ProjectChat({
   const [openId, setOpenId] = useState<string | null>(null);
   const [threadRunning, setThreadRunning] = useState(false);
   const [tab, setTab] = useState(THREADS_TAB);
-  const mainId = useMainThread(main, isChat);
+  const [mainId, settleMain] = useMainThread(main, isChat);
   const [mode, setMode] = useState(modes?.[0]?.id);
 
   const work = new Map(threads.filter((t) => t.parentThreadId).map((t) => [t.id, t]));
@@ -180,14 +180,27 @@ export function ProjectChat({
     const to = opener.current;
     opener.current = null;
     // After the thread is gone; the opener may have gone too (a row in a list that changed).
+    // A row in the Threads tab was swapped out for the thread: the tab takes focus instead.
     requestAnimationFrame(() => {
       if (to?.isConnected) to.focus();
-      else area?.querySelector<HTMLElement>('[aria-label="Message"]')?.focus();
+      else focusTab();
     });
+  };
+  const focusMessage = () => area?.querySelector<HTMLElement>('[aria-label="Message"]')?.focus();
+  const focusTab = () => {
+    const tabButton = area?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (tabButton) tabButton.focus();
+    else focusMessage();
   };
   const hidePanel = () => {
     setPanelShown(false);
-    if (openId) closeThread();
+    if (openId) back();
+    void refresh();
+    requestAnimationFrame(focusMessage);
+  };
+  const showPanel = () => {
+    setPanelShown(true);
+    requestAnimationFrame(focusTab);
   };
 
   // Report notes link to their thread as `#thread=<id>`; open it here instead of navigating.
@@ -204,7 +217,7 @@ export function ProjectChat({
   // only when they act, in that thread). When one changes, its report has landed in the chat
   // (reload it unless it is mid-turn, which reloads anyway), and an open thread has moved on
   // (reload it unless it is streaming its own turn).
-  const statuses = projectThreads.map((t) => `${t.id}:${t.status}`).join();
+  const statuses = [...work.values()].map((t) => `${t.id}:${t.status}`).join();
   const active = /:(working|queued)(,|$)/.test(statuses) || threadRunning;
   const threadBusy = thread.status === 'streaming';
   const lastStatuses = useRef(statuses);
@@ -262,7 +275,8 @@ export function ProjectChat({
   useEffect(() => {
     if (!covered) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      // A menu inside (the composer's, say) closes on its own Escape first.
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (openId) closeThread();
       else setPanelShown(false);
     };
@@ -298,6 +312,7 @@ export function ProjectChat({
         disabled={threadRunning}
         models={models}
         webSearch={webSearch}
+        globalDrop={false}
       />
     </div>
   );
@@ -312,7 +327,7 @@ export function ProjectChat({
         {!panelOpen && (
           <button
             type="button"
-            onClick={() => setPanelShown(true)}
+            onClick={showPanel}
             aria-label={waiting > 0 ? `Show threads, ${waiting} waiting on you` : 'Show threads'}
             title="Threads"
             className="absolute top-2 right-2 z-10 flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -341,6 +356,9 @@ export function ProjectChat({
           models={models}
           webSearch={webSearch}
           mode={mode}
+          // With a thread open each box takes the files dropped on itself.
+          globalDrop={!openId}
+          onSent={settleMain}
           toolsExtra={
             modes && modes.length > 1 ? (
               <select
@@ -393,6 +411,8 @@ function ProjectComposer({
   webSearch,
   mode,
   toolsExtra,
+  globalDrop,
+  onSent,
 }: {
   controller: UseAgentControllerChat;
   label?: string;
@@ -402,6 +422,9 @@ function ProjectComposer({
   webSearch: boolean;
   mode?: string | undefined;
   toolsExtra?: ReactNode;
+  globalDrop: boolean;
+  /** A message is on its way, before the conversation it makes is known. */
+  onSent?: () => void;
 }) {
   const { sendMessage, stop, status, transcript } = controller;
   return (
@@ -417,7 +440,11 @@ function ProjectComposer({
         footerExtra={<UsageContext usage={transcript.usage} />}
         status={status === 'streaming' ? 'streaming' : status === 'error' ? 'error' : 'ready'}
         onStop={stop}
-        onSend={(submit) => sendMessage(submit.text, turnOptions(submit, mode))}
+        globalDrop={globalDrop}
+        onSend={(submit) => {
+          onSent?.();
+          return sendMessage(submit.text, turnOptions(submit, mode));
+        }}
       />
     </div>
   );
@@ -430,7 +457,7 @@ function ProjectComposer({
 function useMainThread(
   main: UseAgentControllerChat,
   isChat: (t: ThreadItem) => boolean,
-): string | null {
+): [string | null, () => void] {
   const [mainId, setMainId] = useState<string | null>(null);
   const firstIsChat = useRef(isChat);
   // A chat the first message made while the list loaded stays the one on show.
@@ -461,5 +488,10 @@ function useMainThread(
     settled.current = true;
     setMainId(activeThreadId);
   }, [mainId, activeThreadId]);
-  return mainId;
+  // A message sent before the list loads makes (or continues) the chat on show: the list,
+  // once it lands, must not open another over it.
+  const settle = useCallback(() => {
+    settled.current = true;
+  }, []);
+  return [mainId, settle];
 }
