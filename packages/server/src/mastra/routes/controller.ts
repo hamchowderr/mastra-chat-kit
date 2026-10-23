@@ -12,7 +12,7 @@
 
 import { RequestContext } from '@mastra/core/request-context';
 import { registerApiRoute } from '@mastra/core/server';
-import { CONNECTORS_OFF_KEY } from '../lib/connectors-off';
+import { CONNECTORS_OFF_KEY, readConnectorsOff } from '../lib/connectors-off';
 import { TIME_ZONE_KEY } from '../lib/time-zone';
 import { resourceIdOf } from './resource';
 import { sessionEventStream } from './session-sse';
@@ -235,6 +235,7 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
         toolCallId?: string;
         timeZone?: string;
         threadId?: string;
+        connectorsOff?: unknown;
       }>();
       const { answer, plan, toolCallId } = body;
       let resumeData: string | string[] | { action: 'approved' | 'rejected'; feedback?: string };
@@ -266,8 +267,12 @@ export const createControllerRoutes = (deps: ChatServerDeps) => [
           session.respondToToolSuspension({
             resumeData,
             ...(toolCallId ? { toolCallId } : {}),
-            // The resumed run reads today's date in the user's zone too.
-            requestContext: turnRequestContext({ timeZone: timeZone.parse(body.timeZone) }),
+            // The resumed run reads today's date in the user's zone too, and keeps the
+            // connectors turned off for this chat off.
+            requestContext: turnRequestContext({
+              timeZone: timeZone.parse(body.timeZone),
+              connectorsOff: readConnectorsOff(body.connectorsOff),
+            }),
           }),
       });
     },
