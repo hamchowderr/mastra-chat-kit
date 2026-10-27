@@ -58,7 +58,7 @@ export.auto: true
 export:
     git-add: false
 sync:
-    remote: "file://C:/Users/HamCh/beads-backups/mastra-chat-kit-dolt"
+    remote: chowderr/mastra-chat-kit
 
 # sync.remote deliberately points at a LOCAL directory, not the git origin.
 #
