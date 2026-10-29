@@ -9,6 +9,12 @@
 import type { Session } from '@mastra/core/agent-controller';
 import { registerApiRoute } from '@mastra/core/server';
 import { messageText, searchSnippet, threadTitle, toUIMessage } from '../lib/thread-utils';
+import {
+  WORK_THREAD_KEY,
+  type WorkThreadStatus,
+  type WorkThreadTask,
+  workThreadOf,
+} from '../lib/work-thread-info';
 import { resourceIdOf } from './resource';
 import type { ChatServerDeps } from './types';
 
@@ -33,6 +39,15 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
         archived: boolean;
         createdAt: string;
         updatedAt: string;
+        /** Work threads only (lib/work-threads.ts): the main chat it reports to, and how it is doing. */
+        parentThreadId?: string;
+        status?: WorkThreadStatus;
+        /** Its progress checklist, its latest line, and whether the person resolved it. */
+        tasks?: WorkThreadTask[];
+        latest?: string;
+        resolved?: boolean;
+        /** The specialist doing the work, when the host offers several. */
+        agent?: { id: string; name: string };
       }> = [];
       for (const t of threads) {
         const explicitTitle = typeof t.title === 'string' ? t.title.trim() : '';
@@ -56,12 +71,23 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
         if (!explicitTitle && !first) {
           continue;
         }
+        const work = workThreadOf(t);
         items.push({
           id: t.id,
           title: threadTitle(t, first),
           archived: Boolean((t.metadata as Record<string, unknown> | undefined)?.archived),
           createdAt: new Date(t.createdAt).toISOString(),
           updatedAt: new Date(t.updatedAt).toISOString(),
+          ...(work
+            ? {
+                parentThreadId: work.parentThreadId,
+                status: work.status,
+                ...(work.tasks ? { tasks: work.tasks } : {}),
+                ...(work.latest ? { latest: work.latest } : {}),
+                ...(work.resolved ? { resolved: true } : {}),
+                ...(work.agent ? { agent: work.agent } : {}),
+              }
+            : {}),
         });
       }
       items.sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
@@ -156,15 +182,32 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
     },
   }),
 
-  // Delete a controller conversation (hard delete; clears the binding if active).
+  // Delete a controller conversation (hard delete; clears the binding if active), with the
+  // work threads it started. Refused while any of them is working or waiting for the user, so
+  // no run is left writing into, or parked on, a thread that is gone.
   registerApiRoute('/agent-controller/threads/:id', {
     method: 'DELETE',
     handler: async (c) => {
+      const id = c.req.param('id');
       const session = await deps.getSession(resourceIdOf(c));
-      if (!(await ownsThread(session, c.req.param('id')))) {
+      const threads = await session.thread.list();
+      const own = threads.find((t) => t.id === id);
+      if (!own) {
         return c.json({ error: 'not found' }, 404);
       }
-      await session.thread.delete({ threadId: c.req.param('id') });
+      // A work thread is deleted with the chat that started it, never on its own.
+      if (workThreadOf(own)) {
+        return c.json({ error: 'delete the chat that started this thread' }, 409);
+      }
+      const started = threads.filter((t) => workThreadOf(t)?.parentThreadId === id);
+      const status = (t: (typeof threads)[number]) => workThreadOf(t)?.status;
+      if (started.some((t) => status(t) === 'working' || status(t) === 'needs_you')) {
+        return c.json({ error: 'a thread in this chat is still working or waiting for you' }, 409);
+      }
+      for (const t of started) {
+        await session.thread.delete({ threadId: t.id });
+      }
+      await session.thread.delete({ threadId: id });
       return c.json({ ok: true });
     },
   }),
@@ -183,7 +226,7 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
       if (!(await ownsThread(session, id))) {
         return c.json({ error: 'not found' }, 404);
       }
-      const body = await c.req.json<{ archived?: boolean; title?: string }>();
+      const body = await c.req.json<{ archived?: boolean; title?: string; resolved?: boolean }>();
       const memory = await c.get('mastra').getAgent(deps.agentId).getMemory();
       if (!memory) {
         return c.json({ error: 'memory not configured' }, 500);
@@ -192,18 +235,44 @@ export const createThreadRoutes = (deps: ChatServerDeps) => [
       if (!thread) {
         return c.json({ error: 'not found' }, 404);
       }
-      const metadata = { ...(thread.metadata as Record<string, unknown> | undefined) };
-      if (typeof body.archived === 'boolean') {
-        metadata.archived = body.archived;
+      // Metadata changes go through the store's per-thread update, so a work thread's own
+      // saves (its status, its checklist) made meanwhile are never written over.
+      let refused: string | undefined;
+      if (typeof body.archived === 'boolean' || typeof body.resolved === 'boolean') {
+        const store = await c.get('mastra').getStorage()?.getStore('memory');
+        if (!store) return c.json({ error: 'memory not configured' }, 500);
+        await store.updateThreadMetadata({
+          id,
+          update: (fresh) => {
+            const change: Record<string, unknown> = {};
+            if (typeof body.archived === 'boolean') change.archived = body.archived;
+            const work = workThreadOf(fresh);
+            if (typeof body.resolved === 'boolean' && work) {
+              if (body.resolved && (work.status === 'working' || work.status === 'needs_you')) {
+                refused = "a thread that is working or waiting on you can't be resolved";
+              } else {
+                // Resolving files a work thread under Resolved; a new run in it reopens it.
+                const raw = {
+                  ...((fresh.metadata as Record<string, unknown>)[WORK_THREAD_KEY] as object),
+                } as Record<string, unknown>;
+                if (body.resolved) raw.resolved = true;
+                else delete raw.resolved;
+                change[WORK_THREAD_KEY] = raw;
+              }
+            }
+            return Object.keys(change).length ? change : undefined;
+          },
+        });
       }
-      await memory.updateThread({
-        id,
-        title:
-          typeof body.title === 'string' && body.title.trim()
-            ? body.title.trim()
-            : (thread.title ?? ''),
-        metadata,
-      });
+      if (refused) return c.json({ error: refused }, 409);
+      if (typeof body.title === 'string' && body.title.trim()) {
+        const current = await memory.getThreadById({ threadId: id });
+        await memory.updateThread({
+          id,
+          title: body.title.trim(),
+          metadata: { ...(current?.metadata as Record<string, unknown> | undefined) },
+        });
+      }
       return c.json({ ok: true });
     },
   }),

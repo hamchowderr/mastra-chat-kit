@@ -89,14 +89,15 @@ describe('/agent-controller/stream', () => {
     expect(blocked.model.switch).not.toHaveBeenCalled();
   });
 
-  it("switches to the composer's mode when it differs, and ignores an unknown one", async () => {
+  it("switches to the composer's mode, saving it even when unchanged, and ignores an unknown one", async () => {
     const plan = fakeSession();
     await run(plan, { text: 'plan this', mode: 'plan' });
     expect(plan.mode.switch).toHaveBeenCalledWith({ modeId: 'plan' });
 
+    // Saved on the thread, so a chat opened later in another mode comes back in this one.
     const same = fakeSession();
     await run(same, { text: 'hi', mode: 'chat' });
-    expect(same.mode.switch).not.toHaveBeenCalled();
+    expect(same.mode.switch).toHaveBeenCalledWith({ modeId: 'chat' });
 
     const unknown = fakeSession();
     await run(unknown, { text: 'hi', mode: 'yolo' });
@@ -113,6 +114,18 @@ describe('/agent-controller/stream', () => {
     await run(off, { text: 'hi' });
     const ctxOff = off.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
     expect(ctxOff.get('webSearch')).toBeUndefined();
+  });
+
+  it('puts the connectors turned off for this chat on the request context', async () => {
+    const some = fakeSession();
+    await run(some, { text: 'hi', connectorsOff: ['gmail', 'Not A Slug'] });
+    const ctxSome = some.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxSome.get('connectorsOff')).toEqual(['gmail']);
+
+    const none = fakeSession();
+    await run(none, { text: 'hi' });
+    const ctxNone = none.sendMessage.mock.calls[0]?.[0]?.requestContext as RequestContext;
+    expect(ctxNone.get('connectorsOff')).toBeUndefined();
   });
 
   it("puts the browser's time zone on the request context, and drops one Intl doesn't know", async () => {
@@ -330,6 +343,20 @@ describe('/agent-controller/answer', () => {
       toolCallId: 'p1',
       requestContext: expect.any(RequestContext),
     });
+  });
+
+  it('keeps the connectors turned off for this chat off in the resumed run', async () => {
+    const session = fakeSession();
+    const respondToToolSuspension = vi.fn(async (_args: AnyEvent) => {
+      session.emit({ type: 'agent_end', reason: 'complete' });
+    });
+    const withResume = { ...session, respondToToolSuspension };
+
+    const { c } = ctx({ body: { answer: 'yes', connectorsOff: ['slack'] } });
+    await ((await answerRoute(withResume).handler(c)) as Response).text();
+    expect(respondToToolSuspension.mock.calls[0]?.[0].requestContext.get('connectorsOff')).toEqual([
+      'slack',
+    ]);
   });
 
   it("resumes in the user's time zone, so the resumed run knows today's date", async () => {

@@ -310,6 +310,7 @@ export function uiMessagesToAgentController(
       url?: string;
       mediaType?: string;
       filename?: string;
+      data?: unknown;
     }>;
   }>,
 ): AgentControllerMessage[] {
@@ -317,7 +318,7 @@ export function uiMessagesToAgentController(
     id: m.id,
     role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
     // Text, and the files a user attached (stored as file parts with a data URL).
-    content: (m.parts ?? []).flatMap((p): AgentControllerContentPart[] => {
+    content: (m.parts ?? []).flatMap((p, at): AgentControllerContentPart[] => {
       if (p.type === 'text' && typeof p.text === 'string') return [{ type: 'text', text: p.text }];
       if (p.type === 'file' && typeof p.url === 'string' && p.url.startsWith('data:')) {
         return [
@@ -326,6 +327,41 @@ export function uiMessagesToAgentController(
             data: p.url,
             mediaType: p.mediaType ?? 'application/octet-stream',
             ...(p.filename ? { filename: p.filename } : {}),
+          },
+        ];
+      }
+      // A thread a `start_thread` call made here: restored as that call and its result, so
+      // a skin renders it the same as the live one (the chat-project skin's thread row).
+      if (p.type === 'data-work-thread') {
+        const d = p.data as { threadId?: unknown; title?: unknown } | undefined;
+        if (typeof d?.threadId !== 'string') return [];
+        const title = typeof d.title === 'string' ? d.title : '';
+        const id = `work-thread-${d.threadId}`;
+        return [
+          { type: 'tool_call', id, name: 'start_thread', args: { title } },
+          {
+            type: 'tool_result',
+            id,
+            name: 'start_thread',
+            result: { threadId: d.threadId, title },
+          },
+        ];
+      }
+      // Threads a `suggest_threads` call offered: restored as that call and its result, so the card shows
+      // again with its Start buttons (threads started from it show as started).
+      if (p.type === 'data-thread-suggestions') {
+        const d = p.data as { suggestions?: unknown } | undefined;
+        if (!Array.isArray(d?.suggestions)) return [];
+        const id = `thread-suggestions-${m.id}-${at}`;
+        return [
+          { type: 'tool_call', id, name: 'suggest_threads', args: { threads: d.suggestions } },
+          {
+            type: 'tool_result',
+            id,
+            name: 'suggest_threads',
+            result: {
+              suggested: d.suggestions.map((t) => (t as { title?: unknown } | null)?.title),
+            },
           },
         ];
       }

@@ -1,6 +1,104 @@
 {
   "fixtures": [
     {
+      "_comment": "WORK THREADS (lib/work-threads.ts, tests/integration/work-threads.test.ts). The main chat starts a thread with start_thread; the thread runs the brief on its own Session and reports back.",
+      "match": {
+        "userMessage": "Start a thread to plan the spring newsletter.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_work_start",
+            "name": "start_thread",
+            "arguments": {
+              "title": "Spring newsletter plan",
+              "brief": "Plan the spring newsletter: three sections and a subject line."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_work_start"
+      },
+      "response": {
+        "content": "I started a thread for the spring newsletter. It will report back here."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Plan the spring newsletter: three sections and a subject line.",
+        "hasToolResult": false
+      },
+      "response": {
+        "content": "Subject: Spring is here. Sections: news, gardening tips, upcoming events."
+      }
+    },
+    {
+      "_comment": "The main chat steers a thread it started (message_thread, lib/work-thread-steering.ts).",
+      "match": {
+        "userMessage": "From the main chat: Add a section on spring recipes.",
+        "hasToolResult": false
+      },
+      "response": {
+        "content": "Added a fourth section: spring recipes."
+      }
+    },
+    {
+      "_comment": "A work thread that stops for an approval: getWeather is gated, so the thread reports that it needs the user, and finishes once approved.",
+      "match": {
+        "userMessage": "Start a thread to check the weather in Oslo.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_work_start_oslo",
+            "name": "start_thread",
+            "arguments": {
+              "title": "Oslo weather",
+              "brief": "Check the weather in Oslo for the newsletter."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_work_start_oslo"
+      },
+      "response": {
+        "content": "I started a thread to check the Oslo weather."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "Check the weather in Oslo for the newsletter.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_work_oslo_weather",
+            "name": "getWeather",
+            "arguments": {
+              "location": "Oslo"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "toolCallId": "toolu_work_oslo_weather"
+      },
+      "response": {
+        "content": "Oslo is mild today, a good fit for the spring issue."
+      }
+    },
+    {
       "_comment": "DEMO FLOWS (docs/demo.md) — this fixture down to the end of DEMO 6. Each flow's FIRST hop matches its opening prompt with hasToolResult:false, like the fixtures below. Every LATER hop matches toolCallId: the id this block assigns to the previous hop's tool call, which comes back on the tool result that ends the next request. That is exact per hop and immune to what surrounds it — earlier threads that semantic recall pulls into the system prompt, or history from a re-run — where turnIndex (a count of assistant messages) and hasToolResult (true for every hop after the first) are not. This block sits FIRST so its title and subagent fixtures win over the generic ones further down (first match wins). tests/integration/demo-fixtures.test.ts proves every hop resolves here and not to the catch-all.",
       "match": {
         "systemMessage": "3-6 word title",

@@ -108,10 +108,27 @@ function AttachmentsDisplay() {
  * a message), and while a turn streams. Enter in the textarea checks this same button,
  * so the keyboard follows the same rule.
  */
-function SubmitButton({ hasText, status }: { hasText: boolean; status?: ChatStatus }) {
+function SubmitButton({
+  hasText,
+  status,
+  disabled,
+  onStop,
+}: {
+  hasText: boolean;
+  status?: ChatStatus;
+  disabled: boolean;
+  onStop?: (() => void) | undefined;
+}) {
   const attachments = usePromptInputAttachments();
   const empty = !hasText && attachments.files.length === 0;
-  return <PromptInputSubmit disabled={empty && status !== 'streaming'} status={status} />;
+  const streaming = status === 'streaming';
+  return (
+    <PromptInputSubmit
+      disabled={streaming ? false : disabled || empty}
+      status={status}
+      {...(onStop ? { onStop } : {})}
+    />
+  );
 }
 
 /**
@@ -139,10 +156,15 @@ export function Composer({
   className = 'm-4',
   footerExtra,
   toolsExtra,
+  menuExtra,
   models = MODELS,
   webSearch: showWebSearch = true,
   placeholder = 'Ask anything…',
+  label = 'Message',
   speech = true,
+  disabled = false,
+  onStop,
+  globalDrop = true,
 }: {
   /**
    * Send the message. Return (or resolve to) `false` when it was not sent: the composer
@@ -155,6 +177,8 @@ export function Composer({
   footerExtra?: ReactNode;
   /** Rendered at the START of the tools row (e.g. the controller mode switcher). */
   toolsExtra?: ReactNode;
+  /** More items in the + menu, after the attachments (Radix dropdown items or a submenu). */
+  menuExtra?: ReactNode;
   /**
    * The models the picker offers, first one selected. `false` hides the picker, and each
    * turn then runs on the server's own CHAT_MODEL. The server only honours ids on its
@@ -165,12 +189,26 @@ export function Composer({
   webSearch?: boolean;
   /** The textarea's placeholder. */
   placeholder?: string;
+  /** The textarea's accessible name, which tells two boxes on one screen apart. */
+  label?: string;
   /**
    * Show the microphone (AI Elements SpeechInput): dictation into the textarea. It only
    * appears where the browser has speech recognition built in; elsewhere there is no
    * button rather than a broken one.
    */
   speech?: boolean;
+  /** Nothing can be typed or sent (say, while a thread works on its own). */
+  disabled?: boolean;
+  /**
+   * Stops the answer streaming now: while one streams, the send button becomes Stop. Without
+   * it, a message sent while one streams waits its turn on the server.
+   */
+  onStop?: (() => void) | undefined;
+  /**
+   * A file dropped anywhere on the page lands in this box. Turn it off where two boxes share
+   * a page: each then takes the files dropped on itself.
+   */
+  globalDrop?: boolean;
 }) {
   const speechSupported = useSpeechRecognitionSupport();
   const modelList = models === false ? [] : models;
@@ -201,6 +239,11 @@ export function Composer({
     if (!hasText && !hasAttachments) {
       return;
     }
+    // Enter while an answer streams, where the button is Stop: nothing sends, and the text
+    // and files stay in the box.
+    if (onStop && status === 'streaming') {
+      throw new Error('still answering');
+    }
     const typed = message.text ?? '';
     // PromptInput has already emptied the box (it resets the form on submit).
     setText('');
@@ -223,7 +266,7 @@ export function Composer({
     <PromptInput
       onSubmit={handleSubmit}
       className={className}
-      globalDrop
+      globalDrop={globalDrop}
       multiple
       accept={ATTACH_ACCEPT}
       maxFiles={MAX_FILES}
@@ -243,16 +286,21 @@ export function Composer({
           onChange={(e) => setText(e.target.value)}
           value={text}
           placeholder={placeholder}
+          aria-label={label}
+          disabled={disabled}
         />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
           {toolsExtra}
           <PromptInputActionMenu>
-            <PromptInputActionMenuTrigger aria-label="Attach images or files" />
-            <PromptInputActionMenuContent>
+            <PromptInputActionMenuTrigger
+              aria-label={menuExtra ? 'Add files and more' : 'Attach images or files'}
+            />
+            <PromptInputActionMenuContent className="w-56">
               <PromptInputActionAddAttachments />
               <PromptInputActionAddScreenshot />
+              {menuExtra}
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
           {showWebSearch && (
@@ -353,7 +401,12 @@ export function Composer({
               }
             />
           )}
-          <SubmitButton hasText={Boolean(text.trim())} status={status} />
+          <SubmitButton
+            hasText={Boolean(text.trim())}
+            status={status}
+            disabled={disabled}
+            onStop={onStop}
+          />
         </div>
       </PromptInputFooter>
     </PromptInput>

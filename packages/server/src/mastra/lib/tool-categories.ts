@@ -1,6 +1,13 @@
 import type { ToolCategory } from '@mastra/core/agent-controller';
 import { WORKSPACE_TOOLS } from '@mastra/core/workspace';
 import { FIRECRAWL_TOOLS } from './firecrawl';
+import { START_THREAD_TOOL } from './work-thread-info';
+import {
+  LIST_THREADS_TOOL,
+  MESSAGE_THREAD_TOOL,
+  READ_THREAD_TOOL,
+  SUGGEST_THREADS_TOOL,
+} from './work-thread-steering';
 
 const { FILESYSTEM, SANDBOX, SEARCH, LSP } = WORKSPACE_TOOLS;
 
@@ -167,6 +174,12 @@ export const AUTO_ALLOWED_TOOLS = [
   'task_complete',
   'task_check',
   'list_schedules',
+  // Suggest, start, read or message a thread and change nothing; the thread's own tools still ask.
+  SUGGEST_THREADS_TOOL,
+  START_THREAD_TOOL,
+  LIST_THREADS_TOOL,
+  READ_THREAD_TOOL,
+  MESSAGE_THREAD_TOOL,
   ...FIRECRAWL_TOOLS,
   ...BROWSER_AUTO_ALLOWED_TOOLS,
 ] as const;

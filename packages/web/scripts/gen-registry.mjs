@@ -45,11 +45,13 @@ const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
  * something a consumer already has (say `ai`) would fight their own resolution
  * for no benefit. Add an entry only when a version SKEW breaks the install.
  */
-// `@mastra/core`: the chat-server routes call core 1.75's Session API (model.switch(id),
-// respondToToolApproval({ toolCallId })); an older core installs but fails to compile.
+// `@mastra/core`: the exact version the server package pins and CI tests. The chat-server
+// routes call its Session API (model.switch(id), respondToToolApproval({ toolCallId }), sessions
+// keyed by resource and scope); an older core fails to compile, and so did 1.79, which keys
+// sessions by `sessionId`. Bump it with packages/server's own pin.
 const PINNED_DEPS = new Map([
   ['shiki', '^3.23.0'],
-  ['@mastra/core', '^1.75.0'],
+  ['@mastra/core', '1.75.0'],
 ]);
 const withVersion = (pkg) => (PINNED_DEPS.has(pkg) ? `${pkg}@${PINNED_DEPS.get(pkg)}` : pkg);
 
@@ -63,6 +65,8 @@ const elPath = (n) => `components/ai-elements/${n}.tsx`;
 const SHARED_ITEM_OF = {
   'components/chat/tool-views': 'chat-tool-views',
   'components/chat/transcript': 'chat-tool-views',
+  'components/chat/tool-steps': 'chat-tool-views',
+  'components/chat/turn-extras': 'chat-tool-views',
   'components/chat/composer': 'chat-composer',
 };
 
@@ -254,6 +258,7 @@ const ROUTE_FILES = [
   'app/api/agent-controller/stream/route.ts',
   'app/api/agent-controller/approve/route.ts',
   'app/api/agent-controller/answer/route.ts',
+  'app/api/agent-controller/abort/route.ts',
   'app/api/agent-controller/goal/route.ts',
   'app/api/agent-controller/om/route.ts',
   'app/api/agent-controller/schedules/route.ts',
@@ -261,6 +266,7 @@ const ROUTE_FILES = [
   'app/api/agent-controller/threads/search/route.ts',
   'app/api/agent-controller/threads/[id]/route.ts',
   'app/api/agent-controller/threads/[id]/messages/route.ts',
+  'app/api/agent-controller/threads/[id]/pending/route.ts',
   // Workbench panels (files viewer + live browser screencast).
   'app/api/workspace/file/route.ts',
   'app/api/workspace/files/route.ts',
@@ -313,13 +319,26 @@ const SERVER_FILES = [
   ['../server/src/mastra/lib/thread-utils.ts', 'src/mastra/lib/thread-utils.ts'],
   // The turn's time zone: its request-context key and the Intl check. No imports.
   ['../server/src/mastra/lib/time-zone.ts', 'src/mastra/lib/time-zone.ts'],
+  // Connectors turned off for a chat: their request-context key and the list's reading.
+  ['../server/src/mastra/lib/connectors-off.ts', 'src/mastra/lib/connectors-off.ts'],
+  // Which Session a request about a thread drives (a work thread has its own).
+  ['../server/src/mastra/routes/thread-session.ts', 'src/mastra/routes/thread-session.ts'],
+  // Work threads: start_thread, the Session each runs on, and the reports back to the
+  // main chat (the chat-project skin's server half). Imports @mastra/core and zod.
+  ['../server/src/mastra/lib/work-threads.ts', 'src/mastra/lib/work-threads.ts'],
+  // What a work thread is, as its metadata says. No imports.
+  ['../server/src/mastra/lib/work-thread-info.ts', 'src/mastra/lib/work-thread-info.ts'],
+  // The main chat's list_threads, read_thread and message_thread. Imports @mastra/core and zod.
+  ['../server/src/mastra/lib/work-thread-steering.ts', 'src/mastra/lib/work-thread-steering.ts'],
+  // The words a work thread's brief, reports and excerpts are made of. No imports.
+  ['../server/src/mastra/lib/work-thread-text.ts', 'src/mastra/lib/work-thread-text.ts'],
 ];
 items.push({
   name: 'chat-server',
   type: 'registry:file',
   title: 'Chat Server (AgentController route contract)',
   description:
-    "The 16 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
+    "The 17 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, what a work thread waits on, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
   // Every import in these files is @mastra/core/*, hono (the route body cap), zod (the
   // stream body's schema) or a sibling that ships here.
   dependencies: ['@mastra/core', 'hono', 'zod'].map(withVersion),
@@ -335,11 +354,14 @@ items.push({
 // every skin needs (approvals and plans park the run until answered). chat-markdown.tsx:
 // replies as Markdown, with links that navigate in the app or open a new tab. approval-view.tsx:
 // what an approval card says (the host's per-tool renderers, or the tool in words).
+// tool-steps.tsx: a host's own tools as short step rows that fold into one list, or as cards.
 const TOOL_VIEW_FILES = [
   'components/chat/tool-views.tsx',
   'components/chat/transcript.tsx',
+  'components/chat/tool-steps.tsx',
   'components/chat/chat-markdown.tsx',
   'components/chat/approval-view.tsx',
+  'components/chat/turn-extras.tsx',
 ];
 {
   const c = classify(TOOL_VIEW_FILES);
@@ -403,6 +425,35 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
     dependencies: c.npm,
     registryDependencies: [...regDeps(c, 'chat-minimal'), NS('chat-routes')],
     files: MINIMAL_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
+    docs: RADIX_NOTICE,
+  });
+}
+
+// 6a) chat-project: a skin shaped like a Claude project — one chat, and the threads it starts
+// for pieces of work (start_thread, lib/work-threads.ts on the server), each a row under the
+// message that started it and in the panel's Threads tab (grouped by what it needs, with its
+// checklist), opening into its own conversation in that panel. Hosts add their own tabs.
+const PROJECT_FILES = [
+  'components/chat-project/project-chat.tsx',
+  'components/chat-project/project-panel.tsx',
+  'components/chat-project/chat-view.tsx',
+  'components/chat-project/thread-row.tsx',
+  'components/chat-project/thread-list.tsx',
+  'components/chat-project/thread-groups.ts',
+  'components/chat-project/thread-checklist.tsx',
+  'components/chat-project/thread-suggestions.tsx',
+];
+{
+  const c = classify(PROJECT_FILES);
+  items.push({
+    name: 'chat-project',
+    type: 'registry:block',
+    title: 'Mastra Chat (project)',
+    description:
+      "One chat that starts threads for pieces of work, with a panel beside it: a Threads tab (grouped by what each needs) and the host's own tabs. Each thread shows as a row with its status, opens into its own conversation in the panel (approvals, questions, replies), and reports back to the chat when it finishes or needs you. Both boxes are the kit's full composer (attachments, screenshot, dictation, usage). Tool calls fold into one steps line. Needs the chat-server's work threads (start_thread).",
+    dependencies: c.npm,
+    registryDependencies: [...regDeps(c, 'chat-project'), NS('chat-routes')],
+    files: PROJECT_FILES.map((f) => ({ path: f, type: 'registry:component', target: f })),
     docs: RADIX_NOTICE,
   });
 }

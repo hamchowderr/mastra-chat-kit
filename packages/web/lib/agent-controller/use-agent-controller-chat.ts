@@ -9,7 +9,7 @@ import {
   emptyTranscript,
   uiMessagesToAgentController,
 } from './events';
-import { reduceAgentControllerEvent } from './reduce';
+import { reduceAgentControllerEvent, reduceAgentControllerEvents } from './reduce';
 
 export type AgentControllerStatus = 'ready' | 'streaming' | 'error';
 
@@ -61,6 +61,17 @@ async function readEventStream(res: Response, onEvent: (event: ControllerEvent) 
   }
 }
 
+/**
+ * Starts tracking a new turn in `running`. A turn it replaces is left to finish on its own
+ * (its stream is not cut: that would abort the run the new turn may be resuming), and only
+ * the turn tracked now updates the chat.
+ */
+function startRun(running: { current: AbortController | null }): AbortController {
+  const run = new AbortController();
+  running.current = run;
+  return run;
+}
+
 /** A tool call the agent finished: which tool, and whether it reported an error. */
 export type AgentControllerToolEnd = { toolName: string; toolCallId: string; isError: boolean };
 
@@ -72,6 +83,11 @@ export type UseAgentControllerChatOptions = {
    * to react to what the agent changed, e.g. refresh its own page after a write.
    */
   onToolEnd?: (tool: AgentControllerToolEnd) => void;
+  /**
+   * Host fields sent with every turn and every answer, read at send time (the connectors
+   * turned off for this chat, say). The kit's own fields win over them.
+   */
+  extra?: (() => Record<string, unknown> | undefined) | undefined;
 };
 
 /**
@@ -93,11 +109,16 @@ export function browserTimeZone(): string | undefined {
  * `data:`-framed SSE, and folds each AgentControllerEvent into a transcript.
  */
 export function useAgentControllerChat(options: string | UseAgentControllerChatOptions = {}) {
-  const { endpoint = '/api/agent-controller/stream', onToolEnd } =
-    typeof options === 'string' ? { endpoint: options } : options;
-  // The latest callback, so a host passing an inline function doesn't restart anything.
+  const {
+    endpoint = '/api/agent-controller/stream',
+    onToolEnd,
+    extra,
+  } = typeof options === 'string' ? { endpoint: options } : options;
+  // The latest callbacks, so a host passing inline functions doesn't restart anything.
   const onToolEndRef = useRef(onToolEnd);
   onToolEndRef.current = onToolEnd;
+  const extraRef = useRef(extra);
+  extraRef.current = extra;
   // tool_end carries only the call id; tool_start names the tool.
   const toolNames = useRef(new Map<string, string>());
   const [transcript, setTranscript] = useState<AgentControllerTranscript>(emptyTranscript);
@@ -107,9 +128,13 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
   // when a run settles). Read-only in the UI.
   const [schedules, setSchedules] = useState<AgentControllerSchedule[]>([]);
   const threadRef = useRef<string | null>(null);
+  // Counts openThread calls (and resets), so a slow open never lands over a newer one.
+  const openSeq = useRef(0);
   // Bumps whenever a turn completes so the conversation sidebar refetches (a new
   // thread appears / an existing one re-sorts to the top).
   const [refreshSignal, setRefreshSignal] = useState(0);
+  // The turn streaming now, so Stop can cut it: closing the stream aborts the run upstream.
+  const running = useRef<AbortController | null>(null);
 
   // Load any objective already set on the session's active thread (durable across a
   // reload within the server's lifetime). Live updates then arrive as `goal_evaluation`
@@ -220,6 +245,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         /** Controller mode for this turn ('plan' | 'chat'); the server switches if it differs. */
         mode?: string;
         files?: Array<{ url: string; mediaType: string; filename?: string }>;
+        /** Host fields for the server (see ProjectChat's `turnExtra`); the kit's own win. */
+        extra?: Record<string, unknown>;
       },
     ): Promise<boolean> => {
       if (!text.trim() && !opts?.files?.length) {
@@ -230,8 +257,11 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
       // our own would render the user's message twice (different ids → both kept).
       setTranscript((s) => ({ ...s, error: null, done: false }));
       setStatus('streaming');
+      const run = startRun(running);
 
       const fail = (err: unknown) => {
+        // Stopped, or replaced by a newer turn: that one owns the chat now.
+        if (running.current !== run) return;
         setTranscript((s) => ({
           ...s,
           error: err instanceof Error ? err.message : String(err),
@@ -243,11 +273,14 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
       try {
         res = await fetch(endpoint, {
           method: 'POST',
+          signal: run.signal,
           headers: { 'content-type': 'application/json' },
           // The composer's model / web-search / attachment selections ride along so
           // the controller honors them: the run switches model via `session.model.switch`,
           // web search flows through the request context, and files pass to sendMessage.
           body: JSON.stringify({
+            ...extraRef.current?.(),
+            ...opts?.extra,
             text,
             threadId: threadRef.current,
             model: opts?.model,
@@ -258,6 +291,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
           }),
         });
       } catch (err) {
+        // Stopped before the server answered: nothing was refused, so the text isn't handed back.
+        if (run.signal.aborted) return true;
         fail(err);
         return false;
       }
@@ -275,6 +310,7 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         }
         onEvent(event);
       }).then(() => {
+        if (running.current !== run) return;
         setStatus('ready');
         // A completed turn may have created a new thread (or bumped an existing
         // one) — nudge the sidebar to refetch.
@@ -318,7 +354,12 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         res = await fetch('/api/agent-controller/approve', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ decision, toolCallId }),
+          // The thread names which Session holds the gate (a work thread has its own).
+          body: JSON.stringify({
+            decision,
+            toolCallId,
+            ...(threadRef.current ? { threadId: threadRef.current } : {}),
+          }),
         });
       } catch (err) {
         setTranscript((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
@@ -358,17 +399,27 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
         done: false,
       }));
       setStatus('streaming');
+      const run = startRun(running);
       try {
         const res = await fetch('/api/agent-controller/answer', {
           method: 'POST',
+          signal: run.signal,
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...body, timeZone: browserTimeZone() }),
+          body: JSON.stringify({
+            // A resumed run carries the host's fields too, so an answer can't undo them.
+            ...extraRef.current?.(),
+            ...body,
+            ...(threadRef.current ? { threadId: threadRef.current } : {}),
+            timeZone: browserTimeZone(),
+          }),
         });
         await readEventStream(res, onEvent);
+        if (running.current !== run) return;
         setStatus('ready');
         setRefreshSignal((n) => n + 1);
         refreshSchedules();
       } catch (err) {
+        if (running.current !== run) return;
         setTranscript((s) => ({
           ...s,
           error: err instanceof Error ? err.message : String(err),
@@ -412,16 +463,28 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
    * Load a past conversation into the view. Fetches its messages (text-only
    * restore) and seeds a fresh transcript; follow-up turns continue this thread
    * (threadRef) so the server switches to it and memory carries context.
+   *
+   * A work thread (one the agent started with `start_thread`) can be running or parked
+   * on an approval or a question while nobody watches it: what it waits on comes from
+   * `/threads/:id/pending` and folds in as the live events would. Resolves to whether its
+   * run is still going, so a skin can poll until it stops.
    */
   const openThread = useCallback(
-    async (threadId: string) => {
+    async (threadId: string): Promise<{ running: boolean; stale: boolean }> => {
+      const id = encodeURIComponent(threadId);
+      // Only the latest open applies: an earlier one that resolves late is dropped.
+      const seq = ++openSeq.current;
+      const stale = () => seq !== openSeq.current;
+      let running = false;
       try {
-        const res = await fetch(
-          `/api/agent-controller/threads/${encodeURIComponent(threadId)}/messages`,
-          {
-            cache: 'no-store',
-          },
-        );
+        const [res, pending] = await Promise.all([
+          fetch(`/api/agent-controller/threads/${id}/messages`, { cache: 'no-store' }),
+          fetch(`/api/agent-controller/threads/${id}/pending`, { cache: 'no-store' }).then(
+            async (r) =>
+              r.ok ? ((await r.json()) as { running?: boolean; events?: ControllerEvent[] }) : {},
+            () => ({}) as { running?: boolean; events?: ControllerEvent[] },
+          ),
+        ]);
         const data = (await res.json()) as {
           messages?: Array<{
             id: string;
@@ -429,31 +492,62 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
             parts?: Array<{ type: string; text?: string }>;
           }>;
         };
+        if (stale()) return { running: false, stale: true };
+        running = pending.running === true;
         threadRef.current = threadId;
         setStatus('ready');
-        setTranscript({
-          ...emptyTranscript(),
-          threadId,
-          messages: uiMessagesToAgentController(data.messages ?? []),
-        });
+        setTranscript(
+          reduceAgentControllerEvents(
+            {
+              ...emptyTranscript(),
+              threadId,
+              messages: uiMessagesToAgentController(data.messages ?? []),
+            },
+            pending.events ?? [],
+          ),
+        );
       } catch {
+        if (stale()) return { running: false, stale: true };
         threadRef.current = threadId;
         setTranscript({ ...emptyTranscript(), threadId });
       }
       // Re-hydrate the learned OM facts (resource-scoped) onto the fresh transcript.
       refreshMemory();
+      return { running, stale: false };
     },
     [refreshMemory],
   );
 
   /** Clear the transcript and start a brand-new conversation (server mints a thread). */
   const reset = useCallback(() => {
+    openSeq.current++;
     threadRef.current = null;
     setStatus('ready');
     setTranscript(emptyTranscript());
     // OM facts are resource-scoped, so they still apply in a brand-new chat.
     refreshMemory();
   }, [refreshMemory]);
+
+  /**
+   * Stops the turn streaming now. The server is told to abort the run (its `/abort` route, as a
+   * host's proxy may not pass a closed stream on), and the stream is closed; what the run had
+   * already said and done stays. The chat settles as at a turn's normal end: approval cards and
+   * running tools go. A no-op when nothing is streaming here.
+   */
+  const stop = useCallback(() => {
+    const run = running.current;
+    if (!run) return;
+    running.current = null;
+    void fetch('/api/agent-controller/abort', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(threadRef.current ? { threadId: threadRef.current } : {}),
+    }).catch(() => undefined);
+    run.abort();
+    setStatus('ready');
+    setTranscript((s) => reduceAgentControllerEvent(s, { type: '__done__' }));
+    setRefreshSignal((n) => n + 1);
+  }, []);
 
   /** Clear the active thread's objective (the agent stops goal-driven looping). */
   const clearGoal = useCallback(async () => {
@@ -469,6 +563,8 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
     transcript,
     status,
     sendMessage,
+    /** Stop the turn streaming now (the Stop button). */
+    stop,
     approve,
     /** Answer a parked `ask_user` prompt (string, or string[] for multi-select). */
     answerQuestion,

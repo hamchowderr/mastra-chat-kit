@@ -7,7 +7,19 @@ import { vi } from 'vitest';
  */
 
 type Event = { type: string; [k: string]: unknown };
-export type Thread = { id: string; title: string; archived?: boolean };
+export type Thread = {
+  id: string;
+  title: string;
+  archived?: boolean;
+  /** A work thread's main chat and status (`start_thread`). */
+  parentThreadId?: string;
+  status?: string;
+  /** Its checklist, latest line and whether it is resolved, as the list returns them. */
+  tasks?: Array<{ content: string; status: string }>;
+  latest?: string;
+  resolved?: boolean;
+  agent?: { id: string; name: string };
+};
 
 const sse = (events: Event[]) =>
   new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(''), {
@@ -21,6 +33,7 @@ export function fakeController({
   files = {},
   messages = {},
   approve = () => Response.json({ ok: true }),
+  pending = {},
 }: {
   /** The events one /stream call plays back. */
   stream?: Event[];
@@ -33,6 +46,8 @@ export function fakeController({
   messages?: Record<string, Array<{ id: string; role: string; parts: unknown[] }>>;
   /** What one /approve call answers. Default `{ ok: true }` (the gate took the decision). */
   approve?: () => Response;
+  /** What a work thread waits on, by thread id, for `/threads/:id/pending`. */
+  pending?: Record<string, { running: boolean; events: Event[] }>;
 } = {}) {
   const calls: { url: string; body?: Record<string, unknown> }[] = [];
   vi.stubGlobal(
@@ -52,6 +67,12 @@ export function fakeController({
             ...t,
           })),
         });
+      }
+      const waits = url.match(/^\/api\/agent-controller\/threads\/([^/]+)\/pending/);
+      if (waits) {
+        return Response.json(
+          pending[decodeURIComponent(waits[1])] ?? { running: false, events: [] },
+        );
       }
       const thread = url.match(/^\/api\/agent-controller\/threads\/([^/]+)\/messages/);
       if (thread) return Response.json({ messages: messages[decodeURIComponent(thread[1])] ?? [] });
