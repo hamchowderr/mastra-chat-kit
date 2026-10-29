@@ -47,11 +47,11 @@ const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
  */
 // `@mastra/core`: the exact version the server package pins and CI tests. The chat-server
 // routes call its Session API (model.switch(id), respondToToolApproval({ toolCallId }), sessions
-// keyed by resource and scope); an older core fails to compile, and so did 1.79, which keys
-// sessions by `sessionId`. Bump it with packages/server's own pin.
+// keyed by `sessionId` since 1.79); a core before 1.79 fails to compile. Bump it with
+// packages/server's own pin.
 const PINNED_DEPS = new Map([
   ['shiki', '^3.23.0'],
-  ['@mastra/core', '1.75.0'],
+  ['@mastra/core', '1.80.0'],
 ]);
 const withVersion = (pkg) => (PINNED_DEPS.has(pkg) ? `${pkg}@${PINNED_DEPS.get(pkg)}` : pkg);
 

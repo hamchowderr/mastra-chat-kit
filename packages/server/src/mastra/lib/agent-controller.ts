@@ -362,7 +362,8 @@ export async function getChatBrowser(resourceId?: string): Promise<ScreencastBro
   }
   const controller = await getChatAgentController();
   if (firecrawlBrowserLib) {
-    const session = await controller.getSessionByResource(resourceId ?? CHAT_RESOURCE_ID);
+    // Sessions are keyed by session id; getChatSession uses the resource id as that id.
+    const session = await controller.getSession(resourceId ?? CHAT_RESOURCE_ID);
     return firecrawlBrowserLib.firecrawlLiveView(
       firecrawlBrowserLib.getFirecrawlBrowser(),
       session?.thread.getId(),
@@ -382,11 +383,15 @@ export { AUTO_ALLOWED_TOOLS };
  * `/agent-controller/stream` and `/agent-controller/approve` routes drive the SAME session (an
  * approval must resolve on the session that parked at the gate). Without auth every
  * request is the one shared user, `CHAT_RESOURCE_ID`.
+ *
+ * The controller looks sessions up by session id, and one resource can hold several
+ * sessions, so each user's session is created with its resource id as its session id:
+ * one session per user, found again by `getSession(resourceId)`.
  */
 export async function getChatSession(resourceId: string = CHAT_RESOURCE_ID): Promise<Session> {
   const controller = await getChatAgentController();
-  const existing = await controller.getSessionByResource(resourceId);
-  const session = existing ?? (await controller.createSession({ resourceId }));
+  const existing = await controller.getSession(resourceId);
+  const session = existing ?? (await controller.createSession({ id: resourceId, resourceId }));
   // In-memory + idempotent, so re-granting each call is free.
   for (const tool of AUTO_ALLOWED_TOOLS) {
     session.grantTool(tool);

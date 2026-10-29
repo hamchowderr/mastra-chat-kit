@@ -27,7 +27,7 @@
     "overrides": {
       "@types/react": "19.2.17",
       "@types/react-dom": "19.2.3",
-      "@mastra/deployer": "1.75.0"
+      "@mastra/deployer": "1.80.0"
     }
   }
 }
