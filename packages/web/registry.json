@@ -247,7 +247,7 @@
       "title": "Chat Server (AgentController route contract)",
       "description": "The 17 Mastra endpoints the chat layer calls — threads, the AgentController stream and its approval/answer gates, what a work thread waits on, goals, observational memory, schedules, workspace and browser screencast. Register them on your own Mastra instance and supply a ChatServerDeps; nothing about this repo's agents or storage comes with it.",
       "dependencies": [
-        "@mastra/core@1.75.0",
+        "@mastra/core@1.80.0",
         "hono",
         "zod"
       ],

@@ -140,8 +140,8 @@ log('installing @mastra/core + typescript');
 {
   const { code, out } = await run(
     'npm',
-    // The oldest core the routes support: 1.75 changed the Session API they call.
-    ['install', '--silent', '@mastra/core@1.75.0', 'typescript@5.9.3'],
+    // The core the registry pins: 1.79 re-keyed Sessions by sessionId, which the routes call.
+    ['install', '--silent', '@mastra/core@1.80.0', 'typescript@5.9.3'],
     { cwd: PROJECT },
   );
   if (code !== 0) die('npm install @mastra/core failed', out);
