@@ -517,6 +517,11 @@
           "target": "components/chat-project/project-chat.tsx"
         },
         {
+          "path": "components/chat-project/welcome.tsx",
+          "type": "registry:component",
+          "target": "components/chat-project/welcome.tsx"
+        },
+        {
           "path": "components/chat-project/project-panel.tsx",
           "type": "registry:component",
           "target": "components/chat-project/project-panel.tsx"
