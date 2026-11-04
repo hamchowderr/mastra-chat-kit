@@ -387,17 +387,20 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
    * Resume a parked suspension and stream the resumed run. A suspending tool ENDS the
    * run, so the original /stream response has already closed; the resumed run streams
    * back on this /answer response instead (mastra-chat-kit-ymk). The pending prompt is
-   * cleared optimistically so it closes at once.
+   * cleared optimistically so it closes at once, and put back when the server refuses the
+   * answer (a 402 once the trial ended, say): the run is still parked, so the card must stay
+   * answerable without a reload.
    */
   const resume = useCallback(
     async (body: Record<string, unknown>) => {
-      setTranscript((s) => ({
-        ...s,
+      let parked: Pick<AgentControllerTranscript, 'pendingSuspension' | 'pendingPlan'> = {
         pendingSuspension: null,
         pendingPlan: null,
-        error: null,
-        done: false,
-      }));
+      };
+      setTranscript((s) => {
+        parked = { pendingSuspension: s.pendingSuspension, pendingPlan: s.pendingPlan };
+        return { ...s, pendingSuspension: null, pendingPlan: null, error: null, done: false };
+      });
       setStatus('streaming');
       const run = startRun(running);
       try {
@@ -413,6 +416,19 @@ export function useAgentControllerChat(options: string | UseAgentControllerChatO
             timeZone: browserTimeZone(),
           }),
         });
+        if (!res.ok) {
+          const reason = await refusalReason(res);
+          if (running.current !== run) return;
+          // Nothing resumed: the question (or plan) is still waiting, so its card comes back.
+          setTranscript((s) => ({
+            ...s,
+            pendingSuspension: s.pendingSuspension ?? parked.pendingSuspension,
+            pendingPlan: s.pendingPlan ?? parked.pendingPlan,
+            error: reason,
+          }));
+          setStatus('error');
+          return;
+        }
         await readEventStream(res, onEvent);
         if (running.current !== run) return;
         setStatus('ready');
