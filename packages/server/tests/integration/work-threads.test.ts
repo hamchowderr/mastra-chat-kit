@@ -13,7 +13,7 @@ import {
   READ_THREAD_TOOL,
   SUGGEST_THREADS_TOOL,
 } from '../../src/mastra/lib/work-thread-steering';
-import { createWorkThreads } from '../../src/mastra/lib/work-threads';
+import { createWorkThreads, workSessionId } from '../../src/mastra/lib/work-threads';
 
 /**
  * Work threads end to end through AIMock (fixtures/chat.json, "WORK THREADS"): the main
@@ -152,8 +152,7 @@ describe('work threads (AIMock)', () => {
 
     // Done and idle: its Session is torn down, and opening the thread makes a new one.
     await waitFor(
-      async () =>
-        (await controller.getSessionByResource(resourceId, `work:${threadId}`)) === undefined,
+      async () => (await controller.getSession(workSessionId(resourceId, threadId))) === undefined,
     );
     const reopened = await workThreads.sessionForThread(threadId, resourceId);
     expect(reopened?.thread.getId()).toBe(threadId);
@@ -180,11 +179,11 @@ describe('work threads (AIMock)', () => {
     });
     expect(started.agent).toBe('Planner');
     expect(workThreadOf((await threads())[0])?.agent).toEqual({ id: 'planner', name: 'Planner' });
-    const session = await controller.getSessionByResource(resourceId, `work:${started.threadId}`);
+    const session = await controller.getSession(workSessionId(resourceId, started.threadId));
     expect(session?.mode.get()).toBe('plan');
     await waitFor(async () => workThreadOf((await threads())[0])?.status !== 'working');
     // The main chat's own Session keeps its mode.
-    expect((await controller.getSessionByResource(resourceId))?.mode.get()).toBe('chat');
+    expect((await controller.getSession(resourceId))?.mode.get()).toBe('chat');
   });
 
   it('opens a thread from before agents in the first agent offered', async () => {
@@ -271,7 +270,7 @@ describe('work threads (AIMock)', () => {
       workThreadOf((await threads()).find((t) => t.id === started.threadId));
     expect((await queued())?.status).toBe('queued');
     // Nothing runs for it until a slot frees.
-    expect(await controller.getSessionByResource(resourceId, `work:${started.threadId}`)).toBe(
+    expect(await controller.getSession(workSessionId(resourceId, started.threadId))).toBe(
       undefined,
     );
     await workThreads.drain(resourceId);
