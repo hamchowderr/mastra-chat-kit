@@ -257,7 +257,7 @@ So install the other half into your Mastra project:
 npx shadcn@latest add @mastra-chat-kit/chat-server
 ```
 
-It needs `@mastra/core` 1.79.0 or newer, and the registry installs 1.80.0: the routes call
+It needs `@mastra/core` 1.79.0 or newer, and the registry installs 1.82.0: the routes call
 that Session API (`session.model.switch(modelId)`, `respondToToolApproval({ decision, toolCallId })`,
 which answers only the gate the id names, and Sessions keyed by `sessionId`). The files typecheck under `strict` and
 `exactOptionalPropertyTypes`.

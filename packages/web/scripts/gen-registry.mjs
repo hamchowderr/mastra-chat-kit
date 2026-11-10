@@ -51,7 +51,7 @@ const HOST_PKGS = new Set(['react', 'react-dom', 'next']);
 // packages/server's own pin.
 const PINNED_DEPS = new Map([
   ['shiki', '^3.23.0'],
-  ['@mastra/core', '1.80.0'],
+  ['@mastra/core', '1.82.0'],
 ]);
 const withVersion = (pkg) => (PINNED_DEPS.has(pkg) ? `${pkg}@${PINNED_DEPS.get(pkg)}` : pkg);
 
