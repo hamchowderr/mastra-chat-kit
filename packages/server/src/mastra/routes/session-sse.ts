@@ -9,6 +9,13 @@ import type { Session } from '@mastra/core/agent-controller';
  * `decorate` lets a route enrich an event before it's sent; it may be async (an approval
  * preview fetched from a host service), and events still go out in the order they came.
  * `prelude` events go out before `run` starts. On client disconnect the run is aborted and forwarding stops.
+ *
+ * `untilRunEnds` keeps the stream open after `run` resolves while the session's run is
+ * still going, until it emits `agent_end` or `error`. Core 1.77's
+ * `respondToToolSuspension` resolves at the resumed run's next boundary — including a
+ * `tool_approval_required` — not when the run ends. Approvals are answered over
+ * /agent-controller/approve (JSON, no stream), so closing at that boundary would strand
+ * every event after the approval with no response to travel on.
  */
 export function sessionEventStream({
   session,
@@ -17,6 +24,7 @@ export function sessionEventStream({
   // biome-ignore lint/suspicious/noExplicitAny: SSE payloads are heterogeneous AgentControllerEvents
   decorate = (event: any) => event,
   prelude = [],
+  untilRunEnds = false,
 }: {
   session: Session;
   signal?: AbortSignal;
@@ -25,6 +33,7 @@ export function sessionEventStream({
   decorate?: (event: any) => any | Promise<any>;
   // biome-ignore lint/suspicious/noExplicitAny: see above
   prelude?: any[];
+  untilRunEnds?: boolean;
 }): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -47,7 +56,14 @@ export function sessionEventStream({
 
       // Each event is sent after the ones before it, even when decorating one takes a while.
       let sending: Promise<void> = Promise.resolve();
+      // Whether the run has ended, and who to tell when it does (see `untilRunEnds`).
+      let ended = false;
+      let onEnd: (() => void) | null = null;
       const unsubscribe = session.subscribe((event) => {
+        if (event.type === 'agent_end' || event.type === 'error') {
+          ended = true;
+          onEnd?.();
+        }
         sending = sending.then(async () => {
           try {
             send(await decorate(event));
@@ -68,6 +84,13 @@ export function sessionEventStream({
       }
       try {
         await run();
+        if (untilRunEnds && !ended && session.run.isRunning()) {
+          await new Promise<void>((resolve) => {
+            onEnd = resolve;
+            signal?.addEventListener('abort', () => resolve(), { once: true });
+            if (ended || signal?.aborted || !session.run.isRunning()) resolve();
+          });
+        }
       } catch (err) {
         // After the events already on their way.
         await sending;
