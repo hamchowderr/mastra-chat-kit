@@ -296,6 +296,36 @@ describe('/agent-controller/answer', () => {
     expect(session.unsubscribe).toHaveBeenCalled();
   });
 
+  it('stays open through an approval in the resumed run, until the run ends', async () => {
+    const session = fakeSession();
+    let running = true;
+    // Core 1.77 resolves the resume at the run's next approval gate; the run goes on
+    // once /approve answers it, and those events must still reach this stream.
+    const respondToToolSuspension = vi.fn(async () => {
+      session.emit({ type: 'tool_approval_required', toolCallId: 'w1', toolName: 'getWeather' });
+      setTimeout(() => {
+        session.emit({ type: 'tool_end', toolCallId: 'w1', result: 'sunny' });
+        running = false;
+        session.emit({ type: 'agent_end', reason: 'complete' });
+      }, 20);
+    });
+    const withResume = { ...session, run: { isRunning: () => running }, respondToToolSuspension };
+
+    const { c } = ctx({ body: { plan: { action: 'approved' }, toolCallId: 'p1' } });
+    const res = (await answerRoute(withResume).handler(c)) as Response;
+    const events = (await res.text())
+      .split('\n\n')
+      .filter((chunk) => chunk.startsWith('data: '))
+      .map((chunk) => JSON.parse(chunk.slice('data: '.length)));
+
+    expect(events.map((e) => e.type)).toEqual([
+      'tool_approval_required',
+      'tool_end',
+      'agent_end',
+      '__done__',
+    ]);
+  });
+
   it('resumes a submitted plan with the decision object core expects', async () => {
     const session = fakeSession();
     const respondToToolSuspension = vi.fn(async () => {

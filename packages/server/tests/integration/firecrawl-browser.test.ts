@@ -232,11 +232,16 @@ describe('Firecrawl hosted browser (AIMock + mocked Firecrawl browser API, sandb
     for (const hidden of [...ACTION_TOOLS, 'browser_goto', 'generateImage', 'setGoal']) {
       expect(fork).not.toContain(hidden);
     }
-    // The fork still asked for the click, as a model might, but it never ran: no result
-    // came back for it, and no browser session was opened.
+    // The fork still asked for the click, as a model might, but it never ran: the only
+    // result is the loop's "not found" error, and no browser session was opened. (Before
+    // @mastra/core 1.82 the controller dropped a subagent's tool-error chunks, so no
+    // subagent_tool_end came back at all; 1.82 forwards them with isError.)
     const started = events.filter((e) => e.type === 'subagent_tool_start');
     expect(started.map((e) => e.subToolName)).toEqual(['browser_click']);
-    expect(events.filter((e) => e.type === 'subagent_tool_end')).toEqual([]);
+    const ended = events.filter((e) => e.type === 'subagent_tool_end');
+    expect(ended).toHaveLength(1);
+    expect(ended[0]).toMatchObject({ subToolName: 'browser_click', isError: true });
+    expect(String(ended[0]?.subToolResult)).toContain('Tool "browser_click" not found');
     expect(browserMock.sessions()).toHaveLength(before);
     expect(blob).toContain('page actions are not available to it');
   });

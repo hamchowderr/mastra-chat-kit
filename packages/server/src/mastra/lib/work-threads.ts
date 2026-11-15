@@ -4,7 +4,7 @@
  * The agent in the main chat calls `start_thread` with a title and a brief. That makes a
  * new thread for the same user, runs the agent on the brief there in the background, and
  * returns at once, so the main chat stays free. The thread runs on a Session of its own
- * (scope `work:<threadId>`), never the user's, because a Session drives one thread at a
+ * (id `<resourceId>::work:<threadId>`), never the user's, because a Session drives one thread at a
  * time.
  *
  * The thread's state lives in its metadata (`workThread`: parent, title, status), so the
@@ -68,8 +68,8 @@ export type WorkThreadsConfig = {
   /** The controller's own store: threads' metadata and the reports are written to it. */
   storage: MastraStorage;
   /**
-   * Opens the Session a work thread runs on. The default opens one per thread, scope
-   * `work:<threadId>`. A host that keeps its own session ids passes its own; it must
+   * Opens the Session a work thread runs on. The default opens one per thread, id
+   * `<resourceId>::work:<threadId>`. A host that keeps its own session ids passes its own; it must
    * never return the user's own Session.
    */
   openSession?: (
@@ -104,7 +104,7 @@ export type WorkThreadsConfig = {
   screenReport?: (text: string, thread: WorkThreadInfo) => string;
   /**
    * Tears down the Session `openSession` opened, once its thread is idle with nothing
-   * waiting. The default deletes the `work:<threadId>` session `openWorkSession` opens.
+   * waiting. The default deletes the `<resourceId>::work:<threadId>` session `openWorkSession` opens.
    */
   closeSession?: (
     controller: AgentController,
@@ -166,15 +166,19 @@ type Tracked = {
   waitingOn: string | undefined;
 };
 
-/** The default Session for a work thread: one per thread, scope `work:<threadId>`. */
+/** The Session id of a work thread: one Session per thread, beside the user's chat Session. */
+export function workSessionId(resourceId: string, threadId: string): string {
+  return `${resourceId}::work:${threadId}`;
+}
+
+/** The default Session for a work thread: one per thread, id `workSessionId()`. */
 export function openWorkSession(
   controller: AgentController,
   { resourceId, threadId }: { resourceId: string; threadId: string },
 ): Promise<Session> {
   return controller.createSession({
     resourceId,
-    id: `${resourceId}::work:${threadId}`,
-    scope: `work:${threadId}`,
+    id: workSessionId(resourceId, threadId),
     createInitialThread: false,
     threadId,
   });
@@ -185,7 +189,7 @@ export function closeWorkSession(
   controller: AgentController,
   { resourceId, threadId }: { resourceId: string; threadId: string },
 ): Promise<unknown> {
-  return controller.deleteSession({ resourceId, scope: `work:${threadId}` });
+  return controller.deleteSession({ sessionId: workSessionId(resourceId, threadId) });
 }
 
 export type WorkThreads = ReturnType<typeof createWorkThreads>;

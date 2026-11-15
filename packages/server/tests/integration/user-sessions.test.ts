@@ -26,7 +26,8 @@ describe('a Session per user (AIMock)', () => {
 
     const aliceIds = (await alice.thread.list()).map((t) => t.id);
     const bobIds = (await bob.thread.list()).map((t) => t.id);
-    expect(await controller.getSessionByResource('alice')).toBe(alice);
+    // A session's id defaults to its resourceId, so getSession finds it by that.
+    expect(await controller.getSession('alice')).toBe(alice);
     await controller.destroy();
 
     expect(aliceIds).toContain(aliceThread);

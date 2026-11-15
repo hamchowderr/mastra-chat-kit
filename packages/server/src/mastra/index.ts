@@ -8,6 +8,7 @@ configureAIMock();
 
 // 3. Mastra imports — agents/tools constructed below now see the right base URLs
 import { Mastra } from '@mastra/core/mastra';
+import type { MastraMCPToolset } from '@mastra/core/server';
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { DuckDBStore } from '@mastra/duckdb';
 import { MastraEditor } from '@mastra/editor';
@@ -125,6 +126,10 @@ const serverConfig = {
     ...createWorkspaceRoutes(chatServerDeps),
   ],
   ...(auth ? { auth } : {}),
+  // Core 1.83 serves a built-in MCP server at /api/mcp in production whenever
+  // `server.auth` is set, with every toolset by default (memory, observability,
+  // stored agents...). Narrow it to what the chat kit means to expose.
+  mcp: { toolsets: ['agents', 'workflows'] satisfies MastraMCPToolset[] },
 };
 
 export const mastra = new Mastra({
