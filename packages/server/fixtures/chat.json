@@ -625,7 +625,7 @@
       }
     },
     {
-      "_comment": "DEMO 6 — research with sources. Two sequential searchKnowledge calls (a local, deterministic tool: no network, no browser) and a cited answer. Clicking \"Always allow read tools\" on the first search lets the second one run without a card.",
+      "_comment": "DEMO 6 — research with sources. Two sequential knowledge_search calls (real Mastra Knowledge over the pages synced from packages/server/knowledge: no network, no browser) and a cited answer. Clicking \"Always allow read tools\" on the first search lets the second one run without a card.",
       "match": {
         "userMessage": "Research what the AgentController does and cite your sources.",
         "hasToolResult": false
@@ -635,7 +635,7 @@
         "toolCalls": [
           {
             "id": "toolu_demo_research_1",
-            "name": "searchKnowledge",
+            "name": "knowledge_search",
             "arguments": {
               "query": "Mastra AgentController"
             }
@@ -652,7 +652,7 @@
         "toolCalls": [
           {
             "id": "toolu_demo_research_2",
-            "name": "searchKnowledge",
+            "name": "knowledge_search",
             "arguments": {
               "query": "AgentController tool approvals"
             }
@@ -665,7 +665,7 @@
         "toolCallId": "toolu_demo_research_2"
       },
       "response": {
-        "content": "The **AgentController** wraps one agent with the orchestration a plain model stream can't carry: threads, modes, subagents, task tracking and tool approvals, all streamed to the UI as typed events (\"Overview: Mastra AgentController\"). Tool calls with side effects park at an approval gate until you approve, decline, or always-allow that category for the session (\"Overview: AgentController tool approvals\")."
+        "content": "The **AgentController** wraps one agent with the orchestration a plain model stream can't carry: threads, modes, subagents, task tracking and tool approvals, all streamed to the UI as typed events (\"Mastra AgentController\"). Tool calls with side effects park at an approval gate until you approve, decline, or always-allow that category for the session (\"Tool approvals\")."
       }
     },
 
@@ -699,13 +699,13 @@
       "match": { "userMessage": "How do I use Mastra memory?", "hasToolResult": false },
       "response": {
         "reasoning": "This is a how-to question, so I'll search the knowledge base first.",
-        "toolCalls": [{ "name": "searchKnowledge", "arguments": { "query": "Mastra memory" } }]
+        "toolCalls": [{ "name": "knowledge_search", "arguments": { "query": "Mastra memory" } }]
       }
     },
     {
       "match": { "userMessage": "How do I use Mastra memory?", "hasToolResult": true },
       "response": {
-        "content": "Based on the docs (\"Overview: Mastra memory\"), Mastra memory supports threads, working memory, and semantic recall."
+        "content": "Based on the \"Mastra memory\" page, Mastra memory supports threads, working memory, and semantic recall."
       }
     },
 
@@ -726,6 +726,49 @@
           }
         ]
       }
+    },
+    {
+      "_comment": "Research subagent searches Knowledge (tests/integration/research-knowledge.test.ts). The parent delegates to research; the subagent, a fresh agent with no memory, calls knowledge_search, which must act with the org scope Core hands nested runs on the request context. Later hops match toolCallId, the id given to the previous hop's call.",
+      "match": {
+        "userMessage": "Have the research subagent look up tool approvals in the knowledge base",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_research_kb_subagent",
+            "name": "subagent",
+            "arguments": {
+              "agentType": "research",
+              "task": "Look up how tool approvals work in the internal knowledge base."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "systemMessage": "research specialist",
+        "userMessage": "Look up how tool approvals work in the internal knowledge base.",
+        "hasToolResult": false
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "id": "toolu_research_kb_search",
+            "name": "knowledge_search",
+            "arguments": { "query": "tool approvals" }
+          }
+        ]
+      }
+    },
+    {
+      "match": { "toolCallId": "toolu_research_kb_search" },
+      "response": { "content": "Approvals are described on the \"Tool approvals\" page." }
+    },
+    {
+      "match": { "toolCallId": "toolu_research_kb_subagent" },
+      "response": { "content": "The research subagent found the Tool approvals page." }
     },
     {
       "_comment": "698.32 guard, TWO-step subagent (tests/integration/subagent-multistep.test.ts). The hello.txt subagent below answers in one text step, which never reaches the per-step state signal, so it cannot catch the browser-context throw that killed a memoryless subagent on its SECOND step (a kit patch until core 1.72.0 fixed it upstream, mastra-ai/mastra#25291). Here the subagent lists the workspace (step 1), then reports (step 2). Later hops match toolCallId, the id given to the previous hop's call. MUST precede the generic 'coding subagent' fixture (first match wins).",
@@ -806,7 +849,7 @@
     },
 
     {
-      "_comment": "Multi-tool turn: searchKnowledge AND getWeather in one assistant message (parallel tool calls), then a grounded answer. Same proven 2-call sequenceIndex shape as the weather/memory fixtures above — seq 0 issues both tools, seq 1 (after both results return) gives the final text. (A 3-deep sequence or hasToolResult gating both proved unreliable through Mastra's loop here.) (beads chg)",
+      "_comment": "Multi-tool turn: knowledge_search AND getWeather in one assistant message (parallel tool calls), then a grounded answer. Same proven 2-call sequenceIndex shape as the weather/memory fixtures above — seq 0 issues both tools, seq 1 (after both results return) gives the final text. (A 3-deep sequence or hasToolResult gating both proved unreliable through Mastra's loop here.) (beads chg)",
       "match": {
         "userMessage": "Research Tokyo and tell me the weather there",
         "sequenceIndex": 0
@@ -814,7 +857,7 @@
       "response": {
         "reasoning": "I'll look up Tokyo in the knowledge base and check its current weather.",
         "toolCalls": [
-          { "name": "searchKnowledge", "arguments": { "query": "Tokyo" } },
+          { "name": "knowledge_search", "arguments": { "query": "Tokyo" } },
           { "name": "getWeather", "arguments": { "location": "Tokyo" } }
         ]
       }
@@ -825,7 +868,7 @@
         "sequenceIndex": 1
       },
       "response": {
-        "content": "From the docs (\"Overview: Tokyo\"), Tokyo is a top travel destination — and the weather there looks clear right now."
+        "content": "The knowledge base covers this chat kit rather than Tokyo, so there's nothing to cite there — and the weather in Tokyo looks clear right now."
       }
     },
 

@@ -29,6 +29,8 @@ import {
   TerminalHeader,
   TerminalTitle,
 } from '@/components/ai-elements/terminal';
+import { Badge } from '@/components/ui/badge';
+import { HoverCardTrigger } from '@/components/ui/hover-card';
 import type { AgentControllerGoal, PendingSuspension } from '@/lib/agent-controller/events';
 import { useGeneratedImage } from '@/lib/agent-controller/use-workspace';
 import { cn } from '@/lib/utils';
@@ -39,35 +41,85 @@ import { cn } from '@/lib/utils';
  * Each takes the real data a tool produced — no static/example props.
  */
 
-export type KnowledgeResult = { title: string; url: string; snippet?: string };
+/**
+ * One source to cite. `url` is set for a web page; a Knowledge page has none, and is
+ * named by its `ref` (`org:chat-kit#memory`) instead.
+ */
+export type KnowledgeResult = { title: string; url?: string; ref?: string; snippet?: string };
 
-/** Real `searchKnowledge` results → Sources list + inline citations. */
+/** The tool whose results render as sources: Mastra Knowledge's search. */
+export const KNOWLEDGE_SEARCH_TOOL = 'knowledge_search';
+
+type KnowledgeSearchHit = {
+  type?: string;
+  page?: { name?: string; ref?: string; description?: string };
+  note?: { text?: string };
+};
+
+/**
+ * `knowledge_search` output (`{ results: [{ type: 'page' | 'note', page, note? }] }`) as
+ * sources, one per page: a page hit and a note on that page are one source, described by
+ * the note when there is one, else by the page's description. Anything else → undefined.
+ */
+export function knowledgeSearchSources(output: unknown): KnowledgeResult[] | undefined {
+  const results = (output as { results?: unknown } | undefined)?.results;
+  if (!Array.isArray(results)) return undefined;
+  const byRef = new Map<string, KnowledgeResult>();
+  for (const hit of results as KnowledgeSearchHit[]) {
+    const ref = hit?.page?.ref;
+    if (!ref || !hit.page?.name) continue;
+    const snippet = hit.note?.text ?? hit.page.description;
+    const seen = byRef.get(ref);
+    if (seen) {
+      if (hit.note?.text) seen.snippet = hit.note.text;
+      continue;
+    }
+    byRef.set(ref, { title: hit.page.name, ref, ...(snippet ? { snippet } : {}) });
+  }
+  return [...byRef.values()];
+}
+
+/** Search results → Sources list + inline citations. */
 export function KnowledgeSources({ results }: { results: KnowledgeResult[] }) {
   if (!results?.length) {
     return null;
   }
+  const keyOf = (r: KnowledgeResult) => r.url ?? r.ref ?? r.title;
   return (
     <div className="flex flex-col gap-2">
       <Sources>
         <SourcesTrigger count={results.length} />
         <SourcesContent>
           {results.map((r) => (
-            <Source key={r.url} href={r.url} title={r.title} />
+            <Source key={keyOf(r)} href={r.url} title={r.title} />
           ))}
         </SourcesContent>
       </Sources>
       <p className="text-muted-foreground text-sm">
         Citations:{' '}
         {results.map((r, i) => (
-          <InlineCitation key={r.url}>
+          <InlineCitation key={keyOf(r)}>
             <InlineCitationText>[{i + 1}]</InlineCitationText>
             <InlineCitationCard>
-              <InlineCitationCardTrigger sources={[r.url]} />
+              {r.url ? (
+                <InlineCitationCardTrigger sources={[r.url]} />
+              ) : (
+                // The stock trigger shows a URL's hostname; a Knowledge page shows its name.
+                <HoverCardTrigger asChild>
+                  <Badge className="ml-1 rounded-full" variant="secondary">
+                    {r.title}
+                  </Badge>
+                </HoverCardTrigger>
+              )}
               <InlineCitationCardBody>
                 <InlineCitationCarousel>
                   <InlineCitationCarouselContent>
                     <InlineCitationCarouselItem>
-                      <InlineCitationSource title={r.title} url={r.url} description={r.snippet} />
+                      <InlineCitationSource
+                        title={r.title}
+                        url={r.url ?? r.ref}
+                        description={r.snippet}
+                      />
                     </InlineCitationCarouselItem>
                   </InlineCitationCarouselContent>
                 </InlineCitationCarousel>

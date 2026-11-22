@@ -39,8 +39,10 @@ export type ChatFeatures = {
     data: boolean;
   };
   generateImage: boolean;
-  /** getWeather + searchKnowledge, the deterministic demo tools. */
+  /** getWeather, the deterministic demo tool. */
   demoTools: boolean;
+  /** Mastra Knowledge (lib/chat-knowledge.ts): the knowledge_* tools, pins and the folder sync. */
+  knowledge: boolean;
   /** Anthropic prompt-cache breakpoints (lib/turn-context.ts). */
   promptCache: boolean;
   /** The start_thread tool: work handed to threads of their own (lib/work-threads.ts). */
@@ -54,6 +56,7 @@ export const FULL_FEATURES: ChatFeatures = {
   subagents: { code: true, research: true, writer: true, review: true, data: true },
   generateImage: true,
   demoTools: true,
+  knowledge: true,
   promptCache: true,
   workThreads: true,
 };
@@ -123,6 +126,7 @@ export const features: ChatFeatures = resolveFeatures({
   },
   generateImage: env.TOOL_GENERATE_IMAGE,
   demoTools: env.TOOL_DEMO,
+  knowledge: env.TOOL_KNOWLEDGE,
   promptCache: env.PROMPT_CACHE,
   workThreads: env.WORK_THREADS,
 });

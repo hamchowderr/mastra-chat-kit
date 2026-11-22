@@ -68,6 +68,10 @@ export const BROWSER_ACTION_TOOLS = [
  * an always-allow on them then approves just that one call.
  *
  * - `mastra_workspace_delete`: destructive, so it asks every time.
+ * - `knowledge_page`: one tool creates, edits, moves, merges AND deletes pages, so an
+ *   "Always allow" on edits must not cover it; each call asks.
+ * - `knowledge_pin`: a pin puts a page in the context of every run in its audience, a
+ *   change to what the agent sees on every turn, not an edit; each call asks.
  * - `setGoal`, `start_schedule`, `stop_schedule`, `subagent`: each hands the
  *   agent more autonomy (a standing objective, a recurring background run, a
  *   delegated run). `ToolCategory` is a closed set, so they cannot get a category
@@ -83,7 +87,10 @@ export const BROWSER_ACTION_TOOLS = [
 const CATEGORIES: Record<string, ToolCategory> = {
   // Read: looks things up, changes nothing.
   getWeather: 'read',
-  searchKnowledge: 'read',
+  // Knowledge (lib/chat-knowledge.ts): searching, reading and listing pages change nothing.
+  knowledge_search: 'read',
+  knowledge_read: 'read',
+  knowledge_list: 'read',
   list_schedules: 'read',
   doltQuery: 'read',
   doltHistory: 'read',
@@ -105,6 +112,8 @@ const CATEGORIES: Record<string, ToolCategory> = {
 
   // Edit: changes files or data, but runs nothing.
   doltWrite: 'edit',
+  // Adds, restamps or removes a note on a Knowledge page.
+  knowledge_note: 'edit',
   [FILESYSTEM.WRITE_FILE]: 'edit',
   [FILESYSTEM.EDIT_FILE]: 'edit',
   [FILESYSTEM.AST_EDIT]: 'edit',

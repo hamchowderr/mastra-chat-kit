@@ -107,9 +107,9 @@ await step('0. weather — the approval gate', async () => {
 await step('1. research — sources, always-allow', async () => {
   await newChat();
   await send('Research what the AgentController does and cite your sources.');
-  await see('Search knowledge?');
+  await see('Knowledge search?');
   await click(/Always allow read tools/);
-  await see(/Overview: AgentController tool approvals/);
+  await see(/\("Tool approvals"\)/);
   await see(/Tool calls with side effects park at an approval gate/);
   await shot('research-sources');
 });

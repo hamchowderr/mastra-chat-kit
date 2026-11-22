@@ -57,6 +57,8 @@ const { checks } = await import('@mastra/evals/checks');
 const { Mastra } = await import('@mastra/core/mastra');
 const { InMemoryStore } = await import('@mastra/core/storage');
 const { chatAgent } = await import('../src/mastra/agents/chat');
+// The how-to prompts search Knowledge, so give it the sample pages, as the server does at boot.
+await (await import('../src/mastra/lib/chat-knowledge')).syncChatKnowledge();
 
 const mastra = new Mastra({ agents: { chat: chatAgent }, storage: new InMemoryStore() });
 const agent = mastra.getAgent('chat');
@@ -66,7 +68,7 @@ type Case = { input: string; gates: MastraScorer<any, any, any, any>[] };
 
 const weather = () => [checks.calledTool('getWeather'), checks.noToolErrors()];
 const howTo = () => [
-  checks.calledTool('searchKnowledge'),
+  checks.calledTool('knowledge_search'),
   checks.didNotCall('getWeather'),
   checks.noToolErrors(),
 ];

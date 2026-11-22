@@ -26,8 +26,9 @@ import {
   AskUserPrompt,
   GeneratedImage,
   GoalCard,
-  type KnowledgeResult,
+  KNOWLEDGE_SEARCH_TOOL,
   KnowledgeSources,
+  knowledgeSearchSources,
   StepTrace,
 } from '@/components/chat/tool-views';
 import { ApprovalCards, SubmittedPlanCard } from '@/components/chat/transcript';
@@ -432,9 +433,7 @@ function renderContent(
 
     const hasOutput = result !== undefined;
     const searchResults =
-      call.name === 'searchKnowledge'
-        ? (output as { results?: KnowledgeResult[] } | undefined)?.results
-        : undefined;
+      call.name === KNOWLEDGE_SEARCH_TOOL ? knowledgeSearchSources(output) : undefined;
     return (
       <div className="flex flex-col gap-2" key={i}>
         <Tool>
