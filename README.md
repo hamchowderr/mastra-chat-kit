@@ -261,7 +261,8 @@ them default to the full kit, so an existing server changes nothing.
 | `BROWSER_PROVIDER` | unset (auto) | Which browser, not an off switch. `viewer`: a local Chrome driven through the sandbox. `firecrawl`: hosted [Firecrawl browser sessions](https://docs.firecrawl.dev/features/browser) through `@mastra/browser-firecrawl`, needing `FIRECRAWL_API_KEY` and no sandbox. Unset: `firecrawl` when the key is set and the sandbox is off, else `viewer` when the sandbox is on, else none. A provider whose needs are missing gives no browser. |
 | `SUBAGENT_CODE` · `_RESEARCH` · `_WRITER` · `_REVIEW` · `_DATA` | `true` | That specialist is not offered. Each is also dropped when what it works with is missing: `code` needs the sandbox, `research` Firecrawl or the browser, `data` Dolt. With none left there is no `subagent` tool. |
 | `TOOL_GENERATE_IMAGE` | `true` | No `generateImage`. |
-| `TOOL_DEMO` | `true` | No `getWeather` / `searchKnowledge` demo tools. |
+| `TOOL_DEMO` | `true` | No `getWeather` demo tool. |
+| `TOOL_KNOWLEDGE` | `true` | No Mastra Knowledge: no `knowledge_*` tools on the chat agent or the research specialist, no Studio Knowledge page, no folder sync at boot. See [Knowledge](#-knowledge-the-agents-knowledge-base). |
 | `PROMPT_CACHE` | `true` | No Anthropic prompt-cache breakpoints, so every model call pays full price for the tool schemas and instructions it resends. On, three breakpoints go out (`lib/turn-context.ts`): after the instructions (caching the tools and instructions), after the project's stable turn-context sections, and on the conversation tail, so each step of a tool loop reads the one before it. Writes cost 1.25x the input price and reads 0.1x; the model caches nothing below its minimum prompt (4096 tokens on Claude Haiku 4.5). Other providers ignore the markers. `pnpm --filter @mastra-chat-kit/server measure:cache` measures it on a real model. |
 
 One capability is off until you set a key:
@@ -423,6 +424,20 @@ Prefer Postgres (Supabase / Neon / RDS)? It's a small, self-contained swap — s
 
 ---
 
+## 📚 Knowledge: the agent's knowledge base
+
+The chat agent answers how-to questions from **[Mastra Knowledge](https://mastra.ai/docs/knowledge/overview)** (`@mastra/core/knowledge`, experimental since core 1.82): markdown pages stored in the same libSQL database as memory, in the `org:chat-kit` scope, searched by keyword and by meaning (local fastembed embeddings, no API key).
+
+- **Filled from a folder.** At every boot the server mirrors `KNOWLEDGE_DIR` (default: the sample folder `packages/server/knowledge`) into Knowledge: each markdown file is a page at its path without `.md`, an edited file updates its page, and a deleted file has its page removed. Unchanged pages are not rewritten or re-embedded. `README.md` files are skipped; a frontmatter `name` / `description` sets the page's. A folder that doesn't exist syncs nothing.
+- **Searched and cited.** The chat agent gets `knowledge_search`, `knowledge_read` and `knowledge_list` (the `read` category: one approval card, or **Always allow read tools**), and the UI renders each search as **Sources** with inline citations. The research specialist gets the read tools only.
+- **Written with approval.** Asked to remember something, the agent adds a note (`knowledge_note`, the `edit` category) or a page (`knowledge_page`, which can also delete, so it asks every time). `knowledge_pin` puts a page in the agent's context every turn, and also asks every time. A user's own facts go in their `resource:` scope.
+- **Browsed in Studio.** The Knowledge page shows the tree, the graph and search (`KNOWLEDGE_ROUTES`).
+- **Reused elsewhere.** `packages/server/src/mastra/lib/knowledge.ts` is env-free: `createChatKnowledge`, a `NoteSource` interface with `folderSource`, and `syncNotes`. Another project copies it and either syncs the same folder or points its own Knowledge at the same database and holds `org:chat-kit`. A Notion or GitHub importer is another `NoteSource`.
+
+Knowledge's API is alpha: `@mastra/core` is pinned exactly, so re-test it on every bump.
+
+---
+
 ## 🕰️ Optional: versioned data (Dolt)
 
 Separate from the app's own storage, the kit ships an **optional** integration with **[Dolt](https://www.dolthub.com)** — a SQL database that versions data the way Git versions code. It speaks the MySQL wire protocol, so it's a normal `mysql2` connection; the only special part is that every write ends in a `DOLT_COMMIT`.
@@ -456,6 +471,7 @@ pnpm --filter @mastra-chat-kit/server dev    # server + Studio → http://localh
 - 🧰 **Tools** — browse every tool the agent can call and invoke it by hand
 - 🧠 **Memory & threads** — working memory + every conversation, persisted to libSQL
 - 🧬 **Observational memory** — the durable, cross-chat facts the background Observer distills
+- 📚 **Knowledge** — the tree, graph and search over the knowledge pages
 - 🔭 **Traces** — per-run agent / tool / LLM spans
 - ✅ **Scorers** — score runs against the eval datasets
 

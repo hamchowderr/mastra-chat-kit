@@ -64,6 +64,10 @@ ENV PORT=4111
 ENV MASTRA_STUDIO_PATH=/app/.mastra/output/studio
 
 COPY --from=build --chown=mastra:nodejs /app/packages/server/.mastra/output ./.mastra/output
+# The sample Knowledge folder, synced into Knowledge at boot. KNOWLEDGE_DIR defaults to
+# ./knowledge, which resolves against this WORKDIR (/app). Mount your own folder there, or
+# point KNOWLEDGE_DIR elsewhere, to replace the samples.
+COPY --from=build --chown=mastra:nodejs /app/packages/server/knowledge ./knowledge
 
 # The runtime user's home, with fastembed's model already in its cache (see the build
 # stage). The user is created with -M, so without this /home/mastra does not exist, and

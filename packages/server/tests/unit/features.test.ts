@@ -2,7 +2,12 @@ import { tmpdir } from 'node:os';
 import type { AgentControllerSubagent } from '@mastra/core/agent-controller';
 import { RequestContext } from '@mastra/core/request-context';
 import { describe, expect, it } from 'vitest';
-import { chatInstructions, chatTools, webSearchInstructions } from '../../src/mastra/agents/chat';
+import {
+  chatInstructions,
+  chatTools,
+  createChatAgent,
+  webSearchInstructions,
+} from '../../src/mastra/agents/chat';
 import { chatSubagents, PLAN_MODE_INSTRUCTIONS } from '../../src/mastra/lib/agent-controller';
 import {
   type ChatFeatures,
@@ -33,7 +38,7 @@ describe('feature switches — defaults', () => {
   it('the full kit keeps every tool and specialist', () => {
     const f = resolveFeatures(FULL_FEATURES, { dolt: true });
     expect(Object.keys(chatTools(f))).toEqual(
-      expect.arrayContaining(['getWeather', 'searchKnowledge', 'generateImage', 'setGoal']),
+      expect.arrayContaining(['getWeather', 'generateImage', 'setGoal']),
     );
     expect(ids(f)).toEqual(['code', 'research', 'writer', 'review', 'data']);
   });
@@ -194,6 +199,7 @@ describe('feature switches — a narrow assistant', () => {
       subagents: { code: true, research: true, writer: true, review: false, data: true },
       generateImage: false,
       demoTools: false,
+      knowledge: false,
       promptCache: false,
       workThreads: false,
     },
@@ -204,19 +210,31 @@ describe('feature switches — a narrow assistant', () => {
     expect(ids(narrow)).toEqual(['writer']);
   });
 
-  it('drops the demo tools and image generation', () => {
+  it('drops the demo tool, Knowledge and image generation', () => {
     const tools = Object.keys(chatTools(narrow));
-    for (const absent of ['getWeather', 'searchKnowledge', 'generateImage']) {
+    for (const absent of ['getWeather', 'generateImage']) {
       expect(tools).not.toContain(absent);
     }
     const text = chatInstructions(narrow);
-    for (const absent of ['getWeather', 'searchKnowledge', 'generateImage']) {
+    for (const absent of ['getWeather', 'knowledge_search', 'generateImage']) {
       expect(text).not.toContain(absent);
     }
+    expect(createChatAgent(narrow).getKnowledge()).toBeUndefined();
+    expect(createChatAgent(FULL_FEATURES).getKnowledge()).toBeDefined();
   });
 
-  it('research loses searchKnowledge when the demo tools are off', () => {
+  it('research keeps the Knowledge read tools without the demo tools, and never the write tools', () => {
     const f = resolveFeatures({ ...FULL_FEATURES, demoTools: false }, { dolt: false });
+    const research = chatSubagents(f).find((s) => s.id === 'research');
+    expect(Object.keys(research?.tools ?? {}).sort()).toEqual([
+      'knowledge_list',
+      'knowledge_read',
+      'knowledge_search',
+    ]);
+  });
+
+  it('research has no tools of its own with Knowledge off', () => {
+    const f = resolveFeatures({ ...FULL_FEATURES, knowledge: false }, { dolt: false });
     const research = chatSubagents(f).find((s) => s.id === 'research');
     expect(Object.keys(research?.tools ?? {})).toEqual([]);
   });

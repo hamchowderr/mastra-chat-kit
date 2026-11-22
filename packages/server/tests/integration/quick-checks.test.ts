@@ -39,10 +39,10 @@ describe('Quick Check gates (AIMock)', () => {
     ).toBe('passed');
   });
 
-  it('how-to: calls searchKnowledge and not getWeather', async () => {
+  it('how-to: calls knowledge_search and not getWeather', async () => {
     expect(
       await verdict('How do I use Mastra memory?', [
-        checks.calledTool('searchKnowledge'),
+        checks.calledTool('knowledge_search'),
         checks.didNotCall('getWeather'),
         checks.noToolErrors(),
       ]),

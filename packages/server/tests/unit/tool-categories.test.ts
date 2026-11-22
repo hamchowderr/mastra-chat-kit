@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type FirecrawlMock, startFirecrawlMock } from '../../scripts/firecrawl-mock';
 import { chatTools } from '../../src/mastra/agents/chat';
 import { AUTO_ALLOWED_TOOLS, chatSubagents } from '../../src/mastra/lib/agent-controller';
+import { chatKnowledge } from '../../src/mastra/lib/chat-knowledge';
 import { FULL_FEATURES, resolveFeatures } from '../../src/mastra/lib/features';
 import { createFirecrawlClient, loadFirecrawlTools } from '../../src/mastra/lib/firecrawl';
 import { createFirecrawlBrowser } from '../../src/mastra/lib/firecrawl-browser';
@@ -78,6 +79,8 @@ function exposedToolNames(): Set<string> {
   const full = resolveFeatures(FULL_FEATURES, { dolt: true });
   const names = new Set<string>([
     ...Object.keys(chatTools(full)),
+    // The chat agent's Knowledge tools, attached through its `knowledge` option.
+    ...Object.keys(chatKnowledge.createTools()),
     ...firecrawlNames,
     ...browserNames,
   ]);
@@ -130,6 +133,25 @@ describe('tool names match what the agent is offered', () => {
     expect(resolveToolCategory('list_schedules')).toBe('read');
     expect(READ_TOOLS).toContain('list_schedules');
     expect(PLAN_MODE_TOOLS).toContain('list_schedules');
+  });
+});
+
+describe('Knowledge tools: reads ask once per grant, writes are gated', () => {
+  it('search, read and list are read tools, in Plan mode and a forked run', () => {
+    for (const name of ['knowledge_search', 'knowledge_read', 'knowledge_list']) {
+      expect(resolveToolCategory(name)).toBe('read');
+      expect(PLAN_MODE_TOOLS).toContain(name);
+      expect(FORKED_RUN_TOOLS).toContain(name);
+    }
+  });
+
+  it('a note is an edit; page writes (which can delete) and pins ask every time', () => {
+    expect(resolveToolCategory('knowledge_note')).toBe('edit');
+    for (const name of ['knowledge_page', 'knowledge_pin']) {
+      expect(resolveToolCategory(name)).toBeNull();
+      expect(PLAN_MODE_TOOLS).not.toContain(name);
+      expect(FORKED_RUN_TOOLS).not.toContain(name);
+    }
   });
 });
 

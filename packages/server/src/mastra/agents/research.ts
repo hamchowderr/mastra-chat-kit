@@ -1,8 +1,9 @@
 import type { AgentControllerSubagent } from '@mastra/core/agent-controller';
 import { env } from '../../lib/env';
+import { chatKnowledge } from '../lib/chat-knowledge';
 import { type ChatFeatures, FULL_FEATURES } from '../lib/features';
 import { FIRECRAWL_TOOLS } from '../lib/firecrawl';
-import { searchKnowledge } from './chat';
+import { READ_ONLY_TOOLS } from '../lib/knowledge';
 
 /**
  * # Research Subagent (mastra-chat-kit)
@@ -21,9 +22,11 @@ import { searchKnowledge } from './chat';
  * The Firecrawl browser (BROWSER_PROVIDER=firecrawl) is not given to it. Mastra runs
  * subagent tools with no approval gate, so it would click and type unasked; that provider
  * needs the Firecrawl key, so research always has firecrawl_scrape to read pages.
- * It also has `searchKnowledge` while the demo tools are on. A non-forked subagent can't
- * see the parent conversation, so the delegating agent passes the full question as the
- * task.
+ * With Knowledge on it also gets Knowledge's read tools (knowledge_search, knowledge_read,
+ * knowledge_list) and their instructions, never the write tools: Mastra runs subagent
+ * tools with no approval gate. They act with the parent run's org scope, which Core
+ * passes down to nested runs on the request context. A non-forked subagent can't see the
+ * parent conversation, so the delegating agent passes the full question as the task.
  */
 export function researchSubagentFor(f: ChatFeatures): AgentControllerSubagent {
   const web = f.firecrawl
@@ -39,7 +42,11 @@ export function researchSubagentFor(f: ChatFeatures): AgentControllerSubagent {
 Workflow:
 ${[
   web,
-  ...(f.demoTools ? ['- Use searchKnowledge for the internal knowledge base.'] : []),
+  ...(f.knowledge
+    ? [
+        '- Search the internal knowledge base with knowledge_search, and read the pages you rely on.',
+      ]
+    : []),
   '- Cross-check when it matters; note disagreements between sources.',
 ].join('\n')}
 
@@ -48,9 +55,11 @@ Answer format:
 - Cite the sources you actually used (URLs you read / document titles) — never fabricate a citation.
 - If you couldn't verify something, say so plainly.
 
-You cannot see the parent conversation, so treat the task as self-contained.`,
+You cannot see the parent conversation, so treat the task as self-contained.${
+      f.knowledge ? `\n\n${chatKnowledge.getInstructions(READ_ONLY_TOOLS)}` : ''
+    }`,
     defaultModelId: env.CHAT_MODEL,
-    tools: f.demoTools ? { searchKnowledge } : {},
+    tools: f.knowledge ? chatKnowledge.createTools(READ_ONLY_TOOLS) : {},
     // The controller carries the Firecrawl tools (lib/agent-controller.ts); this lets the
     // specialist use them too.
     ...(f.firecrawl ? { allowedControllerTools: [...FIRECRAWL_TOOLS] } : {}),

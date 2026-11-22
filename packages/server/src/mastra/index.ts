@@ -15,6 +15,7 @@ import { MastraEditor } from '@mastra/editor';
 import { fastembed } from '@mastra/fastembed';
 import { PinoLogger } from '@mastra/loggers';
 import { MastraStorageExporter, Observability, SensitiveDataFilter } from '@mastra/observability';
+import { KNOWLEDGE_ROUTES, MASTRA_KNOWLEDGE_PRINCIPALS_KEY } from '@mastra/server/server-adapter';
 import { embed } from 'ai';
 import { chatAgent } from './agents/chat';
 import {
@@ -27,7 +28,9 @@ import {
   WORKSPACE_ROOT,
 } from './lib/agent-controller';
 import { createServerAuth } from './lib/auth';
+import { chatKnowledge, syncChatKnowledge } from './lib/chat-knowledge';
 import { doltConfigured, ensureDatabase } from './lib/dolt';
+import { features } from './lib/features';
 import { getImage } from './lib/image-store';
 import { createMcpServer } from './lib/mcp';
 import { getSharedStore, getSharedVector, MESSAGE_VECTOR_INDEX } from './lib/memory';
@@ -119,11 +122,33 @@ const chatServerDeps: ChatServerDeps = {
 
 const auth = createServerAuth(env.MASTRA_JWT_SECRET, CHAT_RESOURCE_ID);
 
+/** The slice of the Hono context the Knowledge principals middleware touches. */
+type KnowledgeRouteContext = {
+  get(key: 'requestContext'): { set(key: string, value: unknown): void } | undefined;
+};
+
 const serverConfig = {
   apiRoutes: [
     ...createThreadRoutes(chatServerDeps),
     ...createControllerRoutes(chatServerDeps),
     ...createWorkspaceRoutes(chatServerDeps),
+    // Studio's Knowledge page: a read-only tree, graph and search over the pages, served
+    // under /api/knowledge and gated by the same auth as the rest of /api/*.
+    ...(features.knowledge ? KNOWLEDGE_ROUTES : []),
+  ],
+  // With auth on, the Knowledge routes refuse a caller whose Knowledge principals aren't
+  // set. The only callers holding a token are the web proxy, which forwards none of these
+  // routes, and operators with the shared secret, who can mint a token for any user
+  // anyway, so each one reads the whole instance. Without auth the routes read
+  // everything regardless (local dev only).
+  middleware: [
+    {
+      path: '/api/knowledge/*',
+      handler: async (c: KnowledgeRouteContext, next: () => Promise<void>) => {
+        c.get('requestContext')?.set(MASTRA_KNOWLEDGE_PRINCIPALS_KEY, 'all');
+        await next();
+      },
+    },
   ],
   ...(auth ? { auth } : {}),
   // Core 1.83 serves a built-in MCP server at /api/mcp in production whenever
@@ -139,6 +164,9 @@ export const mastra = new Mastra({
   // unregistered, its init() moves chatAgent onto an internal Mastra with no
   // tracing, and no run creates spans (mastra-chat-kit-9m3).
   agentControllers: { chat: getChatAgentControllerInstance() },
+  // Registered so Studio's Knowledge explorer (KNOWLEDGE_ROUTES) can browse it. The
+  // instance has its own store (the shared libSQL one), so agents use it either way.
+  ...(features.knowledge ? { knowledge: { main: chatKnowledge } } : {}),
   mcpServers: { baseMcp: mcpServer },
   storage,
   logger: new PinoLogger({
@@ -156,3 +184,15 @@ export const mastra = new Mastra({
   }),
   editor: new MastraEditor(),
 });
+
+// Mirror KNOWLEDGE_DIR into Knowledge before serving, so the agent answers from the
+// folder as it is now. A failed sync is logged and the pages already stored still serve.
+if (features.knowledge) {
+  await syncChatKnowledge().then(
+    (counts) => {
+      if (counts)
+        mastra.getLogger().info('Knowledge synced', { dir: env.KNOWLEDGE_DIR, ...counts });
+    },
+    (error: unknown) => mastra.getLogger().error('Knowledge sync failed', { error }),
+  );
+}
