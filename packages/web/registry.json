@@ -340,7 +340,9 @@
         "streamdown"
       ],
       "registryDependencies": [
+        "badge",
         "button",
+        "hover-card",
         "@mastra-chat-kit/agent",
         "@mastra-chat-kit/code-block",
         "@mastra-chat-kit/context",

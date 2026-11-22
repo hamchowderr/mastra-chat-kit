@@ -119,8 +119,8 @@ via `defaultOptions.providerOptions.anthropic.thinking`), AIMock off, keys via I
 |---|---|
 | Response (text) | model text |
 | Reasoning | Anthropic extended thinking |
-| Tool | `getWeather` / `searchKnowledge` / `generateImage` + the workspace tools |
-| Sources + InlineCitation | `searchKnowledge` results mapped via `tool-views` |
+| Tool | `getWeather` / `knowledge_search` / `generateImage` + the workspace tools |
+| Sources + InlineCitation | `knowledge_search` results (Mastra Knowledge pages) mapped via `knowledgeSearchSources` in `tool-views` |
 | Image | `generateImage` tool (OpenAI `gpt-image-1-mini`, WebP/low) |
 | Confirmation | the controller approval gate (every side-effecting tool) |
 | Task | `task_write` → `task_updated` |

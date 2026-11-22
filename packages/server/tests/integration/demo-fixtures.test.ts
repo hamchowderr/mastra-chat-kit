@@ -247,7 +247,11 @@ describe('demo flows resolve to their own fixtures (docs/demo.md)', () => {
     );
     expectNoFallThrough(journal);
     expectHops(journal, ['toolu_demo_research_1', 'toolu_demo_research_2']);
-    expect(text(events)).toContain('Overview: AgentController tool approvals');
+    // The searches are real Knowledge over the pages index.ts synced from knowledge/ at
+    // boot, so the tool results name those pages and the answer cites them.
+    expect(text(events)).toContain('org:chat-kit#agent-controller');
+    expect(text(events)).toContain('org:chat-kit#guides/tool-approvals');
+    expect(text(events)).toContain('(\\"Tool approvals\\")');
     // Every request this flow made went to AIMock's model/image endpoints — no browser.
     expect(text(events)).not.toContain('browser');
   });

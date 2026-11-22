@@ -64,11 +64,15 @@ test('gates getWeather behind approval, then answers from the tool', async ({ pa
   await expect(convo(page).getByText(/los angeles looks clear/i)).toBeVisible();
 });
 
-test('reasons, calls searchKnowledge on approval, and answers', async ({ page }) => {
+test('reasons, searches Knowledge on approval, and answers from the synced page', async ({
+  page,
+}) => {
   await send(page, 'How do I use Mastra memory?');
-  await expect(convo(page).getByRole('button', { name: /searchKnowledge/ })).toBeVisible();
-  await approveTool(page, 'searchKnowledge');
-  await expect(convo(page).getByText(/Overview: Mastra memory/)).toBeVisible();
+  await expect(convo(page).getByRole('button', { name: /knowledge_search/ })).toBeVisible();
+  await approveTool(page, 'knowledge_search');
+  // The real search found the page synced from packages/server/knowledge/memory.md.
+  await expect(convo(page).getByText(/Used \d+ sources/)).toBeVisible();
+  await expect(convo(page).getByText(/"Mastra memory" page/)).toBeVisible();
 });
 
 test('saves the finished chat to the history sidebar', async ({ page }) => {

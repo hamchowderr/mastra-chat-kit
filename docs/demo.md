@@ -133,14 +133,16 @@ What's the weather in Los Angeles?
 Research what the AgentController does and cite your sources.
 ```
 
-- A collapsed **reasoning** block, then **Search knowledge?**
+- A collapsed **reasoning** block, then **Knowledge search?**
 - Click **Always allow read tools**. The second search runs **without** a card: the
   grant covers every read tool for the rest of the session.
-- Two searchKnowledge cards, each with **Used 2 sources** and **Citations: [1] [2]**
-  (hover a citation). Then the answer, citing both documents by title.
+- Two knowledge_search cards, each with **Used N sources** and **Citations: [1] …**
+  (hover a citation for the page name, ref and description). Then the answer, citing
+  the **Mastra AgentController** and **Tool approvals** pages by name.
 
-No network is involved: `searchKnowledge` is a local tool returning deterministic
-documents. The `docs.example.com` links are placeholders, so **don't click them**.
+No network is involved: `knowledge_search` is real Mastra Knowledge over the pages the
+server synced at boot from `packages/server/knowledge/`, in the local libSQL database.
+The sources are Knowledge pages, not web links.
 
 ### 2. Plan mode → approve → live checklist (~45 s)
 

@@ -72,8 +72,8 @@ export const CHAT_RESOURCE_ID = 'chat-kit-user';
 /**
  * The specialist roster for a set of RESOLVED features (lib/features.ts — `data` is
  * already off without Dolt, `code` without a sandbox, `research` without Firecrawl or
- * a browser). Research reads the web through whichever of those is on, and keeps
- * `searchKnowledge` only while the demo tools are on.
+ * a browser). Research reads the web through whichever of those is on, and gets
+ * Knowledge's read tools while Knowledge is on.
  */
 export function chatSubagents(f: ChatFeatures): AgentControllerSubagent[] {
   // Each gets today's date after its own instructions, and the same cache breakpoints, as
