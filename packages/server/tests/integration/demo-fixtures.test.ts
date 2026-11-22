@@ -47,6 +47,10 @@ beforeAll(async () => {
   AUTO_ALLOWED_TOOLS = ac.AUTO_ALLOWED_TOOLS;
   const { createChatAgentController } = ac;
   const { getChatWorkspace } = await import('../../src/mastra/lib/workspace');
+  // The app syncs the sample knowledge folder at boot (index.ts), which this file does not
+  // import; sync it here so demo 6 searches the same pages on a fresh database.
+  const { syncChatKnowledge } = await import('../../src/mastra/lib/chat-knowledge');
+  await syncChatKnowledge();
   // The live wiring: ONE shared workspace (filesystem + sandbox + a lazy browser that
   // never launches here) on both the chat agent and the controller.
   controller = createChatAgentController({
@@ -247,8 +251,8 @@ describe('demo flows resolve to their own fixtures (docs/demo.md)', () => {
     );
     expectNoFallThrough(journal);
     expectHops(journal, ['toolu_demo_research_1', 'toolu_demo_research_2']);
-    // The searches are real Knowledge over the pages index.ts synced from knowledge/ at
-    // boot, so the tool results name those pages and the answer cites them.
+    // The searches are real Knowledge over the pages synced from knowledge/ (beforeAll,
+    // as index.ts does at boot), so the tool results name those pages and the answer cites them.
     expect(text(events)).toContain('org:chat-kit#agent-controller');
     expect(text(events)).toContain('org:chat-kit#guides/tool-approvals');
     expect(text(events)).toContain('(\\"Tool approvals\\")');
