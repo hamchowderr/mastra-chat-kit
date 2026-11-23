@@ -171,6 +171,10 @@ describe("today's date in subagents (AIMock)", () => {
     const events = await turn('u-date-fork', 'Date test: ask a forked subagent what day it is.');
 
     expect(JSON.stringify(events)).toContain('The forked subagent answered.');
+    // Every model step carries the date once: a tool hop replaces it, never adds another.
+    for (const { system } of systemsOf(sent)) {
+      expect(system.split('Current date and time').length - 1).toBeLessThanOrEqual(1);
+    }
     // Two requests carry the delegate call: the fork's own (it ends on the cloned call)
     // and the parent's hop after it. Both are the chat agent, and both carry the date.
     const withCall = systemsOf(sent).filter(({ body }) => body.includes('toolu_date_fork'));
@@ -186,6 +190,9 @@ describe("today's date in subagents (AIMock)", () => {
     const events = await turn('u-date-writer', 'Date test: ask the writer what day it is.');
 
     expect(JSON.stringify(events)).toContain('The writer answered.');
+    for (const { system } of systemsOf(sent)) {
+      expect(system.split('Current date and time').length - 1).toBeLessThanOrEqual(1);
+    }
     const writer = systemsOf(sent).find(
       ({ body, system }) =>
         body.includes('Writer date task') && !system.includes('Never fabricate tool results'),
