@@ -158,6 +158,28 @@ export async function turnContextParts(
   return { stable, volatile };
 }
 
+/**
+ * Marks the system messages the turn context adds, in their provider options (a key
+ * no provider reads), so a later step can find and replace them.
+ */
+export const TURN_CONTEXT_TAG = { chatKit: { turnContext: true } } as const;
+
+/** Whether `message` is one the turn context added on an earlier step. */
+export function isTurnContextMessage(message: CoreMessage): boolean {
+  const options = message.providerOptions as { chatKit?: { turnContext?: unknown } } | undefined;
+  return options?.chatKit?.turnContext === true;
+}
+
+/** A turn-context system message, tagged, optionally ending on a cache breakpoint. */
+function turnContextMessage(content: string, breakpoint: boolean): CoreSystemMessage {
+  const message: CoreSystemMessage = {
+    role: 'system',
+    content,
+    providerOptions: { ...TURN_CONTEXT_TAG },
+  };
+  return breakpoint ? withBreakpoint(message) : message;
+}
+
 /** `message` with Anthropic's cache breakpoint added to its provider options. */
 function withBreakpoint<M extends CoreMessage>(message: M): M {
   const options = message.providerOptions;
@@ -182,22 +204,27 @@ async function withTurnContextMessages<M extends CoreMessage>(
   promptCache: boolean,
 ): Promise<(M | CoreSystemMessage)[]> {
   const { stable, volatile } = await turnContextParts(sections, args);
+  // What an earlier step added is replaced, not repeated.
+  const own = prefix.filter((message) => !isTurnContextMessage(message));
   if (!promptCache) {
     const content = [stable, volatile].filter(Boolean).join('\n\n');
-    return content ? [...prefix, { role: 'system' as const, content }] : [...prefix];
+    return content ? [...own, turnContextMessage(content, false)] : own;
   }
-  const last = prefix.length - 1;
+  const last = own.length - 1;
   return [
-    ...prefix.map((message, i) => (i === last ? withBreakpoint(message) : message)),
-    ...(stable ? [withBreakpoint<CoreSystemMessage>({ role: 'system', content: stable })] : []),
-    ...(volatile ? [{ role: 'system' as const, content: volatile }] : []),
+    ...own.map((message, i) => (i === last ? withBreakpoint(message) : message)),
+    ...(stable ? [turnContextMessage(stable, true)] : []),
+    ...(volatile ? [turnContextMessage(volatile, false)] : []),
   ];
 }
 
 /**
  * Adds the turn context after the agent's own system messages, on every model step,
- * with the cache breakpoints above. System messages are reset at the start of each
- * step, so nothing is duplicated.
+ * with the cache breakpoints above. System messages are NOT reset between steps: a
+ * step starts with what the previous one returned. So the messages this processor
+ * added on an earlier step (tagged with `TURN_CONTEXT_TAG`) are dropped before the
+ * fresh ones go in; otherwise every tool hop would add another copy of the date, and
+ * the stale copy would take the instructions' cache breakpoint.
  */
 export class TurnContextProcessor implements Processor<'turn-context'> {
   readonly id = 'turn-context' as const;
