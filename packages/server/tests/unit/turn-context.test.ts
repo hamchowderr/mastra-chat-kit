@@ -7,6 +7,7 @@ import {
   resolveTimeZone,
   stableSection,
   TIME_ZONE_KEY,
+  TURN_CONTEXT_TAG,
   TurnContextProcessor,
   todaySection,
   withTurnContext,
@@ -141,10 +142,10 @@ describe('prompt-cache breakpoints', () => {
     expect(stable).toEqual({
       role: 'system',
       content: 'Business: Example Studio.',
-      providerOptions: CACHE_BREAKPOINT,
+      providerOptions: { ...TURN_CONTEXT_TAG, ...CACHE_BREAKPOINT },
     });
     expect(volatile?.content).toContain('Current date and time');
-    expect(volatile?.providerOptions).toBeUndefined();
+    expect(volatile?.providerOptions).toEqual(TURN_CONTEXT_TAG);
   });
 
   it('puts the stable sections first wherever they are listed, joined in order', async () => {
@@ -190,8 +191,30 @@ describe('prompt-cache breakpoints', () => {
   it('gives a later step the same cached prefix', async () => {
     const processor = cached();
     const first = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
-    const later = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
-    expect(later.systemMessages.slice(0, 2)).toEqual(first.systemMessages.slice(0, 2));
+    // A later step starts from what the previous one returned (Mastra keeps it).
+    const later = await step(processor, first.systemMessages);
+    expect(later.systemMessages).toEqual(first.systemMessages);
+  });
+
+  it('replaces the date from an earlier step instead of adding another (dash-mmq)', async () => {
+    let now = NOW;
+    const processor = new TurnContextProcessor({ now: () => now, promptCache: true });
+    const first = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
+    now = new Date(NOW.getTime() + 60_000);
+    const later = await step(processor, first.systemMessages);
+    const dates = later.systemMessages.filter((m) => m.content.includes('Current date and time'));
+    expect(dates).toHaveLength(1);
+    expect(dates[0]?.content).not.toBe(first.systemMessages[1]?.content);
+    // The breakpoint stays on the instructions, not on a stale date.
+    expect(later.systemMessages[0]?.providerOptions).toEqual(CACHE_BREAKPOINT);
+    expect(JSON.stringify(later.systemMessages).match(/cacheControl/g)).toHaveLength(1);
+  });
+
+  it('without promptCache, also keeps one turn-context message across steps', async () => {
+    const processor = new TurnContextProcessor({ now: () => NOW, promptCache: false });
+    const first = await step(processor, [{ role: 'system', content: 'Instructions.' }]);
+    const later = await step(processor, first.systemMessages);
+    expect(later.systemMessages).toHaveLength(2);
   });
 });
 
@@ -221,8 +244,8 @@ describe('subagents', () => {
     const messages = await (wrapped.instructions as Resolve)({ requestContext: inZone('UTC') });
     expect(messages.map((m) => m.providerOptions)).toEqual([
       CACHE_BREAKPOINT,
-      CACHE_BREAKPOINT,
-      undefined,
+      { ...TURN_CONTEXT_TAG, ...CACHE_BREAKPOINT },
+      TURN_CONTEXT_TAG,
     ]);
     expect(messages[1]?.content).toBe('Voice.');
   });
