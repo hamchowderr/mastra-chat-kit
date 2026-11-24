@@ -1,0 +1,16 @@
+# Calls braynee's shared PR standards check (Conventional title, beads issue named,
+# size warning). Regenerate with braynee's scripts/gen-pr-standards.mjs --caller.
+name: PR standards
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-standards:
+    uses: hamchowderr/braynee/.github/workflows/pr-standards.yml@pr-standards-v1
+    with:
+      prefixes: "mastra-chat-kit"
