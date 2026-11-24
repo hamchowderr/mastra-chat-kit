@@ -29,7 +29,7 @@
  * 2. sections marked with `stableSection` (text that changes rarely, such as a business
  *    profile) go next, in their own system message with a second breakpoint, so editing
  *    them re-writes only that part of the cache;
- * 3. the other sections (today's date, which changes every minute) go last, with none.
+ * 3. the other sections (today's date and hour) go last, with none.
  *
  * The chat agent adds a third on the conversation tail (agents/chat.ts). Anthropic allows
  * four per request and caches nothing shorter than the model's minimum (4096 tokens for
@@ -98,7 +98,7 @@ function partsIn(date: Date, timeZone: string) {
   return {
     iso: `${get('year')}-${get('month')}-${get('day')}`,
     weekday: get('weekday'),
-    time: `${get('hour')}:${get('minute')}`,
+    hour: Number(get('hour')),
     offset: get('timeZoneName').replace('GMT', 'UTC') || 'UTC',
   };
 }
@@ -117,8 +117,12 @@ export const todaySection: TurnContextSection = ({ requestContext, now }) => {
     const weekday = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
     return `${weekday} ${d.toISOString().slice(0, 10)}`;
   });
+  // The hour, not the minute: this text sits ahead of the conversation, and a change to it
+  // makes Anthropic write the whole conversation into its cache again. A clock that moved
+  // every minute did that on nearly every turn.
+  const hh = (h: number) => `${String(h % 24).padStart(2, '0')}:00`;
   return [
-    `Current date and time: ${today.weekday} ${today.iso}, ${today.time} (${timeZone}, ${today.offset}).`,
+    `Current date and time: ${today.weekday} ${today.iso}, between ${hh(today.hour)} and ${hh(today.hour + 1)} (${timeZone}, ${today.offset}).`,
     `The next seven days: ${week.join(', ')}.`,
     'Resolve relative dates ("today", "tomorrow", "Friday", "next week") from this date, in this time zone. A weekday on its own means its next date in that list. Write dates as YYYY-MM-DD.',
   ].join('\n');
@@ -182,22 +186,41 @@ async function withTurnContextMessages<M extends CoreMessage>(
   promptCache: boolean,
 ): Promise<(M | CoreSystemMessage)[]> {
   const { stable, volatile } = await turnContextParts(sections, args);
+  // A later step in the same run is handed the system messages this one returned, so drop
+  // the turn context added before. Without this, each step added another date message, the
+  // previous one became "the last message" and got a breakpoint too, and by the fourth step
+  // Anthropic refused the call (it allows four breakpoints).
+  const own = prefix.filter((message) => !isTurnContext(message));
   if (!promptCache) {
     const content = [stable, volatile].filter(Boolean).join('\n\n');
-    return content ? [...prefix, { role: 'system' as const, content }] : [...prefix];
+    return content ? [...own, turnContextMessage(content)] : [...own];
   }
-  const last = prefix.length - 1;
+  const last = own.length - 1;
   return [
-    ...prefix.map((message, i) => (i === last ? withBreakpoint(message) : message)),
-    ...(stable ? [withBreakpoint<CoreSystemMessage>({ role: 'system', content: stable })] : []),
-    ...(volatile ? [{ role: 'system' as const, content: volatile }] : []),
+    ...own.map((message, i) => (i === last ? withBreakpoint(message) : message)),
+    ...(stable ? [withBreakpoint(turnContextMessage(stable))] : []),
+    ...(volatile ? [turnContextMessage(volatile)] : []),
   ];
 }
 
 /**
+ * Marks the messages this file adds, in their provider options, so a later step can find
+ * and replace them. Model providers read only their own key there, so none of them sees it.
+ */
+const TURN_CONTEXT_KEY = 'turnContext';
+
+function turnContextMessage(content: string): CoreSystemMessage {
+  return { role: 'system', content, providerOptions: { [TURN_CONTEXT_KEY]: { added: true } } };
+}
+
+function isTurnContext(message: CoreMessage): boolean {
+  return message.role === 'system' && !!message.providerOptions?.[TURN_CONTEXT_KEY];
+}
+
+/**
  * Adds the turn context after the agent's own system messages, on every model step,
- * with the cache breakpoints above. System messages are reset at the start of each
- * step, so nothing is duplicated.
+ * with the cache breakpoints above. Each step replaces the turn context the step before
+ * it added, so nothing is duplicated.
  */
 export class TurnContextProcessor implements Processor<'turn-context'> {
   readonly id = 'turn-context' as const;
