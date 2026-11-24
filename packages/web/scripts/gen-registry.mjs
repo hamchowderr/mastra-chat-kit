@@ -435,6 +435,7 @@ const MINIMAL_FILES = ['components/chat-minimal/minimal-chat.tsx'];
 // checklist), opening into its own conversation in that panel. Hosts add their own tabs.
 const PROJECT_FILES = [
   'components/chat-project/project-chat.tsx',
+  'components/chat-project/welcome.tsx',
   'components/chat-project/project-panel.tsx',
   'components/chat-project/chat-view.tsx',
   'components/chat-project/thread-row.tsx',
