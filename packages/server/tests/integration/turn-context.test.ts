@@ -93,7 +93,7 @@ describe("today's date (AIMock)", () => {
     expect(status).toBe(200);
     const system = systemOf(sent);
     expect(system).toContain(
-      'Current date and time: Thursday 2026-10-15, 22:30 (America/Los_Angeles, UTC-07:00).',
+      'Current date and time: Thursday 2026-10-15, between 22:00 and 23:00 (America/Los_Angeles, UTC-07:00).',
     );
     expect(system).toContain('The next seven days: Friday 2026-10-16,');
     // After the instructions, so the instruction prefix stays the same every turn.
@@ -120,7 +120,9 @@ describe("today's date (AIMock)", () => {
     });
 
     expect(status).toBe(200);
-    expect(systemOf(sent)).toContain('Current date and time: Friday 2026-10-16, 05:30 (UTC,');
+    expect(systemOf(sent)).toContain(
+      'Current date and time: Friday 2026-10-16, between 05:00 and 06:00 (UTC,',
+    );
     expect(text).toContain('Friday is 2026-10-23.');
   });
 });
@@ -164,7 +166,8 @@ describe("today's date in subagents (AIMock)", () => {
           : (parsed.system ?? []).map((b) => b.text).join('\n');
       return { body, system };
     });
-  const LA_TODAY = 'Current date and time: Thursday 2026-10-15, 22:30 (America/Los_Angeles';
+  const LA_TODAY =
+    'Current date and time: Thursday 2026-10-15, between 22:00 and 23:00 (America/Los_Angeles';
 
   it('a forked subagent run (the chat agent itself) gets the date from the processor', async () => {
     const sent = captureProviderRequests();
